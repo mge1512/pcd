@@ -6,6 +6,8 @@ PCDP is an open specification for a new software development paradigm: domain ex
 
 This is not "AI-assisted coding" where developers write code with AI suggestions. This is **post-coding development** where specifications are the primary artifact and code is a generated output.
 
+`pcdp-lint`, the reference validator in this repository, was itself specified and generated using PCDP — with zero hand-written implementation code.
+
 ---
 
 ## Core Workflow
@@ -221,6 +223,29 @@ Use the standard translator prompt from `prompts/prompt.md` with any capable LLM
 - Derive the target language from the deployment template (never declared in the spec)
 - Produce all required deliverables defined in the template's DELIVERABLES section
 - Write a `TRANSLATION_REPORT.md` documenting decisions and confidence levels
+
+---
+
+## Self-Hosting
+
+`pcdp-lint` — the validator in `tools/pcdp-lint/` — was developed using
+PCDP itself. The specification in `tools/pcdp-lint/spec/pcdp-lint.md`
+describes what the tool must do. The implementation in
+`tools/pcdp-lint/code/` was generated from that specification by an LLM,
+using `cli-tool.template.md` as the deployment template.
+
+The LLM resolved Go as the target language from the template without being
+told. It produced the source code, RPM spec, Debian packaging, and a
+`TRANSLATION_REPORT.md` documenting every decision — all from the
+specification alone.
+
+The same approach was tested across multiple LLMs of different capability
+classes, including a 120B open-weight model running at a regional European
+provider with no dependency on US cloud infrastructure. Every model resolved
+the target language correctly from the deployment template.
+
+This is not a toy example. The paradigm specifies and generates its own
+tooling from the first real artifact.
 
 ---
 
