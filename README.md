@@ -8,22 +8,107 @@ This is not "AI-assisted coding" where developers write code with AI suggestions
 
 ---
 
-## Core Idea
+## Core Workflow
 
-```
-Domain expert writes:          AI generates:
-┌─────────────────────┐        ┌──────────────────────┐
-│  Specification      │  ───▶  │  Source code         │
-│  (Markdown)         │        │  Packaging artifacts  │
-│                     │        │  Translation report   │
-│  TYPES              │        │  Audit bundle         │
-│  BEHAVIOR           │        └──────────────────────┘
-│  INVARIANTS         │
-│  EXAMPLES           │
-└─────────────────────┘
+```mermaid
+flowchart TB
+    subgraph human[" HUMAN INPUT"]
+        spec["Constrained Markdown Specification
+        • Required sections (TYPES, BEHAVIOR, INVARIANTS, EXAMPLES)
+        • Formal notation for pre/postconditions
+        • Executable GIVEN/WHEN/THEN examples"]
+    end
+
+    subgraph validation[" VALIDATION"]
+        lint["pcdp-lint
+        Structure & schema check
+        SPDX license validation
+        Deployment template resolution"]
+    end
+
+    subgraph template[" DEPLOYMENT TEMPLATE"]
+        tmpl["cli-tool / verified-library / python-tool / ...
+        Resolves: target language, binary type,
+        packaging formats, CLI conventions"]
+    end
+
+    subgraph ai[" AI TRANSLATION"]
+        llm["LLM Translator
+        Reads spec + template
+        Produces all required deliverables"]
+    end
+
+    subgraph paths[" DUAL PATHS"]
+        direct["Direct Path
+        Spec → Go / C / Rust
+        Fast iteration"]
+        verified["Verified Path
+        Spec → Lean 4 / F* / Dafny → Go / C
+        Formal proofs, highest assurance"]
+    end
+
+    subgraph output[" AUDIT BUNDLE"]
+        bundle["• Specification (human-reviewable)
+        • Generated source code
+        • Packaging artifacts (RPM, DEB, OCI)
+        • Proofs (verified path only)
+        • TRANSLATION_REPORT.md
+        • metadata.json (traceability)"]
+    end
+
+    spec --> lint
+    lint -->|Valid| tmpl
+    lint -->|Invalid| spec
+    tmpl --> llm
+    llm --> direct
+    llm --> verified
+    direct --> bundle
+    verified --> bundle
+
+    style human fill:#e1f5ff,stroke:#4a9eff
+    style validation fill:#fff4e1,stroke:#ffaa00
+    style template fill:#e8f5e9,stroke:#4caf50
+    style ai fill:#ffe1f0,stroke:#e91e8c
+    style paths fill:#f3e5f5,stroke:#9c27b0
+    style output fill:#fce4ec,stroke:#e91e63
 ```
 
-The target language is never declared in the specification. It is derived automatically from the **deployment template** — a structured definition of the target environment's conventions, constraints, and defaults.
+---
+
+## Target Language Resolution
+
+The target language is **never declared in the specification**. It is derived automatically from the deployment template — keeping specifications technology-agnostic and stable over time.
+
+```mermaid
+flowchart LR
+    spec["Deployment: cli-tool
+    in spec META"]
+
+    subgraph presets[" PRESET LAYERING (systemd-style)"]
+        p1["/usr/share/pcdp/templates/
+        shipped defaults"]
+        p2["/etc/pcdp/
+        system administrator"]
+        p3["~/.config/pcdp/
+        user overrides"]
+        p4["./.pcdp/
+        project-local"]
+        p1 --> p2 --> p3 --> p4
+    end
+
+    resolved["Target language: Go
+    Binary type: static
+    Output: RPM + DEB + OCI
+    CLI style: key=value
+    Install: OBS"]
+
+    spec --> presets
+    presets --> resolved
+
+    style spec fill:#e1f5ff,stroke:#4a9eff
+    style presets fill:#e8f5e9,stroke:#4caf50
+    style resolved fill:#fce4ec,stroke:#e91e63
+```
 
 ---
 
