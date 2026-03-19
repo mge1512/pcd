@@ -1,7 +1,7 @@
 Source: pcdp-lint
 Section: devel
 Priority: optional
-Maintainer: Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+Maintainer: Matthias G. Eckermann <pcdp@mailbox.org>
 Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.19~)
 Standards-Version: 4.6.0
 Homepage: https://github.com/post-coding/pcdp-lint

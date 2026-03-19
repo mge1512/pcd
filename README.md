@@ -172,4 +172,4 @@ This project is in active development. The specification format, deployment temp
 
 ## Author
 
-Matthias G. Eckermann — [post-coding-development-paradigm@mailbox.org](mailto:post-coding-development-paradigm@mailbox.org)
+Matthias G. Eckermann — [pcdp@mailbox.org](mailto:pcdp@mailbox.org)

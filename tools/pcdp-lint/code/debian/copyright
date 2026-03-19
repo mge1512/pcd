@@ -1,10 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: pcdp-lint
-Upstream-Contact: Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+Upstream-Contact: Matthias G. Eckermann <pcdp@mailbox.org>
 Source: https://github.com/post-coding/pcdp-lint
 
 Files: *
-Copyright: 2024 Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+Copyright: 2024 Matthias G. Eckermann <pcdp@mailbox.org>
 License: Apache-2.0
 
 License: Apache-2.0

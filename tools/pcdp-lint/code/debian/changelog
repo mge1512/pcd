@@ -7,4 +7,4 @@ pcdp-lint (0.3.2-1) unstable; urgency=medium
   * Checks deployment template compliance
   * Provides list-templates command for template discovery
 
- -- Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>  Thu, 01 Jan 2024 12:00:00 +0000
+ -- Matthias G. Eckermann <pcdp@mailbox.org>  Thu, 01 Jan 2024 12:00:00 +0000

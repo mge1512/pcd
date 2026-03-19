@@ -4,7 +4,7 @@
 Deployment:  cli-tool
 Version:     0.3.7
 Spec-Schema: 0.3.7
-Author:      Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+Author:      Matthias G. Eckermann <pcdp@mailbox.org>
 License:     GPL-2.0-only
 Verification: none
 Safety-Level: QM

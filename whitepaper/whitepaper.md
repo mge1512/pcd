@@ -3,7 +3,7 @@
 
 **Status:** Draft  
 **Version:** 0.3.7  
-**Author:** Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>  
+**Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-17
 
 ---
@@ -1924,7 +1924,7 @@ freedom — GPL-compatible code may be used freely.
 
 **Status:** Draft
 **Version:** 0.3.7
-**Author:** Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+**Author:** Matthias G. Eckermann <pcdp@mailbox.org>
 **Date:** 2026-03-18
 
 ---

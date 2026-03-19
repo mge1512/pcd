@@ -4,7 +4,7 @@
 Deployment:  template
 Version:     0.3.7
 Spec-Schema: 0.3.7
-Author:      Matthias G. Eckermann <post-coding-development-paradigm@mailbox.org>
+Author:      Matthias G. Eckermann <pcdp@mailbox.org>
 License:     CC-BY-4.0
 Verification: none
 Safety-Level: QM
