@@ -2,7 +2,7 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.8  
+**Version:** 0.3.9
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-19
 
@@ -14,7 +14,7 @@ The **Post-Coding Development Paradigm** fundamentally changes how software is c
 
 **This is not "AI-assisted coding"** where developers write code with AI suggestions. This is **post-coding development** where domain experts write specifications and AI generates all implementation code. The human role shifts from programming to architectural specification.
 
-The paradigm enables AI-augmented development in **safety-critical and regulated domains** (automotive, aviation, medical devices, finance) that currently prohibit AI code generation due to auditability requirements. Specifications remain human-reviewable; optional formal proofs provide certification evidence. The verifiable meta-language layer is **optional**—teams can choose direct code generation for rapid iteration or formal verification for high-assurance requirements.
+The paradigm enables AI-augmented development in **safety-critical and regulated domains** (automotive, aviation, medical devices, finance) that currently prohibit AI code generation due to auditability requirements. While the AI translation process itself is probabilistic and introduces uncertainty that cannot be eliminated by specification structure alone, the paradigm achieves verifiability through multiple complementary mechanisms: human-reviewable specifications, formal verification layers (when used), comprehensive testing against specification examples, cross-validation between multiple AI translators (for critical components), and detailed audit trails documenting all translation decisions. Optional formal proofs provide additional certification evidence when mathematical guarantees are required.
 
 **The project is open source and technology-agnostic.** The semantic core (when used) is designed to be pluggable. Rather than inventing proprietary formal systems, we leverage mature, proven verification technologies (Lean 4, F*, Dafny) as optional meta-languages. The stable specification format and intermediate representation ensure teams can choose verification technologies that match their expertise and regulatory requirements—or skip formal verification entirely for lower-risk components.
 
@@ -31,30 +31,31 @@ Deliverables include specification schemas, deployment templates, translator pro
 | Primary artifact | Source code | Source code (AI-influenced) | Specification (code is generated) |
 | Target language chosen by | Developer | Developer | Deployment template |
 | Safety guarantees | Depends on language/testing | Same as traditional | Type-safe + memory-safe by construction (when using meta-language) |
-| Auditability | Review code | Review AI-influenced code (opaque) | Review specifications + proofs |
-| Regulatory compliance | Expensive manual audits | Prohibited (can't audit AI suggestions) | Enabled (auditable specs + optional proofs) |
+| Auditability | Review code | Review AI-influenced code (opaque) | Review specifications + proofs + validation framework |
+| Regulatory compliance | Expensive manual audits | Prohibited (can't audit AI suggestions) | Enabled through multi-layered verification approach |
 | Domain expert role | Consults, doesn't code | Consults, doesn't code | **Authors specifications directly** |
 | Maintainability | Code rot | Code rot + AI drift | Specifications remain stable |
 
-**Bottom line:** Domain experts with architectural capacity write specifications describing system behavior and deployment context. AI generates all implementation code—either directly or through formal verification. This enables AI development in safety-critical domains while shifting engineering effort from coding to precise specification.
+**Bottom line:** Domain experts with architectural capacity write specifications describing system behavior and deployment context. AI generates all implementation code—either directly or through formal verification. The paradigm enables AI development in safety-critical domains through comprehensive validation mechanisms while shifting engineering effort from coding to precise specification.
+
 
 ---
 
 ## 1. Introduction
 
-AI has made code synthesis cheap, but unstructured generation is brittle and unsuitable for regulated environments. Traditional formal methods provide guarantees but require specialized expertise. The Post-Coding Development Paradigm bridges this gap through a fundamental shift: **humans write what the system should do (specifications); AI writes how to do it (implementation)**.
+AI has made code synthesis cheap, but unstructured generation is brittle and unsuitable for regulated environments. Traditional formal methods provide guarantees but require specialized expertise. The Post-Coding Development Paradigm bridges this gap through a fundamental shift: **humans write what the system should do (specifications); AI writes how to do it (implementation)**. Crucially, while the AI translation process introduces inherent probabilistic uncertainty, the paradigm addresses this through multiple verification layers rather than relying solely on specification structure.
 
 The paradigm is built on four core principles:
 
 **1. Specifications, not code, as primary artifacts**  
 Domain experts author structured Markdown specifications describing system behavior, data types, invariants, state machines, and deployment context (backend, embedded, kernel-driver, etc.). These specifications are written in natural language with tables—no programming required, no formal syntax required. Engineers with domain expertise and architectural capacity can write valid specifications without knowing the target programming language or meta-language.
 
-**2. AI translates specifications to implementations**  
+**2. AI translates specifications to implementations with multi-layered validation**  
 An AI translator converts specifications to executable code. Two paths are available:
 - **Direct path:** Specification → target language (Go, C, Rust, etc.) for rapid iteration
 - **Verified path:** Specification → meta-language (Lean 4, F*, Dafny) → target language for formal guarantees
 
-The meta-language layer is **optional**. Teams choose based on risk, regulatory requirements, and timeline.
+The meta-language layer is **optional**. Teams choose based on risk, regulatory requirements, and timeline. Validation occurs through specification examples (which generated code must satisfy), formal proofs (when using verified path), and optional cross-validation between multiple AI translators for critical components.
 
 **3. Multiple LLMs ensure translation quality (optional)**  
 For critical components, 2-3 independent AI translators generate separate implementations from the same specification. Cross-validation catches translation errors and specification ambiguities. For lower-risk components, single-LLM translation with testing is sufficient.
@@ -70,7 +71,7 @@ Rather than creating proprietary formal systems, the paradigm leverages mature v
 
 ## 2. Goals
 
-- **Enable AI development in safety-critical domains:** Solve the regulatory problem—current AI code generation cannot be used in automotive (ISO 26262), aviation (DO-178C), medical devices (IEC 62304), or other safety-critical domains because AI-generated code cannot be audited. By making specifications the reviewable artifact and providing optional formal proofs, enable AI-augmented development in these markets.
+- **Enable AI development in safety-critical domains:** Address the regulatory challenge—current AI code generation cannot be used in automotive (ISO 26262), aviation (DO-178C), medical devices (IEC 62304), or other safety-critical domains because AI-generated code cannot be audited in isolation. The paradigm enables AI-augmented development through a comprehensive verification framework that includes human-reviewable specifications, formal proofs (when required), validation against specification examples, and detailed audit trails, rather than relying solely on specification readability.
 
 - **Shift engineering role from coding to specification:** Transform the job of software engineers from writing implementation code to authoring precise, architectural specifications. Domain experts with system knowledge become the primary authors.
 
@@ -86,7 +87,31 @@ Rather than creating proprietary formal systems, the paradigm leverages mature v
 
 - **Open and replaceable:** Publish specification schemas and tooling as open source. The meta-language is pluggable—teams choose Lean 4, F*, Dafny, or develop custom intermediate formats. The specification format and IR remain stable regardless of backend choice.
 
-- **Auditability and certification:** Produce human-reviewable specifications and optional formal proofs suitable for regulatory audits and certification processes.
+- **Auditability and certification:** Produce human-reviewable specifications and comprehensive validation artifacts (including optional formal proofs, test validation results, and translation audit trails) suitable for regulatory audits and certification processes.
+
+---
+
+## 3. Tenets
+
+- **Specifications are first-class artifacts:** Markdown specifications are the canonical source of truth, not implementation code. Specifications include deployment context and architectural decisions, not just functional requirements.
+
+- **Domain experts write specifications:** The target user is a domain expert with architectural capacity—someone who understands the system's purpose, deployment environment, and safety/security requirements. They write specifications in structured natural language, not code.
+
+- **AI translates, humans validate through multiple mechanisms:** AI converts specifications to implementations (either directly or through meta-languages). Humans validate specifications, review proofs (if generated), validate against specification examples, and gate deployment. The paradigm acknowledges that AI translation is probabilistic and addresses this through comprehensive validation rather than assuming specification structure alone ensures correctness.
+
+- **Target language is not a human decision:** The spec author declares *what* and *where* (deployment context). The *target language* is derived automatically from the deployment template. This keeps specifications technology-agnostic and stable over time.
+
+- **Verification is optional and pluggable:** Teams choose their verification path:
+  - **No formal verification:** Spec → Go/C/Rust directly (fastest, lowest assurance)
+  - **Formal verification:** Spec → Lean 4/F*/Dafny → Go/C/Rust (slower, highest assurance)
+  - **Hybrid:** Formal verification for critical paths, direct generation for non-critical code
+
+- **Use proven technologies, don't invent new ones:** Leverage existing mature meta-languages (Lean 4, F*, Dafny) rather than creating proprietary formal systems. This provides immediate ecosystem support and allows replacement as better technologies emerge.
+
+- **Auditable outputs:** Generated code is intentionally simple and traceable to specifications. The paradigm produces comprehensive audit bundles including specifications, translation reports, validation results, and proofs (where applicable) to provide certification evidence.
+
+- **Incrementalism:** Adopt component by component. Specifications can describe interfaces to existing hand-written code. Mixed codebases (generated + manual) are explicitly supported.
+
 
 ---
 
@@ -121,7 +146,7 @@ Industry shows convergence of specification-driven development, AI code generati
 
 Our positioning emphasizes three differentiators:
 
-1. **Auditable specifications, not opaque code:** Regulatory audits review specifications (human-readable) and optional formal proofs (machine-checkable), not AI-generated code. This solves the certification blocker.
+1. **Comprehensive verification framework, not just readable specifications:** Regulatory compliance is achieved through multiple complementary mechanisms: human-reviewable specifications, formal proofs (when required), validation against specification examples, translation audit trails, and optional cross-validation between multiple AI translators. The paradigm acknowledges that specification readability alone cannot guarantee correctness of probabilistic AI translation.
 
 2. **Flexible verification:** Optional meta-language layer allows teams to choose verification level. Safety-critical components use formal verification; supporting infrastructure uses direct generation.
 
@@ -2159,6 +2184,7 @@ tool registration format, error response conventions, and packaging.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.9 | 2026-03-23 | Corrected logical fallacy regarding verifiability claims. Clarified that specification structure alone cannot guarantee correctness of probabilistic AI translation, and that the paradigm achieves verifiability through multiple complementary validation mechanisms. |
 | 0.3.8 | 2026-03-19 | Added A.16: Large Projects — Partitioning, Interfaces, and Composition. Added A.17: mcp-server-pcdp MCP architecture. Dropped pcdp-wizard as standalone CLI — wizard behaviour is the LLM's role; mcp-server-pcdp provides the data layer. Added project-manifest and mcp-server to deployment template roadmap. |
 | 0.3.7 | 2026-03-18 | Anonymized all LLM/vendor names in A.14. Removed version numbers from all internal filename references. |
 | 0.3.6 | 2026-03-18 | crypto-library → verified-library. python-tool added. library-c-abi CPS note (CMake 4.3). |
