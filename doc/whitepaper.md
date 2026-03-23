@@ -2,9 +2,9 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.9
+**Version:** 0.3.9  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
-**Date:** 2026-03-19
+**Date:** 2026-03-23
 
 ---
 
@@ -37,7 +37,6 @@ Deliverables include specification schemas, deployment templates, translator pro
 | Maintainability | Code rot | Code rot + AI drift | Specifications remain stable |
 
 **Bottom line:** Domain experts with architectural capacity write specifications describing system behavior and deployment context. AI generates all implementation code—either directly or through formal verification. The paradigm enables AI development in safety-critical domains through comprehensive validation mechanisms while shifting engineering effort from coding to precise specification.
-
 
 ---
 
@@ -109,30 +108,6 @@ Rather than creating proprietary formal systems, the paradigm leverages mature v
 - **Use proven technologies, don't invent new ones:** Leverage existing mature meta-languages (Lean 4, F*, Dafny) rather than creating proprietary formal systems. This provides immediate ecosystem support and allows replacement as better technologies emerge.
 
 - **Auditable outputs:** Generated code is intentionally simple and traceable to specifications. The paradigm produces comprehensive audit bundles including specifications, translation reports, validation results, and proofs (where applicable) to provide certification evidence.
-
-- **Incrementalism:** Adopt component by component. Specifications can describe interfaces to existing hand-written code. Mixed codebases (generated + manual) are explicitly supported.
-
-
----
-
-## 3. Tenets
-
-- **Specifications are first-class artifacts:** Markdown specifications are the canonical source of truth, not implementation code. Specifications include deployment context and architectural decisions, not just functional requirements.
-
-- **Domain experts write specifications:** The target user is a domain expert with architectural capacity—someone who understands the system's purpose, deployment environment, and safety/security requirements. They write specifications in structured natural language, not code.
-
-- **AI translates, humans validate:** AI converts specifications to implementations (either directly or through meta-languages). Humans validate specifications, review proofs (if generated), and gate deployment. AI never autonomously deploys code.
-
-- **Target language is not a human decision:** The spec author declares *what* and *where* (deployment context). The *target language* is derived automatically from the deployment template. This keeps specifications technology-agnostic and stable over time.
-
-- **Verification is optional and pluggable:** Teams choose their verification path:
-  - **No formal verification:** Spec → Go/C/Rust directly (fastest, lowest assurance)
-  - **Formal verification:** Spec → Lean 4/F*/Dafny → Go/C/Rust (slower, highest assurance)
-  - **Hybrid:** Formal verification for critical paths, direct generation for non-critical code
-
-- **Use proven technologies, don't invent new ones:** Leverage existing mature meta-languages (Lean 4, F*, Dafny) rather than creating proprietary formal systems. This provides immediate ecosystem support and allows replacement as better technologies emerge.
-
-- **Auditable outputs:** Generated code is intentionally simple and traceable to specifications. When formal verification is used, proofs and audit bundles provide certification evidence.
 
 - **Incrementalism:** Adopt component by component. Specifications can describe interfaces to existing hand-written code. Mixed codebases (generated + manual) are explicitly supported.
 
@@ -2184,7 +2159,7 @@ tool registration format, error response conventions, and packaging.
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 0.3.9 | 2026-03-23 | Corrected logical fallacy regarding verifiability claims. Clarified that specification structure alone cannot guarantee correctness of probabilistic AI translation, and that the paradigm achieves verifiability through multiple complementary validation mechanisms. |
+| 0.3.9 | 2026-03-23 | Corrected logical fallacy regarding verifiability claims throughout Executive Summary, Introduction, Goals, Tenets, and State of the Business sections. Clarified that AI translation is probabilistic and that specification structure alone cannot guarantee correctness. Verifiability is achieved through multiple complementary mechanisms: human-reviewable specs, formal verification (when used), testing against examples, cross-validation, and audit trails. |
 | 0.3.8 | 2026-03-19 | Added A.16: Large Projects — Partitioning, Interfaces, and Composition. Added A.17: mcp-server-pcdp MCP architecture. Dropped pcdp-wizard as standalone CLI — wizard behaviour is the LLM's role; mcp-server-pcdp provides the data layer. Added project-manifest and mcp-server to deployment template roadmap. |
 | 0.3.7 | 2026-03-18 | Anonymized all LLM/vendor names in A.14. Removed version numbers from all internal filename references. |
 | 0.3.6 | 2026-03-18 | crypto-library → verified-library. python-tool added. library-c-abi CPS note (CMake 4.3). |
