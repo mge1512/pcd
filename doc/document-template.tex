@@ -1,0 +1,74 @@
+\documentclass[12pt,a4paper]{scrartcl}
+
+% --- Encoding and language ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+% --- Use Computer Modern Sans as the main font ---
+% This stays entirely within traditional TeX fonts.
+\renewcommand{\familydefault}{\sfdefault}
+
+% --- Classical but tighter margins (6×9" book style) ---
+\usepackage[
+  inner=22mm,
+  outer=18mm,
+  top=18mm,
+  bottom=36mm,
+  headheight=12pt,
+  headsep=10pt,
+  footskip=14pt
+]{geometry}
+
+% --- Header & footer style (light, unobtrusive) ---
+\usepackage{scrlayer-scrpage}
+\clearpairofpagestyles
+\ihead{\normalfont\small\leftmark}
+\ohead{\normalfont\small\rightmark}
+\cfoot{\normalfont\small\thepage}
+
+% --- Chapter & section style (clean, not heavy) ---
+\RedeclareSectionCommand[
+  beforeskip=1.5\baselineskip,
+  afterskip=0.8\baselineskip,
+  font=\sffamily\Large
+]{section}
+
+\RedeclareSectionCommand[
+  beforeskip=1.2\baselineskip,
+  afterskip=0.6\baselineskip,
+  font=\sffamily\large
+]{subsection}
+
+\RedeclareSectionCommand[
+  beforeskip=0.8\baselineskip,
+  afterskip=0.4\baselineskip,
+  font=\sffamily\normalsize
+]{subsubsection}
+
+% --- Pandoc variables ---
+$if(title)$
+\title{$title$}
+$endif$
+
+$if(author)$
+\author{$for(author)$$author$$sep$ \\ $endfor$}
+$endif$
+
+$if(date)$
+\date{$date$}
+$endif$
+
+\begin{document}
+
+$if(title)$
+\maketitle
+$endif$
+
+$body$
+
+\end{document}
+
+
