@@ -29,9 +29,9 @@ flowchart TB
     end
 
     subgraph template[" DEPLOYMENT TEMPLATE"]
-        tmpl["cli-tool / verified-library / python-tool / ...
+        tmpl[pre-defined templates
         Resolves: target language, binary type,
-        packaging formats, CLI conventions"]
+        packaging formats, ..."]
     end
 
     subgraph ai[" AI TRANSLATION"]
