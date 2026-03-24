@@ -130,6 +130,7 @@ pcdp/
 │
 ├── templates/
 │   ├── cli-tool.template.md           ← CLI tool deployment template
+│   ├── cloud-native.template.md       ← Deployment template for cloud-native assets
 │   ├── library-c-abi.template.md      ← general-purpose C-ABI libraries
 │   ├── verified-library.template.md   ← safety/security-critical C-ABI libraries
 │   ├── mcp-server.template.md         ← creating MCP servers directly
