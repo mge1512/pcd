@@ -1,8 +1,9 @@
+
 # Post-Coding Development Paradigm
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.11  
+**Version:** 0.3.12  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
@@ -224,6 +225,8 @@ A concise competitor comparison is provided in Appendix A.3.
 
 **1. Required sections with machine validation:**
 - Specifications must include: META, TYPES, BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES
+- Optional but strongly recommended sections (v0.3.12+): INTERFACES, DEPENDENCIES
+- Every BEHAVIOR block must include a STEPS: ordered list (v0.3.12+)
 - Schema validator rejects incomplete specifications before translation begins
 - Missing or malformed sections caught before LLM involvement
 
@@ -301,6 +304,14 @@ PRECONDITIONS:
   - from.balance >= amount
   - from.id ≠ to.id
   - amount > 0
+
+STEPS:
+  1. Validate preconditions; on failure return Err(appropriate ErrorCode).
+  2. Begin atomic transaction.
+  3. Debit from.balance by amount.
+  4. Credit to.balance by amount.
+  5. Write transfer_log entry with timestamp, from.id, to.id, amount, status.
+  6. Commit transaction; on failure rollback and return Err(TRANSACTION_FAILED).
 
 POSTCONDITIONS:
   - from.balance' = from.balance - amount
@@ -659,38 +670,109 @@ Note: `Target` (language) field removed from META in v0.3.0. Target language is 
 ```
 
 **3. Behavior**
+
+Every BEHAVIOR block must include PRECONDITIONS, STEPS, and POSTCONDITIONS.
+STEPS are the algorithm — ordered, imperative, with explicit error exits.
+A `MECHANISM:` annotation may follow any step where the implementation
+pattern matters for correctness beyond what postconditions alone capture.
+
 ```markdown
-## Behavior: transfer_funds
-**Context:** Backend service, PostgreSQL transaction
-**Inputs:** from_account_id, to_account_id, amount, transfer_id
-**Outputs:** Result<TransferReceipt, TransferError>
-**Preconditions:**
-- from_account exists and is active
-- to_account exists and is active
-- amount > 0
-- balance(from_account) >= amount
-- transfer_id not previously used
+## BEHAVIOR: transfer_funds
+INPUTS:
+  from_account_id: AccountID
+  to_account_id:   AccountID
+  amount:          Amount
+  transfer_id:     TransferID
 
-**Postconditions:**
-- balance(from_account)_after = balance(from_account)_before - amount
-- balance(to_account)_after = balance(to_account)_before + amount
-- sum(all_balances)_after = sum(all_balances)_before
-- transfer_record created with transfer_id, timestamp, status=completed
+PRECONDITIONS:
+  - from_account exists and is active
+  - to_account exists and is active
+  - amount > 0
+  - balance(from_account) >= amount
+  - transfer_id not previously used
 
-**Error Conditions:**
-- ERR_INSUFFICIENT_FUNDS if balance(from_account) < amount
-- ERR_ACCOUNT_NOT_FOUND if account doesn't exist
-- ERR_DUPLICATE_TRANSFER if transfer_id already used
-- ERR_ACCOUNT_FROZEN if account is not active
+STEPS:
+  1. Validate all preconditions; on failure return appropriate error immediately.
+  2. Check transfer_id for idempotency; if already used return cached result.
+  3. Begin SERIALIZABLE database transaction.
+  4. Lock both accounts (consistent order to avoid deadlock).
+  5. Debit from_account by amount.
+  6. Credit to_account by amount.
+  7. Insert transfer_record with transfer_id, timestamp, status=completed.
+  8. Commit transaction.
+     MECHANISM: use database SERIALIZABLE isolation, not application-level locking.
+  9. Return TransferReceipt.
+
+POSTCONDITIONS:
+  - balance(from_account)_after = balance(from_account)_before - amount
+  - balance(to_account)_after = balance(to_account)_before + amount
+  - sum(all_balances)_after = sum(all_balances)_before
+  - transfer_record created with transfer_id, timestamp, status=completed
+
+ERRORS:
+  - ERR_INSUFFICIENT_FUNDS if balance(from_account) < amount
+  - ERR_ACCOUNT_NOT_FOUND if account does not exist
+  - ERR_DUPLICATE_TRANSFER if transfer_id already used
+  - ERR_ACCOUNT_FROZEN if account is not active
+```
+
+**3a. Interfaces (optional, recommended for complex components)**
+
+The INTERFACES section declares module boundary contracts — behavioural
+interfaces that translators must implement, along with their required
+test doubles. This section prevents translator discretion on abstraction
+layer decisions and makes independent tests infrastructure-free.
+
+```markdown
+## INTERFACES
+
+StorageAdapter {
+  required-methods:
+    GetAccount(ctx, id AccountID) → (Account, error)
+    UpdateBalance(ctx, id AccountID, delta Amount) → error
+    RecordTransfer(ctx, record TransferRecord) → error
+    WithTransaction(ctx, fn func() error) → error
+  implementations-required:
+    production:  PostgresAdapter
+    test-double: FakeAdapter {
+      configurable fields: accounts map, recorded transfers
+      WithTransaction: executes fn; on FakeAdapter.ForceTransactionErr → returns error
+    }
+}
 ```
 
 **4. Invariants**
+
+Invariants may be annotated with `[observable]` (verifiable by external
+observation or the independent test suite) or `[implementation]` (verifiable
+by code review or static analysis only). Mixing without annotation is
+permitted but reduces audit utility.
+
 ```markdown
-## Invariants
-- **Conservation of money:** sum(all_account_balances) is constant across all operations
-- **Non-negative balances:** all account balances >= 0 at all times
-- **Idempotency:** repeated calls with same transfer_id produce same result
-- **Atomicity:** transfer completes entirely or not at all (no partial state)
+## INVARIANTS
+- [observable]      sum(all_account_balances) is constant across all operations
+- [observable]      all account balances >= 0 at all times
+- [observable]      repeated calls with same transfer_id produce same result
+- [implementation]  database transaction isolation is SERIALIZABLE, not READ COMMITTED
+- [implementation]  account locks always acquired in consistent ascending-ID order
+```
+
+**4a. Dependencies (optional)**
+
+The DEPENDENCIES section declares external library requirements and version
+constraints. Translators are bound by these rules and must not fabricate
+dependency versions.
+
+```markdown
+## DEPENDENCIES
+
+github.com/lib/pq:
+  minimum-version: v1.10.0
+  rationale: PostgreSQL driver with context support
+
+github.com/google/uuid:
+  minimum-version: v1.3.0
+  do-not-fabricate: true
 ```
 
 **5. State Machine (if applicable)**
@@ -738,6 +820,44 @@ Note: `Target` (language) field removed from META in v0.3.0. Target language is 
 - Property test: concurrent transfers to same account maintain consistency
 - Unit test: all error conditions produce correct error codes
 ```
+
+**Multi-pass EXAMPLES (v0.3.12+)**
+
+For behaviours that span multiple invocations — reconcilers, retries, state
+machines — EXAMPLES may contain multiple WHEN/THEN pairs. Each pair represents
+one invocation. Intermediate states are normative and must be satisfied by the
+implementation.
+
+```markdown
+EXAMPLE: graceful-stop-with-timeout
+GIVEN:
+  VM "testvm-01", spec.desiredState = Stopped, shutdownTimeout = "120s"
+  Domain is Running on the remote host
+  shutdownStartTime is unset
+
+WHEN:  reconcile runs (pass 1)
+THEN:
+  domain.Shutdown() is called
+  shutdownStartTime annotation is set to now()
+  MECHANISM: do NOT block; requeue immediately
+  result = RequeueAfter(10s)
+
+WHEN:  reconcile runs (pass 2); elapsed < 120s; domain is Shutoff
+THEN:
+  status.phase = Stopped
+  shutdownStartTime annotation is cleared
+  result = RequeueAfter(60s)
+
+WHEN:  reconcile runs (pass 2 alternate); elapsed >= 120s; domain is still Running
+THEN:
+  domain.Destroy() is called
+  status.phase = Stopped
+  status.conditions includes {type: ForcePowerOff, reason: ShutdownTimeout}
+  result = RequeueAfter(60s)
+```
+
+Single-pass examples remain valid as a special case (one WHEN/THEN pair).
+Multi-pass examples are identified by two or more WHEN/THEN pairs.
 
 ---
 
@@ -1423,9 +1543,13 @@ Presets follow a layered override model identical in principle to systemd's unit
 ```
 /usr/share/pcdp/templates/        # shipped deployment template definitions (read-only)
 /usr/share/pcdp/presets/          # shipped vendor/community presets (read-only)
+/usr/share/pcdp/hints/            # shipped library hints files (read-only)
 /etc/pcdp/presets/                # system administrator overrides
+/etc/pcdp/hints/                  # system administrator hints
 ~/.config/pcdp/presets/           # user-level overrides
+~/.config/pcdp/hints/             # user-level hints
 <project-dir>/.pcdp/presets/      # project-local overrides (committed to git)
+<project-dir>/.pcdp/hints/        # project-local hints (committed to git)
 ```
 
 ### Template Search Path
@@ -1487,6 +1611,58 @@ Example project-local override (`.pcdp/presets/project.toml`):
 default_language = "rust"
 # This project uses Rust for the CLI layer; overrides org default of Go
 ```
+
+### Library Hints Files
+
+A `hints/` directory sits alongside `presets/` in the preset hierarchy.
+Hints files contain library-specific implementation knowledge that belongs
+neither in the spec (which must be language-agnostic) nor in the template
+(which covers language and deployment conventions, not library internals).
+
+**File naming convention:**
+```
+<template>.<language>.<library-name>.hints.md
+```
+
+Example:
+```
+/usr/share/pcdp/hints/cloud-native.go.go-libvirt.hints.md
+```
+
+The translator reads all matching hints files after template resolution,
+before generating code. Hints files are:
+- **Advisory only** — cannot override spec invariants or template constraints
+- **Version-tagged** in their META section
+- **Maintainable independently** as libraries evolve, without touching specs or templates
+
+Example hints file content:
+```markdown
+# cloud-native · Go · github.com/digitalocean/go-libvirt
+
+## META
+Version: 1.0.0
+Library: github.com/digitalocean/go-libvirt
+Language: Go
+Template: cloud-native
+
+## Version selection
+This module has no tagged releases. Use a verified pseudo-version.
+DO NOT fabricate commit hashes or timestamps.
+Verification: git ls-remote https://github.com/digitalocean/go-libvirt.git HEAD
+
+## API shapes
+- DomainGetInfo returns 6 individual values: (state uint8, maxMem uint64,
+  memory uint64, nrVirtCPU uint16, cpuTime uint64, err error)
+  NOT a struct, despite DomainGetInfoRet existing as a type.
+- ConnectGetMaxVcpus requires libvirt.OptString{"kvm"}, not a plain string.
+- ConnectGetLibVersion returns uint64, not uint32.
+```
+
+The DEPENDENCIES section of a spec (Finding 6) may reference a hints file
+by name, establishing a traceable link between the dependency declaration
+and its authoritative API documentation.
+
+---
 
 ### pcdp-lint as Reference Implementation
 
@@ -2416,11 +2592,13 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.12 | 2026-03-24 | Applied 9 of 10 findings from remote-kvm-operator exercise. STEPS: now required in every BEHAVIOR block (F2). MECHANISM: inline annotation added (F2). Multi-pass WHEN/THEN EXAMPLES format added (F3). INTERFACES optional spec section added with test-double declarations (F4). hints/ directory added to preset hierarchy with library hints file format and naming convention (F5). DEPENDENCIES optional spec section added with do-not-fabricate flag (F6). [observable]/[implementation] INVARIANTS annotation — Option B adopted (F9). Deferred to v0.3.13: TYPE-BINDINGS in templates (F1), component-based DELIVERABLES (F7), TRANSLATION_REPORT confidence table update (F8), A.18 independent test formal rules (F10). |
+| 0.3.11 | 2026-03-24 | Added cloud-native.template.md (complete). Added prompts/README-small-models.md. Added tools/pcdp-lint/spec/prompt.md (component-specific hardcoded-filename prompt for small models). |
 | 0.3.10 | 2026-03-23 | Added A.18: Improving Translation Confidence — second-agent independent test generation (implemented) and Pikchr workflow diagram (implemented); Subplot and dual-LLM comparison parked for research. Updated audit bundle structure with independent_tests/ and translation-workflow.pikchr. Updated A.13 prompt to request workflow diagram. |
-| 0.3.9 | 2026-03-23 | Corrected logical fallacy regarding verifiability claims throughout Executive Summary, Introduction, Goals, Tenets, and State of the Business sections. Clarified that AI translation is probabilistic and that specification structure alone cannot guarantee correctness. Verifiability is achieved through multiple complementary mechanisms: human-reviewable specs, formal verification (when used), testing against examples, cross-validation, and audit trails. |
-| 0.3.8 | 2026-03-19 | Added A.16: Large Projects — Partitioning, Interfaces, and Composition. Added A.17: mcp-server-pcdp MCP architecture. Dropped pcdp-wizard as standalone CLI — wizard behaviour is the LLM's role; mcp-server-pcdp provides the data layer. Added project-manifest and mcp-server to deployment template roadmap. |
+| 0.3.9 | 2026-03-23 | Corrected logical fallacy regarding verifiability claims. Clarified that AI translation is probabilistic and that specification structure alone cannot guarantee correctness. Verifiability is achieved through multiple complementary mechanisms. |
+| 0.3.8 | 2026-03-19 | Added A.16: Large Projects. Added A.17: mcp-server-pcdp. project-manifest stub. pcdp-wizard dropped. MCP naming convention. |
 | 0.3.7 | 2026-03-18 | Anonymized all LLM/vendor names in A.14. Removed version numbers from all internal filename references. |
-| 0.3.6 | 2026-03-18 | crypto-library → verified-library. python-tool added. library-c-abi CPS note (CMake 4.3). |
+| 0.3.6 | 2026-03-18 | crypto-library → verified-library. python-tool added. library-c-abi CPS note. |
 | 0.3.5 | 2026-03-18 | Renamed spec-lint → pcdp-lint. post-coding paths → pcdp. Filename convention. Curly brace placeholders. |
 | 0.3.4 | 2026-03-18 | CC-BY-4.0 for specs/templates, GPL-2.0-only for tools. A.15 SCA. |
 | 0.3.3 | 2026-03-17 | Expanded A.13/A.14. translation_report/ in audit bundle. DELIVERABLES expanded. |
@@ -2429,15 +2607,5 @@ comparison report. This is itself a candidate for specification under PCDP
 | 0.3.0 | 2026-03-17 | Deployment template system. Target: removed from META. |
 | 0.2.3 | 2026-02-10 | Workflow diagram. Dual-path architecture. |
 | 0.2.1 | 2026-02-10 | Initial public draft. |
-| 0.3.8 | 2026-03-19 | Added A.16: Large Projects — Partitioning, Interfaces, and Composition. Added A.17: mcp-server-pcdp MCP architecture. Dropped pcdp-wizard as standalone CLI — wizard behaviour is the LLM's role; mcp-server-pcdp provides the data layer. Added project-manifest and mcp-server to deployment template roadmap. |
-| 0.3.7 | 2026-03-18 | Anonymized all LLM/vendor names in A.14. Removed version numbers from all internal filename references. |
-| 0.3.6 | 2026-03-18 | crypto-library → verified-library. python-tool added. library-c-abi CPS note (CMake 4.3). |
-| 0.3.5 | 2026-03-18 | Renamed spec-lint → pcdp-lint. post-coding paths → pcdp. Filename convention. Curly brace placeholders. |
-| 0.3.4 | 2026-03-18 | CC-BY-4.0 for specs/templates, GPL-2.0-only for tools. A.15 SCA. |
-| 0.3.3 | 2026-03-17 | Expanded A.13/A.14. translation_report/ in audit bundle. DELIVERABLES expanded. |
-| 0.3.2 | 2026-03-17 | A.13 prompt. A.14 empirical tests. DELIVERABLES in template. Unified versioning. |
-| 0.3.1 | 2026-03-17 | Changelog moved to end. A.12 industry landscape. BEHAVIOR/INTERNAL. |
-| 0.3.0 | 2026-03-17 | Deployment template system. Target: removed from META. |
-| 0.2.3 | 2026-02-10 | Workflow diagram. Dual-path architecture. |
-| 0.2.1 | 2026-02-10 | Initial public draft. |
+
 
