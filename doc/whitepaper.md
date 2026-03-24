@@ -2,9 +2,9 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.10  
+**Version:** 0.3.11  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
-**Date:** 2026-03-23
+**Date:** 2026-03-24
 
 ---
 
