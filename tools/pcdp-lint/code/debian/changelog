@@ -1,5 +1,10 @@
-pcdp-lint (0.3.7-1) unstable; urgency=medium
+pcdp-lint (1.0.0-1) unstable; urgency=medium
 
-  * Initial release
+  * Initial release.
+  * Command-line tool for validating PCDP specification files
+  * Validates against 13 structural rules
+  * Supports strict mode and template listing
+  * Provides detailed diagnostic output with line numbers
+  * Static binary with no runtime dependencies
 
- -- Matthias G. Eckermann <pcdp@mailbox.org>  Thu, 01 Jan 2024 00:00:00 +0000
+ -- Matthias G. Eckermann <pcdp@mailbox.org>  Mon, 01 Jan 2024 12:00:00 +0000

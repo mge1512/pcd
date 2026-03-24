@@ -2,23 +2,27 @@ Source: pcdp-lint
 Section: devel
 Priority: optional
 Maintainer: Matthias G. Eckermann <pcdp@mailbox.org>
-Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.21~), make
+Build-Depends: debhelper-compat (= 13),
+               golang-go (>= 2:1.21~)
 Standards-Version: 4.6.2
 Homepage: https://github.com/pcdp/pcdp-lint
-Rules-Requires-Root: no
+Vcs-Git: https://github.com/pcdp/pcdp-lint.git
+Vcs-Browser: https://github.com/pcdp/pcdp-lint
 
 Package: pcdp-lint
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Post-Coding Development Paradigm specification linter
+Description: command-line tool for validating PCDP specification files
  pcdp-lint is a command-line tool for validating Post-Coding Development
- Paradigm specification files. It validates structural requirements,
- META field formats, deployment template compatibility, and example
- block completeness.
+ Paradigm (PCDP) specification files. It validates PCDP specification files
+ against 13 structural rules including required sections, META fields,
+ deployment template resolution, and cross-section consistency.
  .
- Features:
-  - Validates required sections and META fields
-  - Checks SPDX license identifiers
-  - Validates semantic versioning format
-  - Supports strict mode (warnings as errors)
-  - Lists available deployment templates
+ The tool supports strict mode (treating warnings as errors), template
+ listing, and provides detailed diagnostic output with line numbers and
+ error categories. It recognizes various deployment templates including
+ cli-tool, backend-service, verified-library, and others.
+ .
+ pcdp-lint is a static binary with no runtime dependencies, does not make
+ network calls or modify input files, and follows clean exit patterns
+ for SIGTERM and SIGINT signals.

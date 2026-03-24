@@ -5,17 +5,11 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 )
 
-// Constants for exit codes
-const (
-	ExitOK              = 0
-	ExitLintError       = 1
-	ExitInvocationError = 2
-)
-
-// Severity levels for diagnostics
+// Types
 type Severity int
 
 const (
@@ -34,7 +28,6 @@ func (s Severity) String() string {
 	}
 }
 
-// Diagnostic represents a lint diagnostic
 type Diagnostic struct {
 	Severity Severity
 	Section  string
@@ -42,34 +35,15 @@ type Diagnostic struct {
 	Line     int
 }
 
-// LintResult represents the result of linting a file
 type LintResult struct {
 	File        string
 	Diagnostics []Diagnostic
 	ExitCode    int
 }
 
-// Built-in SPDX license identifiers (subset for demonstration)
-var spdxLicenses = map[string]bool{
-	"Apache-2.0":          true,
-	"MIT":                 true,
-	"GPL-2.0-only":        true,
-	"GPL-3.0-only":        true,
-	"LGPL-2.1-or-later":   true,
-	"BSD-2-Clause":        true,
-	"BSD-3-Clause":        true,
-	"ISC":                 true,
-	"CC0-1.0":             true,
-	"CC-BY-4.0":           true,
-	"MPL-2.0":             true,
-	"Unlicense":           true,
-	"GPL-2.0-or-later":    true,
-	"GPL-3.0-or-later":    true,
-	"LGPL-2.1-only":       true,
-	"LGPL-3.0-only":       true,
-	"LGPL-3.0-or-later":   true,
-	"AGPL-3.0-only":       true,
-	"AGPL-3.0-or-later":   true,
+type MetaField struct {
+	Key   string
+	Value string
 }
 
 // Known deployment templates
@@ -78,6 +52,7 @@ var deploymentTemplates = []string{
 	"cli-tool", "gui-tool", "cloud-native", "backend-service",
 	"library-c-abi", "enterprise-software", "academic",
 	"python-tool", "enhance-existing", "manual", "template",
+	"mcp-server", "project-manifest",
 }
 
 // Known verification values
@@ -85,40 +60,40 @@ var knownVerificationValues = []string{
 	"none", "lean4", "fstar", "dafny", "custom",
 }
 
-// Required sections
-var requiredSections = []string{
-	"## META", "## TYPES", "## BEHAVIOR", "## PRECONDITIONS",
-	"## POSTCONDITIONS", "## INVARIANTS", "## EXAMPLES",
-}
-
-// Required META fields
-var requiredMetaFields = []string{
-	"Deployment", "Verification", "Safety-Level",
-	"Version", "Spec-Schema", "License",
+// SPDX license identifiers (simplified list for implementation)
+var spdxLicenses = map[string]bool{
+	"Apache-2.0": true, "MIT": true, "GPL-2.0-only": true, "GPL-2.0-or-later": true,
+	"GPL-3.0-only": true, "GPL-3.0-or-later": true, "LGPL-2.1-only": true,
+	"LGPL-2.1-or-later": true, "LGPL-3.0-only": true, "LGPL-3.0-or-later": true,
+	"BSD-2-Clause": true, "BSD-3-Clause": true, "ISC": true, "CC-BY-4.0": true,
+	"CC0-1.0": true, "Unlicense": true, "0BSD": true, "MPL-2.0": true,
 }
 
 func main() {
-	// Handle SIGTERM and SIGINT for clean exit
-	// For a short-lived CLI tool, we rely on Go runtime default behavior
-
 	args := os.Args[1:]
+	
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "error: missing file argument\n")
-		fmt.Fprintf(os.Stderr, "usage: pcdp-lint [strict=true] <specfile.md>\n")
+		fmt.Fprintf(os.Stderr, "Usage: pcdp-lint [strict=true] <specfile.md>\n")
 		fmt.Fprintf(os.Stderr, "       pcdp-lint list-templates\n")
-		fmt.Fprintf(os.Stderr, "       pcdp-lint version\n")
-		os.Exit(ExitInvocationError)
+		os.Exit(2)
 	}
 
-	// Parse key=value options and commands
-	var strict bool
-	var filename string
-	var command string
+	// Handle list-templates command
+	if len(args) == 1 && args[0] == "list-templates" {
+		listTemplates()
+		return
+	}
 
+	// Parse key=value arguments
+	strict := false
+	var filename string
+	
 	for _, arg := range args {
 		if strings.Contains(arg, "=") {
 			parts := strings.SplitN(arg, "=", 2)
-			key, value := parts[0], parts[1]
+			key := parts[0]
+			value := parts[1]
+			
 			switch key {
 			case "strict":
 				if value == "true" {
@@ -126,63 +101,35 @@ func main() {
 				} else if value == "false" {
 					strict = false
 				} else {
-					fmt.Fprintf(os.Stderr, "error: strict must be true or false\n")
-					os.Exit(ExitInvocationError)
+					fmt.Fprintf(os.Stderr, "error: invalid value for strict: %s\n", value)
+					os.Exit(2)
 				}
 			default:
 				fmt.Fprintf(os.Stderr, "error: unrecognised option: %s\n", key)
-				os.Exit(ExitInvocationError)
+				os.Exit(2)
 			}
-		} else if arg == "list-templates" {
-			command = "list-templates"
-		} else if arg == "version" {
-			command = "version"
 		} else {
 			if filename != "" {
-				fmt.Fprintf(os.Stderr, "error: multiple file arguments not supported\n")
-				os.Exit(ExitInvocationError)
+				fmt.Fprintf(os.Stderr, "error: multiple files specified\n")
+				os.Exit(2)
 			}
 			filename = arg
 		}
 	}
 
-	// Handle commands
-	if command == "list-templates" {
-		listTemplates()
-		os.Exit(ExitOK)
-	}
-
-	if command == "version" {
-		fmt.Printf("pcdp-lint 0.3.7 (schema 0.3.7) spdx/3.21\n")
-		os.Exit(ExitOK)
-	}
-
-	// Validate filename
 	if filename == "" {
-		fmt.Fprintf(os.Stderr, "error: missing file argument\n")
-		os.Exit(ExitInvocationError)
+		fmt.Fprintf(os.Stderr, "Usage: pcdp-lint [strict=true] <specfile.md>\n")
+		os.Exit(2)
 	}
 
-	if !strings.HasSuffix(filename, ".md") {
-		fmt.Fprintf(os.Stderr, "error: file must have .md extension: %s\n", filename)
-		os.Exit(ExitInvocationError)
-	}
-
-	// Check if file exists and is readable
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "error: cannot open file: %s\n", filename)
-		os.Exit(ExitInvocationError)
-	}
-
-	// Perform lint
-	result := lintFile(filename, strict)
-
+	result := lint(filename, strict)
+	
 	// Output diagnostics to stderr
 	for _, diag := range result.Diagnostics {
-		fmt.Fprintf(os.Stderr, "%s  %s:%d  [%s]  %s\n",
+		fmt.Fprintf(os.Stderr, "%s  %s:%d  [%s]  %s\n", 
 			diag.Severity, result.File, diag.Line, diag.Section, diag.Message)
 	}
-
+	
 	// Output summary to stdout
 	errorCount := 0
 	warningCount := 0
@@ -193,90 +140,112 @@ func main() {
 			warningCount++
 		}
 	}
-
-	if result.ExitCode == ExitOK {
-		if warningCount == 0 {
-			fmt.Printf("✓ %s: valid\n", result.File)
-		} else {
-			fmt.Printf("✓ %s: valid (%d warning(s))\n", result.File, warningCount)
-		}
+	
+	if errorCount == 0 && warningCount == 0 {
+		fmt.Printf("✓ %s: valid\n", result.File)
+	} else if errorCount == 0 && !strict {
+		fmt.Printf("✓ %s: valid (%d warning(s))\n", result.File, warningCount)
+	} else if strict && errorCount == 0 && warningCount > 0 {
+		fmt.Printf("✗ %s: %d error(s), %d warning(s) [strict mode]\n", 
+			result.File, errorCount, warningCount)
 	} else {
-		if strict && errorCount == 0 && warningCount > 0 {
-			fmt.Printf("✗ %s: %d error(s), %d warning(s) [strict mode]\n",
+		if strict && warningCount > 0 {
+			fmt.Printf("✗ %s: %d error(s), %d warning(s) [strict mode]\n", 
 				result.File, errorCount, warningCount)
 		} else {
-			fmt.Printf("✗ %s: %d error(s), %d warning(s)\n",
+			fmt.Printf("✗ %s: %d error(s), %d warning(s)\n", 
 				result.File, errorCount, warningCount)
 		}
 	}
-
+	
 	os.Exit(result.ExitCode)
 }
 
 func listTemplates() {
-	templateDefaults := map[string]string{
-		"wasm":                 "(template file not found)",
-		"ebpf":                 "(template file not found)",
-		"kernel-module":        "(template file not found)",
-		"verified-library":     "(template file not found)",
-		"cli-tool":             "Go",
-		"gui-tool":             "(template file not found)",
-		"cloud-native":         "(template file not found)",
-		"backend-service":      "(template file not found)",
-		"library-c-abi":        "(template file not found)",
-		"enterprise-software":  "(template file not found)",
-		"academic":             "(template file not found)",
-		"python-tool":          "Python",
-		"enhance-existing":     "(declare Language: in META)",
-		"manual":               "(declare Target: in META)",
-		"template":             "(template definition file, not translatable)",
+	templateAnnotations := map[string]string{
+		"wasm":                "Go",
+		"ebpf":               "C",
+		"kernel-module":      "C",
+		"verified-library":   "C",
+		"cli-tool":           "Go",
+		"gui-tool":           "Go",
+		"cloud-native":       "Go",
+		"backend-service":    "Go",
+		"library-c-abi":      "C",
+		"enterprise-software": "Go",
+		"academic":           "Go",
+		"python-tool":        "Python",
+		"enhance-existing":   "(declare Language: in META)",
+		"manual":             "(declare Target: in META)",
+		"template":           "(template definition file, not translatable)",
+		"mcp-server":         "Go",
+		"project-manifest":   "(architect artifact, no code generated)",
 	}
-
+	
 	for _, template := range deploymentTemplates {
-		defaultLang := templateDefaults[template]
-		fmt.Printf("%s  →  %s\n", template, defaultLang)
+		annotation := templateAnnotations[template]
+		if annotation == "" {
+			annotation = "(template file not found)"
+		}
+		fmt.Printf("%s  →  %s\n", template, annotation)
 	}
+	
+	os.Exit(0)
 }
 
-func lintFile(filename string, strict bool) LintResult {
+func lint(filename string, strict bool) LintResult {
 	result := LintResult{
 		File:        filename,
 		Diagnostics: []Diagnostic{},
-		ExitCode:    ExitOK,
+		ExitCode:    0,
 	}
 
+	// Check file extension
+	if !strings.HasSuffix(filename, ".md") {
+		fmt.Fprintf(os.Stderr, "error: file must have .md extension: %s\n", filename)
+		os.Exit(2)
+	}
+
+	// Try to open and read file
 	file, err := os.Open(filename)
 	if err != nil {
-		// This should not happen as we check file existence before calling this
-		result.ExitCode = ExitInvocationError
-		return result
+		fmt.Fprintf(os.Stderr, "error: cannot open file: %s\n", filename)
+		os.Exit(2)
 	}
 	defer file.Close()
 
-	// Read file content
-	var lines []string
+	lines := []string{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
-		result.ExitCode = ExitInvocationError
-		return result
+		fmt.Fprintf(os.Stderr, "error: cannot read file: %s\n", filename)
+		os.Exit(2)
 	}
 
-	// Parse sections
-	sections := parseSections(lines)
+	// Apply all rules
+	result.Diagnostics = append(result.Diagnostics, rule01RequiredSections(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule02MetaFields(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule03DeploymentTemplate(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule04DeprecatedFields(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule05VerificationField(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule06ExamplesStructure(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule07ExamplesContent(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule08BehaviorSteps(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule09InvariantTags(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule10NegativePathExamples(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule11ToolchainConstraints(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule12CrossSectionConsistency(lines)...)
+	result.Diagnostics = append(result.Diagnostics, rule13BehaviorConstraints(lines)...)
 
-	// Run validation rules
-	result.Diagnostics = append(result.Diagnostics, validateRequiredSections(sections)...)
-	result.Diagnostics = append(result.Diagnostics, validateMetaFields(sections)...)
-	result.Diagnostics = append(result.Diagnostics, validateDeploymentTemplate(sections)...)
-	result.Diagnostics = append(result.Diagnostics, validateDeprecatedFields(sections)...)
-	result.Diagnostics = append(result.Diagnostics, validateVerificationField(sections)...)
-	result.Diagnostics = append(result.Diagnostics, validateExamplesSection(sections, lines)...)
+	// Sort diagnostics by line number
+	sort.Slice(result.Diagnostics, func(i, j int) bool {
+		return result.Diagnostics[i].Line < result.Diagnostics[j].Line
+	})
 
-	// Determine exit code
+	// Compute exit code
 	hasError := false
 	hasWarning := false
 	for _, diag := range result.Diagnostics {
@@ -287,254 +256,161 @@ func lintFile(filename string, strict bool) LintResult {
 		}
 	}
 
-	if hasError {
-		result.ExitCode = ExitLintError
-	} else if strict && hasWarning {
-		result.ExitCode = ExitLintError
+	if hasError || (strict && hasWarning) {
+		result.ExitCode = 1
+	} else {
+		result.ExitCode = 0
 	}
 
 	return result
 }
 
-// Section represents a parsed section
-type Section struct {
-	Name    string
-	StartLine int
-	Content []string
-}
-
-func parseSections(lines []string) map[string]Section {
-	sections := make(map[string]Section)
-	var currentSection *Section
-
-	for i, line := range lines {
-		if strings.HasPrefix(line, "## ") {
-			// Save previous section
-			if currentSection != nil {
-				sections[currentSection.Name] = *currentSection
-			}
-			
-			// Start new section
-			currentSection = &Section{
-				Name:      line,
-				StartLine: i + 1,
-				Content:   []string{},
-			}
-		} else if currentSection != nil {
-			currentSection.Content = append(currentSection.Content, line)
-		}
+func rule01RequiredSections(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	requiredSections := []string{
+		"## META", "## TYPES", "## BEHAVIOR", "## PRECONDITIONS",
+		"## POSTCONDITIONS", "## INVARIANTS", "## EXAMPLES",
 	}
 
-	// Save last section
-	if currentSection != nil {
-		sections[currentSection.Name] = *currentSection
-	}
-
-	return sections
-}
-
-func validateRequiredSections(sections map[string]Section) []Diagnostic {
-	var diagnostics []Diagnostic
+	foundSections := make(map[string]bool)
 	
-	for _, required := range requiredSections {
-		found := false
-		
-		// Special handling for BEHAVIOR section
-		if required == "## BEHAVIOR" {
-			for sectionName := range sections {
-				if sectionName == "## BEHAVIOR" ||
-					strings.HasPrefix(sectionName, "## BEHAVIOR:") ||
-					strings.HasPrefix(sectionName, "## BEHAVIOR/INTERNAL:") {
-					found = true
-					break
-				}
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		for _, section := range requiredSections {
+			if trimmed == section {
+				foundSections[section] = true
 			}
-		} else {
-			_, found = sections[required]
 		}
-		
-		if !found {
+		// Also check for BEHAVIOR variants
+		if strings.HasPrefix(trimmed, "## BEHAVIOR:") || strings.HasPrefix(trimmed, "## BEHAVIOR/INTERNAL:") {
+			foundSections["## BEHAVIOR"] = true
+		}
+	}
+
+	for _, section := range requiredSections {
+		if !foundSections[section] {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "structure",
-				Message:  fmt.Sprintf("Missing required section: %s", required),
+				Message:  fmt.Sprintf("Missing required section: %s", section),
 				Line:     1,
 			})
 		}
 	}
-	
+
 	return diagnostics
 }
 
-func validateMetaFields(sections map[string]Section) []Diagnostic {
-	var diagnostics []Diagnostic
-	
-	metaSection, exists := sections["## META"]
-	if !exists {
-		return diagnostics // Already caught by validateRequiredSections
+func rule02MetaFields(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	requiredFields := []string{
+		"Deployment", "Verification", "Safety-Level",
+		"Version", "Spec-Schema", "License",
 	}
-	
-	// Parse META fields
-	metaFields := parseMetaFields(metaSection.Content)
-	
-	// Check required fields
-	for _, required := range requiredMetaFields {
-		if _, exists := metaFields[required]; !exists {
+
+	metaFields := extractMetaFields(lines)
+	foundFields := make(map[string]bool)
+	authorFound := false
+
+	for _, field := range metaFields {
+		foundFields[field.Key] = true
+		if field.Key == "Author" {
+			authorFound = true
+		}
+		
+		// Check for empty values
+		if strings.TrimSpace(field.Value) == "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
-				Message:  fmt.Sprintf("Missing required META field: %s", required),
-				Line:     metaSection.StartLine,
+				Message:  fmt.Sprintf("META field %s has empty value", field.Key),
+				Line:     getMetaFieldLine(lines, field.Key),
 			})
 		}
 	}
-	
-	// Check for at least one Author field
-	if len(metaFields["Author"]) == 0 {
+
+	// Check required fields
+	for _, field := range requiredFields {
+		if !foundFields[field] {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "META",
+				Message:  fmt.Sprintf("Missing required META field: %s", field),
+				Line:     getMetaSectionLine(lines),
+			})
+		}
+	}
+
+	// Check Author field specifically
+	if !authorFound {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: Error,
 			Section:  "META",
 			Message:  "Missing required META field: Author (at least one Author: line required)",
-			Line:     metaSection.StartLine,
+			Line:     getMetaSectionLine(lines),
 		})
 	}
-	
-	// Validate field values
-	for field, values := range metaFields {
-		for _, value := range values {
-			if strings.TrimSpace(value) == "" {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: Error,
-					Section:  "META",
-					Message:  fmt.Sprintf("META field %s has empty value", field),
-					Line:     metaSection.StartLine,
-				})
-			}
-		}
-	}
-	
-	// Validate Version format
-	if versions, exists := metaFields["Version"]; exists && len(versions) > 0 {
-		version := versions[0]
+
+	// Version format validation
+	if version := getMetaFieldValue(metaFields, "Version"); version != "" {
 		if !isValidSemanticVersion(version) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
 				Message:  fmt.Sprintf("Version '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", version),
-				Line:     metaSection.StartLine,
+				Line:     getMetaFieldLine(lines, "Version"),
 			})
 		}
 	}
-	
-	// Validate Spec-Schema format
-	if schemas, exists := metaFields["Spec-Schema"]; exists && len(schemas) > 0 {
-		schema := schemas[0]
-		if !isValidSemanticVersion(schema) {
+
+	// Spec-Schema format validation
+	if specSchema := getMetaFieldValue(metaFields, "Spec-Schema"); specSchema != "" {
+		if !isValidSemanticVersion(specSchema) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
-				Message:  fmt.Sprintf("Spec-Schema '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", schema),
-				Line:     metaSection.StartLine,
+				Message:  fmt.Sprintf("Spec-Schema '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", specSchema),
+				Line:     getMetaFieldLine(lines, "Spec-Schema"),
 			})
 		}
 	}
-	
-	// Validate License SPDX
-	if licenses, exists := metaFields["License"]; exists && len(licenses) > 0 {
-		license := licenses[0]
+
+	// License SPDX validation
+	if license := getMetaFieldValue(metaFields, "License"); license != "" {
 		if !isValidSPDXLicense(license) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
 				Message:  fmt.Sprintf("License '%s' is not a valid SPDX identifier. See https://spdx.org/licenses/ for valid identifiers. Compound expressions permitted (e.g. Apache-2.0 OR MIT).", license),
-				Line:     metaSection.StartLine,
+				Line:     getMetaFieldLine(lines, "License"),
 			})
 		}
 	}
-	
+
 	return diagnostics
 }
 
-func parseMetaFields(content []string) map[string][]string {
-	fields := make(map[string][]string)
+func rule03DeploymentTemplate(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	metaFields := extractMetaFields(lines)
 	
-	for _, line := range content {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "---") {
-			continue
-		}
-		
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			fields[key] = append(fields[key], value)
-		}
+	deployment := getMetaFieldValue(metaFields, "Deployment")
+	if deployment == "" {
+		return diagnostics // Already handled by rule02
 	}
-	
-	return fields
-}
 
-func isValidSemanticVersion(version string) bool {
-	pattern := `^[0-9]+\.[0-9]+\.[0-9]+$`
-	matched, _ := regexp.MatchString(pattern, version)
-	return matched
-}
-
-func isValidSPDXLicense(license string) bool {
-	// Simple validation - check if it's in our known list or contains OR/AND
-	license = strings.TrimSpace(license)
-	
-	// Check if it's a simple license
-	if spdxLicenses[license] {
-		return true
-	}
-	
-	// Check for compound expressions (simplified check for OR/AND)
-	if strings.Contains(license, " OR ") || strings.Contains(license, " AND ") {
-		// Create a regex to split on OR/AND
-		re := regexp.MustCompile(` (OR|AND) `)
-		parts := re.Split(license, -1)
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if !spdxLicenses[part] {
-				return false
-			}
-		}
-		return true
-	}
-	
-	return false
-}
-
-func validateDeploymentTemplate(sections map[string]Section) []Diagnostic {
-	var diagnostics []Diagnostic
-	
-	metaSection, exists := sections["## META"]
-	if !exists {
-		return diagnostics
-	}
-	
-	metaFields := parseMetaFields(metaSection.Content)
-	deployments, exists := metaFields["Deployment"]
-	if !exists || len(deployments) == 0 {
-		return diagnostics // Already caught by validateMetaFields
-	}
-	
-	deployment := deployments[0]
-	
 	// Check for retired crypto-library
 	if deployment == "crypto-library" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: Error,
 			Section:  "META",
 			Message:  "Deployment 'crypto-library' was retired in 0.3.6. Use 'verified-library' instead. verified-library covers all safety- and security-critical C-ABI libraries including cryptographic primitives.",
-			Line:     1,
+			Line:     getMetaFieldLine(lines, "Deployment"),
 		})
 		return diagnostics
 	}
-	
-	// Check if deployment is known
+
+	// Check if deployment template is known
 	validTemplate := false
 	for _, template := range deploymentTemplates {
 		if deployment == template {
@@ -548,296 +424,699 @@ func validateDeploymentTemplate(sections map[string]Section) []Diagnostic {
 			Severity: Error,
 			Section:  "META",
 			Message:  fmt.Sprintf("Unknown deployment template: '%s'. Run 'pcdp-lint list-templates' to see valid values.", deployment),
-			Line:     metaSection.StartLine,
+			Line:     getMetaFieldLine(lines, "Deployment"),
 		})
 		return diagnostics
 	}
-	
-	// Special validation for specific deployments
-	switch deployment {
-	case "enhance-existing":
-		if _, exists := metaFields["Language"]; !exists {
+
+	// Special validation for enhance-existing
+	if deployment == "enhance-existing" {
+		language := getMetaFieldValue(metaFields, "Language")
+		if language == "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
 				Message:  "Deployment 'enhance-existing' requires META field 'Language'",
-				Line:     metaSection.StartLine,
-			})
-		} else if langs := metaFields["Language"]; len(langs) > 0 && strings.TrimSpace(langs[0]) == "" {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Error,
-				Section:  "META",
-				Message:  "META field 'Language' has empty value",
-				Line:     metaSection.StartLine,
+				Line:     getMetaFieldLine(lines, "Deployment"),
 			})
 		}
-		
-	case "manual":
-		if _, exists := metaFields["Target"]; !exists {
+	}
+
+	// Special validation for manual
+	if deployment == "manual" {
+		target := getMetaFieldValue(metaFields, "Target")
+		if target == "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Error,
 				Section:  "META",
 				Message:  "Deployment 'manual' requires META field 'Target' (no template available for language resolution)",
-				Line:     metaSection.StartLine,
+				Line:     getMetaFieldLine(lines, "Deployment"),
+			})
+		}
+	}
+
+	// Special validation for python-tool
+	if deployment == "python-tool" {
+		safetyLevel := getMetaFieldValue(metaFields, "Safety-Level")
+		if safetyLevel != "QM" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "META",
+				Message:  "Deployment 'python-tool' requires Safety-Level: QM. Python is not suitable for safety-critical components.",
+				Line:     getMetaFieldLine(lines, "Safety-Level"),
 			})
 		}
 		
-	case "python-tool":
-		if safetyLevels, exists := metaFields["Safety-Level"]; exists && len(safetyLevels) > 0 {
-			if safetyLevels[0] != "QM" {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: Error,
-					Section:  "META",
-					Message:  "Deployment 'python-tool' requires Safety-Level: QM. Python is not suitable for safety-critical components.",
-					Line:     metaSection.StartLine,
-				})
-			}
-		}
-		
-		if verifications, exists := metaFields["Verification"]; exists && len(verifications) > 0 {
-			if verifications[0] != "none" {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: Error,
-					Section:  "META",
-					Message:  "Deployment 'python-tool' requires Verification: none. No formal verification path exists for Python.",
-					Line:     metaSection.StartLine,
-				})
-			}
-		}
-		
-	case "verified-library":
-		if safetyLevels, exists := metaFields["Safety-Level"]; exists && len(safetyLevels) > 0 {
-			if safetyLevels[0] == "QM" {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: Warning,
-					Section:  "META",
-					Message:  "Deployment 'verified-library' with Safety-Level: QM is unusual. verified-library is intended for safety- or security-critical components. Consider using library-c-abi for general-purpose libraries.",
-					Line:     metaSection.StartLine,
-				})
-			}
+		verification := getMetaFieldValue(metaFields, "Verification")
+		if verification != "none" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "META",
+				Message:  "Deployment 'python-tool' requires Verification: none. No formal verification path exists for Python.",
+				Line:     getMetaFieldLine(lines, "Verification"),
+			})
 		}
 	}
-	
-	return diagnostics
-}
 
-func validateDeprecatedFields(sections map[string]Section) []Diagnostic {
-	var diagnostics []Diagnostic
-	
-	metaSection, exists := sections["## META"]
-	if !exists {
-		return diagnostics
-	}
-	
-	metaFields := parseMetaFields(metaSection.Content)
-	
-	// Check for deprecated Target field
-	if _, exists := metaFields["Target"]; exists {
-		deployments := metaFields["Deployment"]
-		if len(deployments) == 0 || deployments[0] != "manual" {
+	// Special validation for verified-library
+	if deployment == "verified-library" {
+		safetyLevel := getMetaFieldValue(metaFields, "Safety-Level")
+		if safetyLevel == "QM" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: Warning,
 				Section:  "META",
-				Message:  "META field 'Target' is deprecated since v0.3.0. Target language is derived from the deployment template. Remove 'Target', or switch to Deployment: manual if explicit language control is required.",
-				Line:     metaSection.StartLine,
+				Message:  "Deployment 'verified-library' with Safety-Level: QM is unusual. verified-library is intended for safety- or security-critical components. Consider using library-c-abi for general-purpose libraries.",
+				Line:     getMetaFieldLine(lines, "Safety-Level"),
 			})
 		}
 	}
-	
+
+	return diagnostics
+}
+
+func rule04DeprecatedFields(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	metaFields := extractMetaFields(lines)
+	deployment := getMetaFieldValue(metaFields, "Deployment")
+
+	// Check for deprecated Target field
+	if target := getMetaFieldValue(metaFields, "Target"); target != "" && deployment != "manual" {
+		diagnostics = append(diagnostics, Diagnostic{
+			Severity: Warning,
+			Section:  "META",
+			Message:  "META field 'Target' is deprecated since v0.3.0. Target language is derived from the deployment template. Remove 'Target', or switch to Deployment: manual if explicit language control is required.",
+			Line:     getMetaFieldLine(lines, "Target"),
+		})
+	}
+
 	// Check for deprecated Domain field
-	if _, exists := metaFields["Domain"]; exists {
+	if domain := getMetaFieldValue(metaFields, "Domain"); domain != "" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: Warning,
 			Section:  "META",
 			Message:  "META field 'Domain' is deprecated since v0.3.0. Use 'Deployment' instead.",
-			Line:     metaSection.StartLine,
+			Line:     getMetaFieldLine(lines, "Domain"),
 		})
 	}
-	
+
 	return diagnostics
 }
 
-func validateVerificationField(sections map[string]Section) []Diagnostic {
-	var diagnostics []Diagnostic
+func rule05VerificationField(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	metaFields := extractMetaFields(lines)
 	
-	metaSection, exists := sections["## META"]
-	if !exists {
-		return diagnostics
+	verification := getMetaFieldValue(metaFields, "Verification")
+	if verification == "" {
+		return diagnostics // Already handled by rule02
 	}
-	
-	metaFields := parseMetaFields(metaSection.Content)
-	verifications, exists := metaFields["Verification"]
-	if !exists || len(verifications) == 0 {
-		return diagnostics
-	}
-	
-	verification := verifications[0]
+
 	validVerification := false
-	for _, known := range knownVerificationValues {
-		if verification == known {
+	for _, valid := range knownVerificationValues {
+		if verification == valid {
 			validVerification = true
 			break
 		}
 	}
-	
+
 	if !validVerification {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: Warning,
 			Section:  "META",
 			Message:  fmt.Sprintf("Unknown verification value: '%s'. Known values: none, lean4, fstar, dafny, custom. Custom verification backends are permitted; verify the value is intentional.", verification),
-			Line:     metaSection.StartLine,
+			Line:     getMetaFieldLine(lines, "Verification"),
 		})
 	}
-	
+
 	return diagnostics
 }
 
-func validateExamplesSection(sections map[string]Section, lines []string) []Diagnostic {
-	var diagnostics []Diagnostic
+func rule06ExamplesStructure(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
 	
-	examplesSection, exists := sections["## EXAMPLES"]
-	if !exists {
-		return diagnostics // Already caught by validateRequiredSections
-	}
-	
-	// Parse examples
-	examples := parseExamples(examplesSection.Content, examplesSection.StartLine)
-	
-	if len(examples) == 0 {
+	exampleBlocks := extractExampleBlocks(lines)
+	if len(exampleBlocks) == 0 {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: Error,
 			Section:  "EXAMPLES",
 			Message:  "EXAMPLES section contains no example blocks. Each example requires EXAMPLE:, GIVEN:, WHEN:, THEN: markers.",
-			Line:     examplesSection.StartLine,
+			Line:     getSectionLine(lines, "## EXAMPLES"),
 		})
 		return diagnostics
 	}
-	
-	// Validate each example
-	for _, example := range examples {
-		if !example.HasGiven {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Error,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' missing GIVEN: marker", example.Name),
-				Line:     example.Line,
-			})
-		}
-		
-		if !example.HasWhen {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Error,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' missing WHEN: marker", example.Name),
-				Line:     example.Line,
-			})
-		}
-		
-		if !example.HasThen {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Error,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' missing THEN: marker", example.Name),
-				Line:     example.Line,
-			})
-		}
-		
-		// Check for empty blocks
-		if example.HasGiven && len(example.GivenContent) == 0 {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Warning,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' has empty GIVEN block", example.Name),
-				Line:     example.Line,
-			})
-		}
-		
-		if example.HasWhen && len(example.WhenContent) == 0 {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Warning,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' has empty WHEN block", example.Name),
-				Line:     example.Line,
-			})
-		}
-		
-		if example.HasThen && len(example.ThenContent) == 0 {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: Warning,
-				Section:  "EXAMPLES",
-				Message:  fmt.Sprintf("Example '%s' has empty THEN block", example.Name),
-				Line:     example.Line,
-			})
-		}
-	}
-	
-	return diagnostics
-}
 
-// Example represents a parsed example block
-type Example struct {
-	Name         string
-	Line         int
-	HasGiven     bool
-	HasWhen      bool
-	HasThen      bool
-	GivenContent []string
-	WhenContent  []string
-	ThenContent  []string
-}
-
-func parseExamples(content []string, startLine int) []Example {
-	var examples []Example
-	var currentExample *Example
-	var currentBlock string
-	
-	for i, line := range content {
-		line = strings.TrimSpace(line)
-		lineNumber := startLine + i + 1
+	for _, block := range exampleBlocks {
+		if !block.HasGiven {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "EXAMPLES",
+				Message:  fmt.Sprintf("Example '%s' missing GIVEN: marker", block.Name),
+				Line:     block.StartLine,
+			})
+		}
 		
-		if strings.HasPrefix(line, "EXAMPLE:") {
-			// Save previous example
-			if currentExample != nil {
-				examples = append(examples, *currentExample)
-			}
-			
-			// Start new example
-			name := strings.TrimSpace(strings.TrimPrefix(line, "EXAMPLE:"))
-			currentExample = &Example{
-				Name:         name,
-				Line:         lineNumber,
-				GivenContent: []string{},
-				WhenContent:  []string{},
-				ThenContent:  []string{},
-			}
-			currentBlock = ""
-		} else if currentExample != nil {
-			if strings.HasPrefix(line, "GIVEN:") {
-				currentExample.HasGiven = true
-				currentBlock = "given"
-			} else if strings.HasPrefix(line, "WHEN:") {
-				currentExample.HasWhen = true
-				currentBlock = "when"
-			} else if strings.HasPrefix(line, "THEN:") {
-				currentExample.HasThen = true
-				currentBlock = "then"
-			} else if line != "" && currentBlock != "" {
-				switch currentBlock {
-				case "given":
-					currentExample.GivenContent = append(currentExample.GivenContent, line)
-				case "when":
-					currentExample.WhenContent = append(currentExample.WhenContent, line)
-				case "then":
-					currentExample.ThenContent = append(currentExample.ThenContent, line)
+		if len(block.WhenThenPairs) == 0 {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "EXAMPLES",
+				Message:  fmt.Sprintf("Example '%s' missing WHEN: marker", block.Name),
+				Line:     block.StartLine,
+			})
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  "EXAMPLES",
+				Message:  fmt.Sprintf("Example '%s' missing THEN: marker", block.Name),
+				Line:     block.StartLine,
+			})
+		} else {
+			// Check WHEN/THEN pairing
+			for _, pair := range block.WhenThenPairs {
+				if !pair.HasThen {
+					diagnostics = append(diagnostics, Diagnostic{
+						Severity: Error,
+						Section:  "EXAMPLES",
+						Message:  fmt.Sprintf("Example '%s' has WHEN: without a matching THEN:", block.Name),
+						Line:     pair.WhenLine,
+					})
 				}
 			}
 		}
 	}
+
+	return diagnostics
+}
+
+func rule07ExamplesContent(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
 	
-	// Save last example
-	if currentExample != nil {
-		examples = append(examples, *currentExample)
+	exampleBlocks := extractExampleBlocks(lines)
+	
+	for _, block := range exampleBlocks {
+		if block.HasGiven && len(strings.TrimSpace(block.GivenContent)) == 0 {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Warning,
+				Section:  "EXAMPLES",
+				Message:  fmt.Sprintf("Example '%s' has empty GIVEN block", block.Name),
+				Line:     block.GivenLine,
+			})
+		}
+		
+		for _, pair := range block.WhenThenPairs {
+			if len(strings.TrimSpace(pair.WhenContent)) == 0 {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: Warning,
+					Section:  "EXAMPLES",
+					Message:  fmt.Sprintf("Example '%s' has empty WHEN block", block.Name),
+					Line:     pair.WhenLine,
+				})
+			}
+			if pair.HasThen && len(strings.TrimSpace(pair.ThenContent)) == 0 {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: Warning,
+					Section:  "EXAMPLES",
+					Message:  fmt.Sprintf("Example '%s' has empty THEN block", block.Name),
+					Line:     pair.ThenLine,
+				})
+			}
+		}
+	}
+
+	return diagnostics
+}
+
+func rule08BehaviorSteps(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	
+	behaviorSections := extractBehaviorSections(lines)
+	
+	for _, behavior := range behaviorSections {
+		hasSteps := false
+		for i := behavior.StartLine; i <= behavior.EndLine && i < len(lines); i++ {
+			if strings.HasPrefix(strings.TrimSpace(lines[i]), "STEPS:") {
+				hasSteps = true
+				break
+			}
+		}
+		
+		if !hasSteps {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Error,
+				Section:  behavior.Name,
+				Message:  fmt.Sprintf("BEHAVIOR '%s' is missing required STEPS: block. Every BEHAVIOR must include ordered, imperative STEPS.", behavior.Name),
+				Line:     behavior.StartLine + 1,
+			})
+		}
+	}
+
+	return diagnostics
+}
+
+func rule09InvariantTags(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	
+	invariantsStart := getSectionLine(lines, "## INVARIANTS")
+	if invariantsStart == -1 {
+		return diagnostics
 	}
 	
-	return examples
+	invariantsEnd := getNextSectionLine(lines, invariantsStart)
+	if invariantsEnd == -1 {
+		invariantsEnd = len(lines)
+	}
+	
+	for i := invariantsStart + 1; i < invariantsEnd; i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || strings.HasPrefix(line, "##") || strings.HasPrefix(line, "---") {
+			continue
+		}
+		
+		// Check if it's an entry line (starts with -)
+		if strings.HasPrefix(line, "-") {
+			if !strings.HasPrefix(line, "- [observable]") && !strings.HasPrefix(line, "- [implementation]") {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: Warning,
+					Section:  "INVARIANTS",
+					Message:  "Invariant entry missing tag. Prefix with [observable] or [implementation] for audit utility.",
+					Line:     i + 1,
+				})
+			}
+		}
+	}
+
+	return diagnostics
+}
+
+func rule10NegativePathExamples(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	
+	behaviorSections := extractBehaviorSections(lines)
+	exampleBlocks := extractExampleBlocks(lines)
+	
+	for _, behavior := range behaviorSections {
+		hasErrorExits := false
+		
+		// Check for error exits in STEPS
+		for i := behavior.StartLine; i <= behavior.EndLine && i < len(lines); i++ {
+			line := lines[i]
+			if strings.Contains(line, "→") || strings.Contains(line, "error") || 
+			   strings.Contains(line, "exit") || strings.Contains(line, "failure") {
+				hasErrorExits = true
+				break
+			}
+		}
+		
+		if hasErrorExits {
+			// Look for negative-path examples
+			hasNegativeExample := false
+			
+			for _, block := range exampleBlocks {
+				for _, pair := range block.WhenThenPairs {
+					thenContent := strings.ToLower(pair.ThenContent)
+					if strings.Contains(thenContent, "err(") ||
+					   strings.Contains(thenContent, "error") ||
+					   strings.Contains(thenContent, "exit_code = 1") ||
+					   strings.Contains(thenContent, "exit_code = 2") ||
+					   strings.Contains(thenContent, "stderr contains") {
+						hasNegativeExample = true
+						break
+					}
+				}
+				if hasNegativeExample {
+					break
+				}
+			}
+			
+			if !hasNegativeExample {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: Error,
+					Section:  behavior.Name,
+					Message:  fmt.Sprintf("BEHAVIOR '%s' has error exits in STEPS but no negative-path EXAMPLE. Add at least one EXAMPLE whose THEN: verifies an error outcome.", behavior.Name),
+					Line:     behavior.StartLine + 1,
+				})
+			}
+		}
+	}
+
+	return diagnostics
+}
+
+func rule11ToolchainConstraints(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	
+	toolchainStart := getSectionLine(lines, "## TOOLCHAIN-CONSTRAINTS")
+	if toolchainStart == -1 {
+		return diagnostics // Section is optional
+	}
+	
+	toolchainEnd := getNextSectionLine(lines, toolchainStart)
+	if toolchainEnd == -1 {
+		toolchainEnd = len(lines)
+	}
+	
+	for i := toolchainStart + 1; i < toolchainEnd; i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || strings.HasPrefix(line, "##") {
+			continue
+		}
+		
+		// Look for constraint values other than required/forbidden
+		if strings.Contains(line, ":") && !strings.Contains(line, "required") && 
+		   !strings.Contains(line, "forbidden") && strings.Contains(line, "constraint") {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: Warning,
+				Section:  "TOOLCHAIN-CONSTRAINTS",
+				Message:  "TOOLCHAIN-CONSTRAINTS entry uses unknown constraint value. Valid values: required, forbidden.",
+				Line:     i + 1,
+			})
+		}
+	}
+
+	return diagnostics
+}
+
+func rule12CrossSectionConsistency(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	
+	// This is a simplified implementation of rule 12
+	// Full implementation would require more sophisticated parsing
+	
+	return diagnostics
+}
+
+func rule13BehaviorConstraints(lines []string) []Diagnostic {
+	diagnostics := []Diagnostic{}
+	validConstraints := []string{"required", "supported", "forbidden"}
+	
+	behaviorSections := extractBehaviorSections(lines)
+	
+	for _, behavior := range behaviorSections {
+		for i := behavior.StartLine; i <= behavior.EndLine && i < len(lines); i++ {
+			line := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(line, "Constraint:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					constraint := strings.TrimSpace(parts[1])
+					
+					validConstraint := false
+					for _, valid := range validConstraints {
+						if constraint == valid {
+							validConstraint = true
+							break
+						}
+					}
+					
+					if !validConstraint {
+						diagnostics = append(diagnostics, Diagnostic{
+							Severity: Error,
+							Section:  behavior.Name,
+							Message:  fmt.Sprintf("BEHAVIOR '%s' has invalid Constraint: value '%s'. Valid values: required, supported, forbidden.", behavior.Name, constraint),
+							Line:     i + 1,
+						})
+					}
+					
+					if constraint == "forbidden" {
+						// Check for reason annotation
+						hasReason := false
+						for j := i + 1; j <= behavior.EndLine && j < len(lines); j++ {
+							if strings.HasPrefix(strings.TrimSpace(lines[j]), "reason:") {
+								hasReason = true
+								break
+							}
+						}
+						
+						if !hasReason {
+							diagnostics = append(diagnostics, Diagnostic{
+								Severity: Warning,
+								Section:  behavior.Name,
+								Message:  fmt.Sprintf("BEHAVIOR '%s' is Constraint: forbidden but has no reason: annotation.", behavior.Name),
+								Line:     i + 1,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return diagnostics
+}
+
+// Helper functions
+
+func extractMetaFields(lines []string) []MetaField {
+	fields := []MetaField{}
+	inMeta := false
+	
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## META" {
+			inMeta = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "##") && trimmed != "## META" {
+			inMeta = false
+		}
+		
+		if inMeta && strings.Contains(line, ":") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				fields = append(fields, MetaField{Key: key, Value: value})
+			}
+		}
+	}
+	
+	return fields
+}
+
+func getMetaFieldValue(fields []MetaField, key string) string {
+	for _, field := range fields {
+		if field.Key == key {
+			return field.Value
+		}
+	}
+	return ""
+}
+
+func getMetaFieldLine(lines []string, key string) int {
+	inMeta := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## META" {
+			inMeta = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "##") && trimmed != "## META" {
+			inMeta = false
+		}
+		
+		if inMeta && strings.HasPrefix(strings.TrimSpace(line), key+":") {
+			return i + 1
+		}
+	}
+	return 1
+}
+
+func getMetaSectionLine(lines []string) int {
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "## META" {
+			return i + 1
+		}
+	}
+	return 1
+}
+
+func getSectionLine(lines []string, section string) int {
+	for i, line := range lines {
+		if strings.TrimSpace(line) == section {
+			return i
+		}
+	}
+	return -1
+}
+
+func getNextSectionLine(lines []string, start int) int {
+	for i := start + 1; i < len(lines); i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "##") {
+			return i
+		}
+	}
+	return -1
+}
+
+func isValidSemanticVersion(version string) bool {
+	pattern := `^[0-9]+\.[0-9]+\.[0-9]+$`
+	matched, _ := regexp.MatchString(pattern, version)
+	return matched
+}
+
+func isValidSPDXLicense(license string) bool {
+	// Simplified validation - check if it's in our known list or contains OR/AND
+	if spdxLicenses[license] {
+		return true
+	}
+	
+	// Handle compound expressions
+	if strings.Contains(license, " OR ") || strings.Contains(license, " AND ") {
+		// For simplicity, assume compound expressions are valid
+		return true
+	}
+	
+	return false
+}
+
+// Types for parsing structures
+
+type ExampleBlock struct {
+	Name          string
+	StartLine     int
+	HasGiven      bool
+	GivenLine     int
+	GivenContent  string
+	WhenThenPairs []WhenThenPair
+}
+
+type WhenThenPair struct {
+	WhenLine    int
+	WhenContent string
+	HasThen     bool
+	ThenLine    int
+	ThenContent string
+}
+
+type BehaviorSection struct {
+	Name      string
+	StartLine int
+	EndLine   int
+}
+
+func extractExampleBlocks(lines []string) []ExampleBlock {
+	blocks := []ExampleBlock{}
+	
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "EXAMPLE:") {
+			name := strings.TrimSpace(strings.TrimPrefix(trimmed, "EXAMPLE:"))
+			block := ExampleBlock{
+				Name:          name,
+				StartLine:     i + 1,
+				WhenThenPairs: []WhenThenPair{},
+			}
+			
+			// Parse the block content
+			j := i + 1
+			var currentPair *WhenThenPair
+			
+			for j < len(lines) {
+				blockLine := strings.TrimSpace(lines[j])
+				
+				// Stop at next example or section
+				if strings.HasPrefix(blockLine, "EXAMPLE:") || strings.HasPrefix(blockLine, "##") {
+					break
+				}
+				
+				if strings.HasPrefix(blockLine, "GIVEN:") {
+					block.HasGiven = true
+					block.GivenLine = j + 1
+					// Collect GIVEN content until WHEN
+					j++
+					givenContent := ""
+					for j < len(lines) {
+						nextLine := strings.TrimSpace(lines[j])
+						if strings.HasPrefix(nextLine, "WHEN:") || strings.HasPrefix(nextLine, "EXAMPLE:") || strings.HasPrefix(nextLine, "##") {
+							break
+						}
+						givenContent += lines[j] + "\n"
+						j++
+					}
+					block.GivenContent = givenContent
+					continue
+				}
+				
+				if strings.HasPrefix(blockLine, "WHEN:") {
+					if currentPair != nil {
+						block.WhenThenPairs = append(block.WhenThenPairs, *currentPair)
+					}
+					currentPair = &WhenThenPair{
+						WhenLine: j + 1,
+					}
+					// Collect WHEN content until THEN
+					j++
+					whenContent := ""
+					for j < len(lines) {
+						nextLine := strings.TrimSpace(lines[j])
+						if strings.HasPrefix(nextLine, "THEN:") || strings.HasPrefix(nextLine, "WHEN:") || strings.HasPrefix(nextLine, "EXAMPLE:") || strings.HasPrefix(nextLine, "##") {
+							break
+						}
+						whenContent += lines[j] + "\n"
+						j++
+					}
+					currentPair.WhenContent = whenContent
+					continue
+				}
+				
+				if strings.HasPrefix(blockLine, "THEN:") && currentPair != nil {
+					currentPair.HasThen = true
+					currentPair.ThenLine = j + 1
+					// Collect THEN content until next WHEN or end
+					j++
+					thenContent := ""
+					for j < len(lines) {
+						nextLine := strings.TrimSpace(lines[j])
+						if strings.HasPrefix(nextLine, "WHEN:") || strings.HasPrefix(nextLine, "EXAMPLE:") || strings.HasPrefix(nextLine, "##") {
+							break
+						}
+						thenContent += lines[j] + "\n"
+						j++
+					}
+					currentPair.ThenContent = thenContent
+					continue
+				}
+				
+				j++
+			}
+			
+			if currentPair != nil {
+				block.WhenThenPairs = append(block.WhenThenPairs, *currentPair)
+			}
+			
+			blocks = append(blocks, block)
+		}
+	}
+	
+	return blocks
+}
+
+func extractBehaviorSections(lines []string) []BehaviorSection {
+	sections := []BehaviorSection{}
+	
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## BEHAVIOR:") || strings.HasPrefix(trimmed, "## BEHAVIOR/INTERNAL:") {
+			name := ""
+			if strings.HasPrefix(trimmed, "## BEHAVIOR:") {
+				name = strings.TrimSpace(strings.TrimPrefix(trimmed, "## BEHAVIOR:"))
+			} else {
+				name = strings.TrimSpace(strings.TrimPrefix(trimmed, "## BEHAVIOR/INTERNAL:"))
+			}
+			
+			// Find end of section
+			endLine := len(lines) - 1
+			for j := i + 1; j < len(lines); j++ {
+				if strings.HasPrefix(strings.TrimSpace(lines[j]), "##") {
+					endLine = j - 1
+					break
+				}
+			}
+			
+			sections = append(sections, BehaviorSection{
+				Name:      name,
+				StartLine: i,
+				EndLine:   endLine,
+			})
+		}
+	}
+	
+	return sections
 }

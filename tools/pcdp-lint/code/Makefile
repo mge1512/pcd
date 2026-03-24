@@ -1,39 +1,33 @@
 .PHONY: build test install clean
 
-# Build configuration
-BINARY_NAME = pcdp-lint
-BUILD_DIR = build
-CGO_ENABLED = 0
-LDFLAGS = -s -w
-
-# Default target
-all: build
-
-# Build the binary
+# Build target - static binary as required by cli-tool template
 build:
-	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=$(CGO_ENABLED) go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) .
+	CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o pcdp-lint .
 
-# Run tests
+# Test target
 test:
 	go test -v ./...
 
-# Install the binary to system
+# Install target
 install: build
-	install -m 755 $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
+	install -m 755 pcdp-lint $(DESTDIR)/usr/bin/
 
-# Clean build artifacts
+# Clean target
 clean:
-	rm -rf $(BUILD_DIR)
-	go clean
+	rm -f pcdp-lint
 
-# Development targets
+# Additional targets for development
 fmt:
 	go fmt ./...
 
 vet:
 	go vet ./...
 
-# Static analysis
-lint: fmt vet
-	@echo "Static analysis complete"
+# Cross-compilation targets
+build-windows:
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o pcdp-lint.exe .
+
+build-macos:
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o pcdp-lint-darwin .
+
+build-all: build build-windows build-macos
