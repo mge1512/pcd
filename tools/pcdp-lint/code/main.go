@@ -976,19 +976,27 @@ func isValidSPDXLicense(license string) bool {
 // code-fence markers (lines beginning with ``` or ~~~) is replaced with
 // empty strings. Line indices are preserved so diagnostic line numbers
 // remain correct. The fence marker lines themselves are also blanked.
+//
+// A depth counter handles nested fences correctly: the first fence marker
+// (at any indentation) opens depth 1; each subsequent marker increments or
+// decrements the depth. Content is blanked whenever depth > 0.
+// This correctly handles both simple indented fences in EXAMPLES blocks
+// and the doubly-nested fence in the fenced_block_markers_ignored example.
 func stripFencedContent(lines []string) []string {
 	result := make([]string, len(lines))
-	inFence := false
+	fenceDepth := 0
 	for i, line := range lines {
-		// Only recognize fence markers at column 0 (no leading whitespace).
-		// Indented fence markers (e.g. inside GIVEN example blocks) must not
-		// toggle the fence state.
-		if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
-			inFence = !inFence
-			result[i] = "" // blank the fence marker line itself
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth++
+			} else {
+				fenceDepth--
+			}
+			result[i] = "" // blank fence marker line
 			continue
 		}
-		if inFence {
+		if fenceDepth > 0 {
 			result[i] = "" // blank fenced content
 		} else {
 			result[i] = line
