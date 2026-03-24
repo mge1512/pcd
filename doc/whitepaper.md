@@ -1,9 +1,10 @@
 
+
 # Post-Coding Development Paradigm
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.12  
+**Version:** 0.3.13  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
@@ -226,7 +227,10 @@ A concise competitor comparison is provided in Appendix A.3.
 **1. Required sections with machine validation:**
 - Specifications must include: META, TYPES, BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES
 - Optional but strongly recommended sections (v0.3.12+): INTERFACES, DEPENDENCIES
+- Optional sections (v0.3.13+): TOOLCHAIN-CONSTRAINTS, DELIVERABLES (component-based)
 - Every BEHAVIOR block must include a STEPS: ordered list (v0.3.12+)
+- Every BEHAVIOR block may declare a Constraint: field — required | supported | forbidden (v0.3.13+)
+- Any BEHAVIOR with error exits in STEPS must have at least one negative-path EXAMPLE (v0.3.13+, RULE-10)
 - Schema validator rejects incomplete specifications before translation begins
 - Missing or malformed sections caught before LLM involvement
 
@@ -676,8 +680,14 @@ STEPS are the algorithm — ordered, imperative, with explicit error exits.
 A `MECHANISM:` annotation may follow any step where the implementation
 pattern matters for correctness beyond what postconditions alone capture.
 
+An optional `Constraint:` field classifies the behavior as `required`,
+`supported`, or `forbidden`. If absent, the default is `required`.
+A `forbidden` behavior must include a `reason:` line.
+
 ```markdown
 ## BEHAVIOR: transfer_funds
+Constraint: required
+
 INPUTS:
   from_account_id: AccountID
   to_account_id:   AccountID
@@ -715,6 +725,10 @@ ERRORS:
   - ERR_DUPLICATE_TRANSFER if transfer_id already used
   - ERR_ACCOUNT_FROZEN if account is not active
 ```
+
+`pcdp-lint` validates the `Constraint:` value (RULE-13) and records it in the
+TRANSLATION_REPORT. Translators must not implement `forbidden` behaviors.
+`supported` behaviors are implemented only if the resolved preset activates them.
 
 **3a. Interfaces (optional, recommended for complex components)**
 
@@ -774,6 +788,64 @@ github.com/google/uuid:
   minimum-version: v1.3.0
   do-not-fabricate: true
 ```
+
+**4b. Toolchain Constraints (optional)**
+
+The `TOOLCHAIN-CONSTRAINTS` section declares spec-specific build and packaging
+constraints beyond what the deployment template mandates. This covers OCI image
+rules, generated file declarations, and forbidden toolchain patterns that are
+necessary for a valid deliverable but are not expressible as generic template
+rules. Entries use the `required | forbidden` vocabulary from the template table.
+
+```markdown
+## TOOLCHAIN-CONSTRAINTS
+
+OCI:
+  forbidden: HEALTHCHECK instruction in Containerfile
+  required:  COPY --chmod=0755 for all installed binaries
+  required:  multi-stage build; final stage FROM SLE-BCI or scratch
+
+GENERATED-FILES:
+  - zz_generated.deepcopy.go     // regenerate with controller-gen; do not hand-author
+  - api/v1alpha1/groupversion_info.go
+```
+
+`pcdp-lint` validates section structure as RULE-11. The translator reads this
+section alongside the template DELIVERABLES and records compliance in the
+TRANSLATION_REPORT.
+
+**4c. Component-based Deliverables (optional)**
+
+The `DELIVERABLES` section in a spec declares *logical component categories*,
+not concrete filenames. Filenames are a template concern — the deployment
+template's DELIVERABLES table maps logical components to language-specific
+file names. This keeps specs language-agnostic.
+
+```markdown
+## DELIVERABLES
+
+COMPONENT: api-types
+  purpose: CRD type definitions for all custom resources
+  required: true
+
+COMPONENT: transport-layer
+  purpose: Implements declared INTERFACES (production + test double + stub)
+  required: true
+
+COMPONENT: reconciler
+  purpose: Implements all BEHAVIOR blocks marked Constraint: required
+  required: true
+
+COMPONENT: shared-helpers
+  purpose: Shared constants, requeue durations, condition helpers, validators
+  required: true
+  note: Must be separate from reconciler to avoid circular imports
+```
+
+The deployment template maps each COMPONENT to concrete filenames for the
+resolved language via a COMPONENT column in its DELIVERABLES table. Translators
+may add additional files (e.g. `common.go`) provided they declare them in the
+TRANSLATION_REPORT.
 
 **5. State Machine (if applicable)**
 ```markdown
@@ -858,6 +930,30 @@ THEN:
 
 Single-pass examples remain valid as a special case (one WHEN/THEN pair).
 Multi-pass examples are identified by two or more WHEN/THEN pairs.
+
+**Required negative-path EXAMPLES (v0.3.13+)**
+
+Any BEHAVIOR block whose STEPS contain one or more error exits must include
+at least one EXAMPLE whose THEN clause verifies the error outcome. This rule
+applies specifically to BEHAVIORs involving mutual-exclusion validation,
+timeouts, deletion/finalizer flows, retries, and unsupported conditions.
+`pcdp-lint` enforces this as RULE-10 (error, not warning).
+
+```markdown
+EXAMPLE: transfer_insufficient_funds
+GIVEN:
+  account_a = Account { id: 1, balance: 20 }
+  account_b = Account { id: 2, balance: 50 }
+WHEN:
+  result = transfer(account_a, account_b, 30)
+THEN:
+  result = Err(INSUFFICIENT_FUNDS)
+  account_a.balance = 20  // unchanged
+  account_b.balance = 50  // unchanged
+```
+
+Happy-path EXAMPLES alone are not sufficient for any BEHAVIOR that declares
+ERRORS or whose STEPS include `on failure →` exits.
 
 ---
 
@@ -1662,6 +1758,39 @@ The DEPENDENCIES section of a spec (Finding 6) may reference a hints file
 by name, establishing a traceable link between the dependency declaration
 and its authoritative API documentation.
 
+### Type Bindings
+
+Deployment templates may declare a `TYPE-BINDINGS` table that maps logical
+spec types to concrete language types for the resolved language. This is the
+correct location for platform-specific type mappings — the spec declares
+`Duration`, `Condition`, or `Timestamp` as logical types; the template maps
+them to the ecosystem's canonical types once the language is resolved.
+
+This preserves the spec's language-agnosticism (the spec never names
+`metav1.Duration`) while ensuring all translators use the same concrete type,
+eliminating the interoperability divergence that arises from translator
+discretion.
+
+```markdown
+## TYPE-BINDINGS
+
+| Spec Type  | LANGUAGE=Go                                   | Notes                          |
+|------------|-----------------------------------------------|--------------------------------|
+| Duration   | metav1.Duration (k8s.io/apimachinery/meta/v1) | Serialises as "60s", "5m" etc. |
+| Timestamp  | metav1.Time                                   |                                |
+| Condition  | metav1.Condition                              | Use standard k8s condition type|
+| List<T>    | []T                                           |                                |
+```
+
+The translator reads the TYPE-BINDINGS table after resolving LANGUAGE and
+applies it mechanically to every TYPES occurrence. A binding row for a logical
+type *overrides translator discretion* for that type when the matching LANGUAGE
+is active. The spec author is never involved — TYPE-BINDINGS live in the
+template, not the spec.
+
+The `cloud-native.template.md` carries the Kubernetes ecosystem TYPE-BINDINGS.
+Other templates define their own bindings appropriate to their ecosystem.
+
 ---
 
 ### pcdp-lint as Reference Implementation
@@ -2433,12 +2562,80 @@ in the audit bundle. For Go: standard `_test.go` format, runnable with
 The second-agent test results are documented in TRANSLATION_REPORT.md
 under a required section: **Independent Test Results**.
 
+#### TRANSLATION_REPORT Confidence Table (v0.3.13+)
+
+The per-example confidence table in TRANSLATION_REPORT.md must include
+a `Verification-method` column and an `Unverified-claims` column.
+Confidence backed by a named, runnable test carries weight; confidence
+with no test must be explicitly disclosed as unverified.
+
+```markdown
+## Confidence per EXAMPLE
+
+| EXAMPLE                | Confidence | Verification method                  | Unverified claims                        |
+|------------------------|------------|--------------------------------------|------------------------------------------|
+| successful_transfer    | 90%        | FakeAdapter unit test (TestTransfer) | concurrent contention behaviour          |
+| insufficient_funds     | 95%        | FakeAdapter unit test (TestErrFunds) | none                                     |
+| same_account_rejection | 85%        | No test yet                          | entire rejection path unverified         |
+```
+
+A claim is `verified` only if it references a specific test function in
+`independent_tests/` that passes without a live external service. Unverified
+claims must be listed explicitly, not silently omitted.
+
+#### Formal Rules for Independent Tests (v0.3.13+)
+
+The following rules govern the `independent_tests/` deliverable and are
+enforced by the deployment template, not individually by specs:
+
+1. **One test function per EXAMPLE.** Each EXAMPLE in the spec must have a
+   corresponding `Test<CamelCasedExampleName>` function in the independent
+   tests file.
+
+2. **Tests use only declared test doubles.** Independent tests must import
+   only the interfaces and test doubles declared in the spec's INTERFACES
+   section. They must not import the production implementation or call live
+   external services.
+
+3. **Tests must pass without infrastructure.** `go test ./independent_tests/`
+   must succeed with no live cluster, no live daemon, and no network access.
+
+4. **Multi-pass examples generate multi-step tests.** For an EXAMPLE with
+   multiple WHEN/THEN pairs, the test function simulates each invocation in
+   sequence using the test double's state machine.
+
 #### Integration with Templates
 
 The `independent_tests/` directory and `INDEPENDENT_TESTS.go` are added
 as an `optional-recommended` deliverable in the cli-tool template
 DELIVERABLES table. For `verified-library` and `mcp-server` templates,
 it is `required` for components with Safety-Level above QM.
+
+---
+
+### Cross-Section Consistency Checking (v0.3.13+, partial)
+
+`pcdp-lint` previously validated structural completeness only: required
+sections present, META fields valid, EXAMPLES with GIVEN/WHEN/THEN.
+Identifier and type name drift across sections — a method named `Dial`
+in INTERFACES but `transport.Connect` in BEHAVIOR prose — was undetected.
+
+RULE-12 adds cross-section consistency checking. Initial scope for v0.3.13:
+
+1. **Identifier consistency (warning):** Method names declared in
+   INTERFACES must appear verbatim in any BEHAVIOR STEPS that reference
+   them. Mismatches are warnings with the conflicting locations identified.
+
+2. **Type name consistency (error):** Type names declared in TYPES must
+   not be redefined or renamed in BEHAVIOR sections. Conflicts are errors.
+
+3. **File name consistency (warning):** File names declared in the spec
+   DELIVERABLES COMPONENT sections must match file names referenced in
+   BEHAVIOR/INTERNAL sections when both are present.
+
+State-machine terminology and endpoint semantic consistency are out of
+scope for v0.3.13 — they require semantic analysis beyond pattern
+matching and are deferred to v0.4.0.
 
 ---
 
@@ -2592,6 +2789,7 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.13 | 2026-03-24 | Resolved all 8 items deferred from v0.3.12, plus 4 new findings from codex lessons. F1: TYPE-BINDINGS table added to deployment templates — maps logical spec types to language-specific types; spec stays language-agnostic. F7: component-based DELIVERABLES section added to spec schema — logical components only; filename mapping stays in templates. F8: TRANSLATION_REPORT confidence table now requires Verification-method and Unverified-claims columns. F10: four formal independent test rules added — one test per EXAMPLE, tests use only declared test doubles, infrastructure-free, multi-pass examples generate multi-step tests. F11 (codex): negative-path EXAMPLES now required for any BEHAVIOR with error exits in STEPS (RULE-10). F12 (codex): TOOLCHAIN-CONSTRAINTS optional spec section added for spec-specific OCI/build/generated-file constraints (RULE-11). F13 (codex): cross-section consistency checking added to pcdp-lint as RULE-12 (identifier, type name, file name consistency; partial implementation). F14 (codex): Constraint: field added to BEHAVIOR headers — required \| supported \| forbidden with default=required (RULE-13). All templates bumped to v0.3.12. CONTRIBUTING.md updated. |
 | 0.3.12 | 2026-03-24 | Applied 9 of 10 findings from remote-kvm-operator exercise. STEPS: now required in every BEHAVIOR block (F2). MECHANISM: inline annotation added (F2). Multi-pass WHEN/THEN EXAMPLES format added (F3). INTERFACES optional spec section added with test-double declarations (F4). hints/ directory added to preset hierarchy with library hints file format and naming convention (F5). DEPENDENCIES optional spec section added with do-not-fabricate flag (F6). [observable]/[implementation] INVARIANTS annotation — Option B adopted (F9). Deferred to v0.3.13: TYPE-BINDINGS in templates (F1), component-based DELIVERABLES (F7), TRANSLATION_REPORT confidence table update (F8), A.18 independent test formal rules (F10). |
 | 0.3.11 | 2026-03-24 | Added cloud-native.template.md (complete). Added prompts/README-small-models.md. Added tools/pcdp-lint/spec/prompt.md (component-specific hardcoded-filename prompt for small models). |
 | 0.3.10 | 2026-03-23 | Added A.18: Improving Translation Confidence — second-agent independent test generation (implemented) and Pikchr workflow diagram (implemented); Subplot and dual-LLM comparison parked for research. Updated audit bundle structure with independent_tests/ and translation-workflow.pikchr. Updated A.13 prompt to request workflow diagram. |
@@ -2607,5 +2805,6 @@ comparison report. This is itself a candidate for specification under PCDP
 | 0.3.0 | 2026-03-17 | Deployment template system. Target: removed from META. |
 | 0.2.3 | 2026-02-10 | Workflow diagram. Dual-path architecture. |
 | 0.2.1 | 2026-02-10 | Initial public draft. |
+
 
 
