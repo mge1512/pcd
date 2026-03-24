@@ -155,13 +155,19 @@ Constraint: required
 Tracks whether the parser is currently inside a code-fenced block
 and suppresses all structural detection while inside one.
 
+A depth counter (not a boolean toggle) is required to handle nested
+fences correctly — for example, a GIVEN block that contains a fenced
+code example which itself contains a fenced inner block.
+
 STEPS:
-1. Initialise inFence = false.
+1. Initialise fenceDepth = 0.
 2. For each line L in the file:
-   a. If L begins with ``` or ~~~:
-      toggle inFence (false→true or true→false); skip to next line.
-   b. If inFence = true: skip L entirely — no pattern matching.
-   c. If inFence = false: pass L to all structural detection rules.
+   a. If TrimSpace(L) begins with ``` or ~~~:
+      if fenceDepth = 0: set fenceDepth = 1; skip to next line.
+      else: set fenceDepth = fenceDepth - 1; skip to next line.
+      (the fence marker line itself is always skipped)
+   b. If fenceDepth > 0: skip L entirely — no pattern matching.
+   c. If fenceDepth = 0: pass L to all structural detection rules.
 
 ---
 
@@ -1071,13 +1077,26 @@ Parsing approach:
   report.
 
   Code-fence exclusion: all content between opening and closing
-  code-fence markers (lines beginning with ``` or ~~~) is excluded
-  from all structural parsing. No PCDP markers, section headers,
-  EXAMPLE:, GIVEN:, WHEN:, THEN:, BEHAVIOR patterns, STEPS:,
+  code-fence markers (lines where TrimSpace(L) begins with ``` or ~~~)
+  is excluded from all structural parsing. No PCDP markers, section
+  headers, EXAMPLE:, GIVEN:, WHEN:, THEN:, BEHAVIOR patterns, STEPS:,
   Constraint:, or INVARIANTS entries are recognised inside fenced
-  blocks. Translators must implement this as a boolean fence-tracking
-  guard in the main parsing loop, toggled at fence boundary lines,
-  applied before every structural pattern check.
+  blocks. Translators must implement this as a fence-depth counter
+  (not a boolean toggle) in the main parsing loop. The depth increments
+  on any fence-open marker and decrements on any fence-close marker;
+  content is excluded when depth > 0. This correctly handles nested
+  fences (e.g. a GIVEN block containing a fenced example that itself
+  contains a fenced inner block).
+
+  Column-0 requirement: all structural markers are only recognised
+  when they appear at column 0 (no leading whitespace). This applies
+  to section headers (## X), EXAMPLE:, GIVEN:, WHEN:, THEN:, STEPS:,
+  and Constraint:. A line such as "    ## BEHAVIOR/PRIVATE: foo"
+  appearing inside a GIVEN block description is content, not a section
+  boundary. Translators must check the original untrimmed line for
+  the presence of these markers, not the TrimSpace'd form.
+  Exception: fence detection uses TrimSpace(L) (step 2a above) so
+  that indented fences inside GIVEN blocks are correctly recognised.
 
 Template search path (compile-time variable TEMPLATE_DIR):
   Default (Linux): /usr/share/pcdp/templates/
