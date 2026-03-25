@@ -4,14 +4,10 @@
 	dh $@
 
 override_dh_auto_build:
-	go build -ldflags="-s -w" -o pcdp-lint main.go
+	CGO_ENABLED=0 go build -o pcdp-lint .
 
 override_dh_auto_install:
-	install -D -m 0755 pcdp-lint $(CURDIR)/debian/pcdp-lint/usr/bin/pcdp-lint
+	install -D -m 0755 pcdp-lint debian/pcdp-lint/usr/bin/pcdp-lint
 
 override_dh_auto_test:
-	# Skip tests for now - add when test suite is available
-
-override_dh_auto_clean:
-	rm -f pcdp-lint
-	dh_auto_clean
+	go test -v ./...

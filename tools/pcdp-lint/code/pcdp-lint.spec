@@ -1,45 +1,33 @@
 Name:           pcdp-lint
 Version:        0.3.13
-Release:        1%{?dist}
-Summary:        Post-Coding Development Paradigm specification validator
+Release:        1
+Summary:        Linter and validator for Post-Coding Development Paradigm specifications
 
 License:        GPL-2.0-only
-Source0:        %{name}-%{version}.tar.gz
+URL:            https://github.com/pcdp/pcdp-lint
+
+Source0:        pcdp-lint-0.3.13.tar.gz
 
 BuildRequires:  golang >= 1.21
-Requires:       glibc
+Requires:       (nothing)
 
 %description
-A command-line tool for validating Post-Coding Development Paradigm (PCDP) 
-specification files. pcdp-lint validates PCDP specs against 13 structural 
-rules including required sections, META field validation, deployment template 
-resolution, and cross-section consistency checks.
+pcdp-lint is a command-line tool that validates specification files written
+in the Post-Coding Development Paradigm (PCDP) format. It enforces structural
+rules, semantic validation, and cross-section consistency checks.
 
 %prep
 %setup -q
 
 %build
-export CGO_ENABLED=0
-export TEMPLATE_DIR=/usr/share/pcdp/templates/
-go build -ldflags="-s -w -X main.templateDir=%{TEMPLATE_DIR}" -o %{name} .
+CGO_ENABLED=0 go build -o pcdp-lint .
 
 %install
-install -d %{buildroot}%{_bindir}
-install -m 755 %{name} %{buildroot}%{_bindir}/
-
-install -d %{buildroot}%{_datadir}/pcdp/templates
-# Template files will be provided by pcdp-templates package
+install -D -m 0755 pcdp-lint %{buildroot}%{_bindir}/pcdp-lint
 
 %files
-%license LICENSE
-%doc README.md
-%{_bindir}/%{name}
-%dir %{_datadir}/pcdp
-%dir %{_datadir}/pcdp/templates
+%{_bindir}/pcdp-lint
 
 %changelog
-* Mon Mar 24 2026 Build System <build@example.org> - 0.3.13-1
-- Initial package for pcdp-lint
-- Implements all 13 validation rules from PCDP spec schema 0.3.13
-- Static binary with no runtime dependencies
-- Supports strict mode and template listing
+* Wed Mar 25 2026 Matthias G. Eckermann <pcdp@mailbox.org> - 0.3.13-1
+- Initial release of pcdp-lint

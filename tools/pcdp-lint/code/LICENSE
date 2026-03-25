@@ -1,12 +1,14 @@
-GPL-2.0-only
+LICENSE: GPL-2.0-only
 
-This project is licensed under the GNU General Public License v2.0 only.
+pcdp-lint is licensed under the GNU General Public License v2.0 (GPLv2).
 
 For the complete license text, see:
-https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+https://www.gnu.org/licenses/gpl-2.0.html
 
-Copyright information:
-Author: Matthias G. Eckermann <pcdp@mailbox.org>
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; version 2 of the License.
 
-The full GPL-2.0 license text is available from the Free Software Foundation
-and should be included with any distribution of this software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
