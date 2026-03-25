@@ -129,6 +129,10 @@ pcdp/
 │   ├── executive-brief.md             ← business / non-technical summary
 │   └── document-template.tex          ← pandoc template for PDF generation
 │
+├── hints/
+│   ├── cloud-native.go.go-libvirt.hints.md       ← go-libvirt API shapes
+│   └── cloud-native.go.golang-crypto-ssh.hints.md ← ssh key/error handling
+│
 ├── templates/
 │   ├── cli-tool.template.md           ← CLI tool deployment template
 │   ├── cloud-native.template.md       ← cloud-native deployment template

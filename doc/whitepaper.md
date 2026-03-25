@@ -4,7 +4,7 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.13  
+**Version:** 0.3.14  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
@@ -2789,6 +2789,7 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.14 | 2026-03-25 | cloud-native template v0.3.14: INDEPENDENT_TESTS Go naming note; deploy/operator.yaml dedup; HEALTHCHECK contradiction resolved; CRD scope declared in spec; go.sum as generated file. Hints files shipped: go-libvirt and golang-crypto-ssh. Phase 7 compile gate in translator prompt. |
 | 0.3.13 | 2026-03-24 | Resolved all 8 items deferred from v0.3.12, plus 4 new findings from codex lessons. F1: TYPE-BINDINGS table added to deployment templates — maps logical spec types to language-specific types; spec stays language-agnostic. F7: component-based DELIVERABLES section added to spec schema — logical components only; filename mapping stays in templates. F8: TRANSLATION_REPORT confidence table now requires Verification-method and Unverified-claims columns. F10: four formal independent test rules added — one test per EXAMPLE, tests use only declared test doubles, infrastructure-free, multi-pass examples generate multi-step tests. F11 (codex): negative-path EXAMPLES now required for any BEHAVIOR with error exits in STEPS (RULE-10). F12 (codex): TOOLCHAIN-CONSTRAINTS optional spec section added for spec-specific OCI/build/generated-file constraints (RULE-11). F13 (codex): cross-section consistency checking added to pcdp-lint as RULE-12 (identifier, type name, file name consistency; partial implementation). F14 (codex): Constraint: field added to BEHAVIOR headers — required \| supported \| forbidden with default=required (RULE-13). All templates bumped to v0.3.12. CONTRIBUTING.md updated. |
 | 0.3.12 | 2026-03-24 | Applied 9 of 10 findings from remote-kvm-operator exercise. STEPS: now required in every BEHAVIOR block (F2). MECHANISM: inline annotation added (F2). Multi-pass WHEN/THEN EXAMPLES format added (F3). INTERFACES optional spec section added with test-double declarations (F4). hints/ directory added to preset hierarchy with library hints file format and naming convention (F5). DEPENDENCIES optional spec section added with do-not-fabricate flag (F6). [observable]/[implementation] INVARIANTS annotation — Option B adopted (F9). Deferred to v0.3.13: TYPE-BINDINGS in templates (F1), component-based DELIVERABLES (F7), TRANSLATION_REPORT confidence table update (F8), A.18 independent test formal rules (F10). |
 | 0.3.11 | 2026-03-24 | Added cloud-native.template.md (complete). Added prompts/README-small-models.md. Added tools/pcdp-lint/spec/prompt.md (component-specific hardcoded-filename prompt for small models). |

@@ -3,8 +3,8 @@
 
 ## META
 Deployment:  template
-Version:     0.3.13
-Spec-Schema: 0.3.13
+Version:     0.3.14
+Spec-Schema: 0.3.14
 Author:      Matthias G. Eckermann <pcdp@mailbox.org>
 License:     CC-BY-4.0
 Verification: none
@@ -364,8 +364,8 @@ Deliverables must be produced in the following order:
 | MANIFEST | required | `deploy/deployment.yaml`, `deploy/service.yaml`, `deploy/configmap.yaml`, `deploy/networkpolicy.yaml`, `deploy/rbac.yaml` | Core Kubernetes resources in deploy/ directory. Ready for kubectl apply -f deploy/. |
 | HELM | supported | `helm/Chart.yaml`, `helm/values.yaml`, `helm/templates/` | Helm chart structure. templates/ must contain templated versions of Kubernetes manifests. |
 | KUSTOMIZE | supported | `kustomize/kustomization.yaml`, `kustomize/base/`, `kustomize/overlays/` | Kustomization structure for GitOps. Base contains common resources, overlays for environments. |
-| OPERATOR | supported | `deploy/crd.yaml`, `deploy/operator.yaml`, `controllers/` | Kubernetes operator with Custom Resource Definitions. Controllers directory contains operator logic. |
-| independent-tests | required | `independent_tests/INDEPENDENT_TESTS.go` | Second-agent generated tests for specification verification. |
+| OPERATOR | supported | `deploy/crd.yaml`, `controllers/` | Kubernetes operator with Custom Resource Definitions. Controllers directory contains operator logic. The operator's own deployment manifest is `deploy/deployment.yaml` (already produced by the MANIFEST row); no separate `deploy/operator.yaml` is required. |
+| independent-tests | required | `independent_tests/INDEPENDENT_TESTS.go` | Specification verification tests using declared INTERFACES test doubles. For LANGUAGE=Go: test functions must reside in a companion `independent_tests/independent_tests_test.go` file (Go requires `_test.go` suffix for test execution); `INDEPENDENT_TESTS.go` serves as the package documentation file. |
 | workflow-diagram | required | `translation_report/translation-workflow.pikchr` | Pikchr diagram documenting the translation process and decisions. |
 | report | required | `TRANSLATION_REPORT.md` | AI translator self-evaluation with cloud-native specific considerations. |
 
@@ -384,7 +384,7 @@ in the specification title (first `#` heading). It must be:
 - Final stage must use the resolved BASE-IMAGE value
 - Must not run as root user (USER directive required)
 - Must not expose unnecessary ports
-- Must include HEALTHCHECK instruction
+- Must NOT include HEALTHCHECK instruction (not supported by OCI format; use Kubernetes liveness/readiness probes in deployment.yaml instead)
 - For SLE-BCI base: `FROM registry.suse.com/bci/golang:latest AS builder`
 
 **deploy/deployment.yaml:**
@@ -413,11 +413,6 @@ in the specification title (first `#` heading). It must be:
 - Must define Custom Resource Definitions for the operator
 - Must include proper OpenAPI v3 schema validation
 - Must follow Kubernetes API conventions
-
-**deploy/operator.yaml (if OPERATOR format active):**
-- Must define Deployment for the operator controller
-- Must include proper RBAC for CRD management
-- Must reference operator container image
 
 **TRANSLATION_REPORT.md:**
 - Must include cloud-native specific sections:
@@ -448,4 +443,4 @@ Versioning:
   Breaking changes to a template increment the minor version.
   Additions of supported rows are non-breaking.
   Changes to required or forbidden rows are breaking.
-  Current version: 0.3.13
+  Current version: 0.3.14

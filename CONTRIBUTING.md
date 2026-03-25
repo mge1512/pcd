@@ -182,17 +182,30 @@ Deployment templates define how specifications are translated to code.
 - Include a DELIVERABLES section listing all files to generate
 - Specify constraints and requirements clearly
 
-#### Available Templates (v0.3.12)
+#### Available Templates (v0.3.14)
 
 | Template | Status | Default Lang | Notes |
 |---|---|---|---|
 | `cli-tool` | Complete | Go | Production-ready |
 | `mcp-server` | Complete | Go | Production-ready |
-| `cloud-native` | Complete | Go | Production-ready |
+| `cloud-native` | Complete | Go | TYPE-BINDINGS; kit findings fixed (v0.3.14) |
 | `verified-library` | Stub | C | Safety/security-critical C-ABI |
 | `library-c-abi` | Stub | C | General-purpose C-ABI |
 | `python-tool` | Stub | Python | QM only, no formal verification |
 | `project-manifest` | Stub | N/A | Multi-component projects |
+
+#### Hints Files
+
+Library-specific API shapes, version selection rules, and known gotchas
+live in `hints/` files, separate from templates and specs.
+Naming convention: `<template>.<language>.<library>.hints.md`
+
+Current shipped hints:
+- `hints/cloud-native.go.go-libvirt.hints.md`
+- `hints/cloud-native.go.golang-crypto-ssh.hints.md`
+
+Specs reference hints files via their `## DEPENDENCIES` section.
+Hints are advisory only — they cannot override spec invariants.
 
 ### 3. Tool Development
 
@@ -264,22 +277,26 @@ Reference any relevant issues.
 - For Go code: ensure `go build ./...` succeeds
 - Test templates with example specifications
 
-## Development Priorities (v0.3.13)
+## Development Priorities (v0.3.14+)
 
-### Schema Changes (deferred from v0.3.12)
-1. TYPE-BINDINGS table in deployment templates (Finding 1 from kvm-operator exercise)
-2. Component-based DELIVERABLES in specs; filename mapping in templates (Finding 7)
-3. Verification-method column in TRANSLATION_REPORT confidence table (Finding 8)
-4. Formal one-test-per-example rule for independent tests (Finding 10)
+### v0.3.14 completed
+- cloud-native template: INDEPENDENT_TESTS Go naming note, operator.yaml dedup,
+  HEALTHCHECK contradiction fixed, CRD scope note, go.sum as generated file
+- Compiler gate (Phase 7) added to translator prompt
+- Two hints files shipped: cloud-native.go.go-libvirt, cloud-native.go.golang-crypto-ssh
+- remote-kvm-operator.md revised to language-neutral v0.3.0
 
-### Template Completion
-5. Complete `verified-library.template.md`
-6. Complete `library-c-abi.template.md`
-7. Complete `python-tool.template.md`
-8. Complete `project-manifest.template.md` (full BEHAVIOR STEPS)
+### Carry-forward (templates)
+1. Complete `verified-library.template.md`
+2. Complete `library-c-abi.template.md`
+3. Complete `python-tool.template.md`
+4. Complete `project-manifest.template.md` (full BEHAVIOR STEPS beyond stub)
+5. Add `independent_tests/` deliverable to cli-tool and mcp-server templates
 
 ### Tooling
-9. Add RULE-08 and RULE-09 enforcement to `pcdp-lint`
+6. Regenerate `pcdp-lint` implementation from v0.3.13 spec (RULE-08–13 new)
+7. Update generic `prompts/prompt.md` (A.13) to include compile gate, TYPE-BINDINGS
+   guidance, and v0.3.13 confidence table format
 
 ## Communication
 
