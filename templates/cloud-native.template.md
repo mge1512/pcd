@@ -398,6 +398,10 @@ in the specification title (first `#` heading). It must be:
 - Must not run as root user (USER directive required)
 - Must not expose unnecessary ports
 - Must NOT include HEALTHCHECK instruction (not supported by OCI format; use Kubernetes liveness/readiness probes in deployment.yaml instead)
+- Layer order in builder stage must be: copy dependency manifest AND dependency lock
+  file first, then run dependency download, then copy source. This enables layer
+  caching and ensures the build inside the container matches the verified local build.
+  (For LANGUAGE=Go: `COPY go.mod go.sum ./` then `RUN go mod download` then `COPY . .`)
 - For SLE-BCI base: `FROM registry.suse.com/bci/golang:latest AS builder`
 
 **deploy/deployment.yaml:**
