@@ -5,7 +5,7 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.16  
+**Version:** 0.3.17  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
@@ -2074,6 +2074,7 @@ capability class and environment rather than vendor.
 | LLM-D | Frontier, API-accessible | US cloud | API + mcphost |
 | LLM-E | 120B open-weight | Regional EU provider | API + mcphost |
 | LLM-F | 30B open-weight coder | Local hardware | Ollama + mcphost |
+| LLM-G | Small, API-accessible | US cloud | API (direct) |
 
 ### Universal Finding: Language Resolution
 
@@ -2085,18 +2086,18 @@ environments, and prompt versions.
 
 ### Deliverable Completeness by Run
 
-| | LLM-A | LLM-B | LLM-C browser | LLM-C mcphost v1 | LLM-C mcphost v2 | LLM-D | LLM-E best | LLM-F |
+| | LLM-A | LLM-B | LLM-C browser | LLM-C mcphost v1 | LLM-C mcphost v2 | LLM-D | LLM-E best | LLM-F | LLM-G |
 |---|---|---|---|---|---|---|---|---|
-| main.go / all 7 rules | ~6/7 | 7/7 | 7/7 | 7/7 | 7/7 | scaffold | 7/7 | TBD |
-| RPM spec | No | No | Yes | Yes | Yes | Yes | Yes | TBD |
-| DEB complete | No | No | workaround | workaround | **Yes proper** | Yes | Yes | TBD |
-| Containerfile | ? | ? | No | No | No | No | **Yes** | TBD |
-| Makefile | ? | ? | Yes | Yes | Yes | ? | Yes | TBD |
-| README with OBS | No | No | ? | ? | **Yes** | ? | ? | TBD |
-| LICENSE | No | No | No | No | No | No | Yes | TBD |
-| Report to disk | No | No | No | No | **Yes** | **Yes** | Partial | TBD |
-| Template constraints table | No | No | No | No | **Yes** | No | No | TBD |
-| Confidence calibration | Good 85% | Poor 100% | Good 94% | Poor 100% | Good 90-95% | **Excellent** | Poor 100% | TBD |
+| main.go / all 14 rules | ~6/7 | 7/7 | 7/7 | 7/7 | 7/7 | scaffold | 7/7 | TBD | **14/14** |
+| RPM spec | No | No | Yes | Yes | Yes | Yes | Yes | TBD | Yes |
+| DEB complete | No | No | workaround | workaround | **Yes proper** | Yes | Yes | TBD | Yes |
+| Containerfile | ? | ? | No | No | No | No | **Yes** | TBD | No |
+| Makefile | ? | ? | Yes | Yes | Yes | ? | Yes | TBD | Yes |
+| README with OBS | No | No | ? | ? | **Yes** | ? | ? | TBD | Yes |
+| LICENSE | No | No | No | No | No | No | Yes | TBD | Yes |
+| Report to disk | No | No | No | No | **Yes** | **Yes** | Partial | TBD | Yes |
+| Template constraints table | No | No | No | No | **Yes** | No | No | TBD | Yes |
+| Confidence calibration | Good 85% | Poor 100% | Good 94% | Poor 100% | Good 90-95% | **Excellent** | Poor 100% | TBD | Good 90% |
 
 ### Key Findings
 
@@ -2184,7 +2185,64 @@ DELIVERABLES table as of v0.3.3.
 | Signal handling skipped silently | All | Signal handling note in v0.3.3 |
 | TRANSLATION_REPORT.md not required | All | Required deliverable in v0.3.3 |
 
+### LLM-G: Small model, API-only, complete run
+
+On 2026-03-25, `pcdp-lint.md` v0.3.13 and `cli-tool.template.md` v0.3.13 were
+submitted to a small frontier model via the Anthropic API — using the new KIT
+tool with filesystem access and the ability to run test builds.  The model
+delivered all source and packaging artifacts inline, as clearly separated files
+in the response.
+
+**Configuration:**
+- Model: small frontier model (anonymized as LLM-G)
+- Interface: direct API call, Agentic tools, no MCP servers
+- Prompt: two-layer prompt (generic `prompts/prompt.md` + template EXECUTION section)
+- Delivery mode: direct to disk (filesystem access)
+
+**Results:**
+- All 14 validation rules implemented and passing
+- 15/15 tests passing
+- Full compile gate: `go mod tidy` + `go build ./...` PASS
+- Static binary: 2.9 MB, no runtime dependencies
+- RPM spec, Makefile, README with OBS install instructions
+- LICENSE (reference), TRANSLATION_REPORT.md with template constraints table
+- Confidence calibration: good (~90%) — most examples rated correctly
+- Run time: fast 
+
+**Key observations:**
+
+*Correct rule numbering.* The implementation handles all rules including
+RULE-11 (TOOLCHAIN-CONSTRAINTS) and RULE-12 (cross-section consistency),
+though the deliverables summary skipped mentioning them explicitly —
+an indexing gap in the report, not an implementation gap.
+
+*CLI style correct.* All commands use bare-word and key=value syntax
+(`pcdp-lint strict=true myspec.md`, `pcdp-lint list-templates`) with no
+`--flags`. One slip in INDEX.md (`pcdp-lint --help`) did not affect the
+implementation.
+
+*SPDX compound expressions.* The `Apache-2.0 OR MIT` compound expression
+was handled correctly — a detail that requires reading the SPDX spec, not
+just matching a fixed list.
+
+*Fenced code block isolation.* `EXAMPLE: fake` inside a fenced block does
+not trigger RULE-07. The line-by-line state machine with fence-depth counter
+correctly ignores structural markers inside code fences.
+
+*Two-layer prompt validation.* This is the first complete run using the
+v0.3.16 two-layer prompt architecture (generic prompt + template EXECUTION
+section). The model followed the EXECUTION section phase ordering without
+any language-specific instructions in the generic prompt. The architecture
+worked as designed.
+
+**Significance:** Demonstrates that a small frontier model, via direct API
+with no MCP infrastructure, can produce a complete, tested, packaging-ready
+PCDP implementation. The barrier to entry for PCDP translation is lower than
+the earlier test series suggested — capable models do not require extended
+context windows, filesystem MCP servers, or extended reasoning modes.
+
 ### Infrastructure Lessons
+
 
 **mcphost version matters.**
 The `MultiContent is deprecated` warnings indicate an older SDK version.
@@ -2192,7 +2250,7 @@ Tool call reliability and large payload handling improve with SDK updates.
 Recommend tracking mcphost version in the audit bundle metadata.
 
 **max_tokens must be set high.**
-32000 minimum for a complete pcdp-lint implementation including packaging.
+16384 minimum for a complete pcdp-lint implementation including packaging.
 Lower values cause JSON truncation in tool calls, producing silent failures.
 
 **Filesystem MCP config must allow subdirectory creation.**
@@ -2833,6 +2891,7 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.17 | 2026-03-25 | A.14 updated: LLM-G run added (small frontier model, direct API, no MCP, 15/15 tests pass, full compile gate, two-layer prompt v0.3.16 validated end-to-end). Models and deliverables tables updated. |
 | 0.3.16 | 2026-03-25 | Two-layer prompt architecture: prompts/prompt.md is now fully language-agnostic; all delivery phases, resume logic, and compile gate instructions moved to template ## EXECUTION sections. EXECUTION section added to cli-tool, cloud-native, and mcp-server templates. RULE-14 added to pcdp-lint: deployment templates must have ## EXECUTION section. A.13 rewritten to document the two-layer design. |
 | 0.3.15 | 2026-03-25 | Added AI-interview workflow for spec authoring. Introduction principle 1 updated: domain experts no longer need to learn the spec format; prompts/interview-prompt.md guides any LLM to conduct a structured interview and produce a complete spec. A.4 Phase 0 and Phase 1 updated to reflect interview-based approach. |
 | 0.3.14 | 2026-03-25 | cloud-native template v0.3.14: INDEPENDENT_TESTS Go naming note; deploy/operator.yaml dedup; HEALTHCHECK contradiction resolved; CRD scope declared in spec; go.sum as generated file. Hints files shipped: go-libvirt and golang-crypto-ssh. Phase 7 compile gate in translator prompt. |
