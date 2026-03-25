@@ -1,4 +1,5 @@
 
+
 # pcdp-lint
 
 ## META
@@ -233,6 +234,7 @@ STEPS:
 11. Apply RULE-11 (TOOLCHAIN-CONSTRAINTS section structure, if present).
 12. Apply RULE-12 (cross-section consistency: identifiers, types, file names).
 13. Apply RULE-13 (Constraint: field value on BEHAVIOR headers).
+14. Apply RULE-14 (EXECUTION section present in deployment templates).
     MECHANISM: rules are independent; a failure in one rule does not prevent
     subsequent rules from running. All diagnostics are collected before output.
 
@@ -552,6 +554,38 @@ For each BEHAVIOR or BEHAVIOR/INTERNAL section B:
         emit Warning, section=B,
           message="BEHAVIOR '{n}' is Constraint: forbidden but has no reason: annotation."
   // Absence of Constraint: field is valid; default is `required`.
+
+---
+
+### RULE-14: EXECUTION section required in deployment templates (v0.3.16+)
+
+This rule applies only when the file under validation has
+`Deployment: template` in its META section (i.e. it is a deployment
+template, not a component spec).
+
+```
+if spec.META["Deployment"] = "template":
+  if spec does not contain a top-level section "## EXECUTION":
+    emit Warning, line=1,
+      message="Deployment template is missing ## EXECUTION section.                Translators cannot determine delivery phases without it.                Add ## EXECUTION or declare 'EXECUTION: none' in META                if this template intentionally has no execution recipe."
+  else:
+    let exec = content of ## EXECUTION section
+    if exec does not contain "### Delivery phases":
+      emit Warning, section="EXECUTION",
+        message="## EXECUTION section has no '### Delivery phases' subsection."
+    if exec does not contain "### Compile gate" and
+       exec does not contain "COMPILE-GATE: none":
+      emit Warning, section="EXECUTION",
+        message="## EXECUTION section has no '### Compile gate' subsection                  and does not declare 'COMPILE-GATE: none'.                  Translators will not know how to verify compilation."
+    if exec does not contain "### Resume logic":
+      emit Warning, section="EXECUTION",
+        message="## EXECUTION section has no '### Resume logic' subsection."
+```
+
+Exception: if the template META contains `EXECUTION: none`, all RULE-14
+checks are skipped. Use this for templates that produce no compiled output
+(e.g. `project-manifest`, `python-tool`).
+
 
 ---
 
@@ -1168,3 +1202,4 @@ Signal handling note:
   behaviour (no explicit handler needed for a short-lived CLI tool
   that does not hold open file handles or sockets). Translators must
   document signal handling approach in the translation report.
+

@@ -1,4 +1,5 @@
 
+
 # mcp-server.template
 
 ## META
@@ -385,6 +386,112 @@ THEN:
 
 ---
 
+## EXECUTION
+
+The translator must read this section before generating any code.
+It specifies the exact delivery phases, resume logic, and compile gate
+for mcp-server components. Follow it exactly.
+
+### Input files
+
+The translator receives in the working directory:
+- `mcp-server.template.md` — this deployment template
+- `<spec-name>.md` — the component specification
+
+If the spec's DEPENDENCIES section references hints files, they are also
+present. Read them before writing `go.mod` or any code that uses them.
+
+### Resume logic
+
+Before writing any file, list the output directory.
+If a listed deliverable already exists and is non-empty, skip it — treat
+it as complete and move to the next missing file. Report which files were
+found and which are being produced.
+
+### Delivery phases
+
+Produce files in this exact order. Complete each phase before starting
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+
+**Phase 1 — Core implementation**
+- `main.go` — implements both stdio and http transports; transport selected
+  by bare-word argument (`stdio` | `http`)
+- `go.mod` — direct dependencies only; see Compile gate below
+
+**Phase 2 — Build and packaging**
+- `Makefile`
+- `<n>.spec` (RPM spec; must include systemd service unit for http transport)
+- `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
+  (must include systemd service unit for http transport)
+- `Containerfile` — multi-stage, final stage FROM scratch; EXPOSE 8080;
+  ENTRYPOINT default to http transport
+- `LICENSE`
+
+**Phase 3 — Test infrastructure**
+- `independent_tests/INDEPENDENT_TESTS.go`
+- `translation_report/translation-workflow.pikchr`
+
+**Phase 4 — Documentation**
+- `README.md` — must document stdio invocation, http invocation with
+  `listen=` option, and all exposed MCP tools
+
+**Phase 5 — Compile gate** (see below)
+
+**Phase 6 — Report (last)**
+- `TRANSLATION_REPORT.md`
+
+### Compile gate
+
+Execute after Phase 4 and before Phase 6. If your environment cannot
+execute shell commands, document this explicitly under the heading
+"Phase 5 — Compile gate not executed" in TRANSLATION_REPORT.md and
+state why. Do not silently omit this phase.
+
+**Step 1 — Framework selection**
+
+Determine the Go MCP framework from the resolved preset:
+- Default: `github.com/mark3labs/mcp-go` (supports stdio + HTTP natively)
+- Alternative: `github.com/modelcontextprotocol/go-sdk` (if preset declares it;
+  note HTTP transport status in TRANSLATION_REPORT.md)
+
+Document the framework choice and rationale in TRANSLATION_REPORT.md.
+
+**Step 2 — Dependency resolution**
+
+Run: `go mod tidy`
+
+Do not hand-write indirect dependencies.
+If `go mod tidy` cannot be run, note in TRANSLATION_REPORT.md.
+
+**Step 3 — Compilation**
+
+Run: `go build ./...`
+
+If compilation fails, fix only the identified errors and re-run.
+Do not rewrite unaffected files.
+
+**Step 4 — Record result**
+
+Record pass/fail in TRANSLATION_REPORT.md.
+Once all steps pass, do not modify source files further.
+Proceed immediately to Phase 6.
+
+### Dual-transport requirement
+
+Both stdio and http transports must be implemented in the same binary.
+Transport selection is by bare-word argument only (`stdio` | `http`).
+The default listen address for http is `127.0.0.1:8080`.
+Override via `listen=host:port` key=value argument.
+
+### go.mod rules
+
+- Declare only direct dependencies
+- Do NOT hand-write indirect dependencies (resolved by `go mod tidy`)
+- Do NOT fabricate pseudo-versions or commit hashes for untagged modules
+
+
+---
+
 ## DEPLOYMENT
 
 Runtime: long-running server process, single static binary
@@ -430,4 +537,5 @@ Go Framework Selection Guide:
                      before selecting for production http use
 
 Location: /usr/share/pcdp/templates/mcp-server.template.md
+
 

@@ -1,4 +1,5 @@
 
+
 # cli-tool.template
 
 ## META
@@ -367,3 +368,100 @@ Versioning:
   Changes to required or forbidden rows are breaking.
   Current version: 0.3.13
 
+
+
+---
+
+## EXECUTION
+
+The translator must read this section before generating any code.
+It specifies the exact delivery phases, resume logic, and compile
+gate for cli-tool components. Follow it exactly.
+
+### Input files
+
+The translator receives in the working directory:
+- `cli-tool.template.md` — this deployment template
+- `<spec-name>.md` — the component specification
+
+If the spec's DEPENDENCIES section references hints files, they are also
+present. Read them before writing `go.mod` or any code that uses those
+libraries — they contain verified dependency version strings.
+
+### Resume logic
+
+Before writing any file, list the output directory.
+If a listed deliverable already exists and is non-empty, skip it — treat
+it as complete and move to the next missing file. Report which files were
+found and which are being produced.
+
+### Delivery phases
+
+Produce files in this exact order. Complete each phase before starting
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+
+**Phase 1 — Core implementation**
+- All `.go` source files (typically `main.go`, or `cmd/<n>/main.go` for
+  larger tools, plus any additional `.go` files for interfaces and helpers)
+- `go.mod` — direct dependencies only; see Compile gate below
+
+**Phase 2 — Build and packaging**
+- `Makefile`
+- `<n>.spec` (RPM spec)
+- `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
+- `Containerfile` (if OCI is active in preset)
+- `<n>.pkgbuild` (if PKG/macOS is active in preset)
+- `LICENSE`
+
+**Phase 3 — Test infrastructure**
+- `independent_tests/INDEPENDENT_TESTS.go`
+- `translation_report/translation-workflow.pikchr`
+
+**Phase 4 — Documentation**
+- `README.md`
+
+**Phase 5 — Compile gate** (see below)
+
+**Phase 6 — Report (last)**
+- `TRANSLATION_REPORT.md`
+
+### Compile gate
+
+Execute after Phase 4 and before Phase 6. If your environment cannot
+execute shell commands, document this explicitly under the heading
+"Phase 5 — Compile gate not executed" in TRANSLATION_REPORT.md and
+state why. Do not silently omit this phase.
+
+**Step 1 — Dependency resolution**
+
+Run: `go mod tidy`
+
+This resolves all direct and indirect dependencies and writes `go.sum`.
+Do not hand-write indirect dependencies — they must come from `go mod tidy`.
+
+If `go mod tidy` cannot be run:
+- Produce `go.mod` with direct dependencies only, no `go.sum`
+- Note in TRANSLATION_REPORT.md that `go mod tidy` must be run before building
+
+**Step 2 — Compilation**
+
+Run: `go build ./...`
+
+If compilation fails, fix only the identified errors and re-run.
+Do not rewrite unaffected files. Repeat until compilation succeeds
+or all reasonable fixes are exhausted.
+
+**Step 3 — Record result**
+
+Record pass/fail for each step in TRANSLATION_REPORT.md.
+Once all steps pass, do not modify any source files further.
+Proceed immediately to Phase 6.
+
+### go.mod rules
+
+- Declare only direct dependencies (those your code imports directly)
+- Do NOT hand-write indirect dependencies (resolved by `go mod tidy`)
+- Do NOT fabricate pseudo-versions or commit hashes for untagged modules
+  If hints files are present: use the verified versions they provide
+  If no hints file: flag the dependency in TRANSLATION_REPORT.md as
+  requiring manual version verification before building

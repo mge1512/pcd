@@ -1,4 +1,5 @@
 
+
 # cloud-native.template
 
 ## META
@@ -444,6 +445,113 @@ in the specification title (first `#` heading). It must be:
 
 ---
 
+## EXECUTION
+
+The translator must read this section before generating any code.
+It specifies the exact delivery phases, resume logic, and compile/build
+gate for cloud-native components. Follow it exactly.
+
+### Input files
+
+The translator receives in the working directory:
+- `cloud-native.template.md` — this deployment template
+- `<spec-name>.md` — the component specification
+
+If the spec's DEPENDENCIES section references hints files, they are also
+present. Read them before writing `go.mod` or any code that uses those
+libraries — they contain verified dependency version strings.
+
+### Resume logic
+
+Before writing any file, list the output directory.
+If a listed deliverable already exists and is non-empty, skip it — treat
+it as complete and move to the next missing file. Report which files were
+found and which are being produced.
+
+### Delivery phases
+
+Produce files in this exact order. Complete each phase before starting
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+
+**Phase 1 — Core implementation**
+- All source files for the resolved LANGUAGE (e.g. `main.go` + helpers for Go)
+- `go.mod` — direct dependencies only; see Compile gate below
+
+**Phase 2 — Build and packaging**
+- `Containerfile`
+- `LICENSE`
+
+**Phase 3 — Kubernetes manifests**
+- `deploy/deployment.yaml`
+- `deploy/service.yaml`
+- `deploy/configmap.yaml`
+- `deploy/networkpolicy.yaml`
+- `deploy/rbac.yaml`
+- `deploy/crd.yaml` (if OPERATOR format is active)
+- `deploy/operator.yaml` (if OPERATOR format is active)
+- Helm chart under `helm/` (if HELM format is active)
+- Kustomize under `kustomize/` (if KUSTOMIZE format is active)
+
+**Phase 4 — Test infrastructure**
+- `independent_tests/INDEPENDENT_TESTS.go`
+- `translation_report/translation-workflow.pikchr`
+
+**Phase 5 — Documentation**
+- `README.md`
+
+**Phase 6 — Compile gate and build gate** (see below)
+
+**Phase 7 — Report (last)**
+- `TRANSLATION_REPORT.md`
+
+### Compile gate
+
+Execute after Phase 5 and before Phase 7. If your environment cannot
+execute shell commands, document this explicitly under the heading
+"Phase 6 — Compile gate not executed" in TRANSLATION_REPORT.md and
+state why. Do not silently omit this phase.
+
+**Step 1 — Dependency resolution**
+
+Run: `go mod tidy`
+
+Do not hand-write indirect dependencies — they must come from `go mod tidy`.
+
+If `go mod tidy` cannot be run:
+- Produce `go.mod` with direct dependencies only, no `go.sum`
+- Note in TRANSLATION_REPORT.md that `go mod tidy` must be run before building
+
+**Step 2 — Compilation**
+
+Run: `go build ./...`
+
+If compilation fails, fix only the identified errors and re-run.
+Do not rewrite unaffected files. Repeat until compilation succeeds
+or all reasonable fixes are exhausted.
+
+**Step 3 — Build gate (OCI)**
+
+After compilation succeeds, consult the `## BUILD-GATE` section of this
+template for container image build verification. Execute the steps there.
+
+**Step 4 — Record result**
+
+Record pass/fail for each step in TRANSLATION_REPORT.md.
+Once all steps pass, do not modify any source files further.
+Proceed immediately to Phase 7.
+
+### go.mod rules
+
+- Declare only direct dependencies (those your code imports directly)
+- Do NOT hand-write indirect dependencies (resolved by `go mod tidy`)
+- Do NOT fabricate pseudo-versions or commit hashes for untagged modules
+  If hints files are present: use the verified versions they provide
+  If no hints file: flag the dependency in TRANSLATION_REPORT.md as
+  requiring manual version verification before building
+
+
+---
+
 ## BUILD-GATE
 
 Specifies which output formats require an actual build attempt as part of
@@ -503,3 +611,4 @@ Versioning:
   Additions of supported rows are non-breaking.
   Changes to required or forbidden rows are breaking.
   Current version: 0.3.14
+

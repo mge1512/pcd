@@ -1,10 +1,11 @@
 
 
+
 # Post-Coding Development Paradigm
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.15  
+**Version:** 0.3.16  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
@@ -1909,108 +1910,135 @@ For readers from a formal methods or programming languages background: this para
 
 ## A.13 Recommended Translator Prompt
 
-The following prompt is the standard wrapper for invoking an AI translator
-against a Post-Coding specification. It is technology-agnostic and should
-work with any capable LLM. It is versioned alongside the schema.
+### Architecture: Two-Layer Prompt Design
 
-**Prompt version:** 0.3.3
+The translator prompt system uses a two-layer architecture introduced in
+v0.3.16:
 
-### System Prompt Template
+```
+prompts/prompt.md               ← Universal principles (language-agnostic)
+                                  Valid for any deployment type.
+                                  Delegates execution recipe to the template.
 
-Set once per invocation, before the user prompt. Replace parameters
-with concrete values — do not send angle-bracket placeholders to the model.
+templates/<n>.template.md       ← Template-specific execution recipe
+  ## EXECUTION                    Delivery phases in order.
+    ### Input files               Resume logic for partial runs.
+    ### Delivery phases           Compile gate with language-specific commands.
+    ### Resume logic              Build gate (for templates with container builds).
+    ### Compile gate
+```
+
+**Why this split?**
+
+The previous design embedded language-specific instructions (Go commands,
+file names, phase ordering) in the generic prompt. This created two problems:
+
+1. A prompt for a Go CLI tool contained references to `go mod tidy` and
+   `go build ./...` — wrong for a Python tool or a C library.
+2. Adding a new deployment type required changing the shared prompt, risking
+   regressions in existing translations.
+
+With the two-layer design, the generic prompt contains only universal
+principles. Everything language- or deployment-specific lives in the
+template's `## EXECUTION` section. A new deployment type gets its own
+execution recipe without touching the shared prompt.
+
+**pcdp-lint validates** that every deployment template (files with
+`Deployment: template` in META) contains a `## EXECUTION` section with
+the required subsections. See RULE-14.
+
+---
+
+### The Universal Prompt (`prompts/prompt.md`)
+
+The universal prompt covers:
+
+- Deriving the target language from the deployment template
+- Delegating phase ordering and compile gate to the template's EXECUTION section
+- Applying TYPE-BINDINGS, GENERATED-FILE-BINDINGS, STEPS, Constraint: fields
+- Implementing INTERFACES declarations and test doubles
+- Not fabricating dependency versions
+- Delivery modes (filesystem, in-memory, inline)
+- Translation report requirements including the confidence table
+
+The prompt does not name any programming language, build tool, or
+deployment-specific file. It is reproduced in full at `prompts/prompt.md`
+in the repository.
+
+---
+
+### The EXECUTION Section in Templates
+
+Every deployment template contains a `## EXECUTION` section with four
+required subsections:
+
+**`### Input files`** — lists what the translator receives in the working
+directory. Clarifies which files to read before generating code (especially
+important for hints files).
+
+**`### Resume logic`** — instructs the translator to check for existing
+files before writing, enabling partial run recovery without rewriting
+completed phases.
+
+**`### Delivery phases`** — the ordered list of what to produce and when.
+This replaces the phase numbering that previously lived in the prompt.
+Each template defines its own phases appropriate to its deployment type.
+TRANSLATION_REPORT.md is always the last phase.
+
+**`### Compile gate`** — the language-specific build verification steps:
+dependency resolution (`go mod tidy`), compilation (`go build ./...`),
+and any build-tool-specific steps (container builds for cloud-native,
+OCI image verification for mcp-server). If the translator cannot execute
+shell commands, it must document this explicitly — silent omission is
+not permitted.
+
+---
+
+### System Prompt (mcphost config)
+
+Set once per invocation. Replace placeholders with actual filenames.
 
 ```
 Your working directory is <target-dir>/
 The following input files are present there:
   - <deployment-template>.template.md  — the deployment template
-  - <spec-name>.md                     — the component specification to implement
+  - <spec-name>.md                     — the component specification
 Do NOT output file contents to the terminal.
 Do NOT write the input files to disk again.
-Write ALL to be produced files to disk using the filesystem write tool.
+Write ALL output files to disk using the filesystem write tool.
 After writing each file, confirm the filename written.
-Also write the translation report as TRANSLATION_REPORT.md into that directory.
 ```
 
-**Parameters:**
-- `<target-dir>` — working directory on the target filesystem
-- `<deployment-template>` — exact filename of the deployment template (e.g. `cli-tool.template_0_3_3`)
-- `<spec-name>` — exact filename of the specification (e.g. `pcdp-lint_0_3_3`)
-
-### User Prompt Template
-
+For hints files, add a line per file:
 ```
-I am providing two files in your working directory:
-
-1. <deployment-template>.template.md — the deployment template, which defines
-   conventions, constraints, defaults, and required deliverables for this
-   type of component under the Post-Coding Development Paradigm.
-
-2. <spec-name>.md — the component specification, written in the
-   Post-Coding Development Paradigm format.
-
-Before writing any files, briefly state your plan: which files you
-will produce, in which order, and why.
-
-Your task:
-Implement the component in full, exactly as specified. Do not add
-features not described in the specification. Do not omit any
-specified behaviour.
-
-Derive the target language from the deployment template:
-the template declares the default language and valid alternatives.
-Use the default unless a project preset overrides it — if you deviate
-from the default, state why explicitly.
-
-Produce all deliverables defined in the deployment template's
-DELIVERABLES section, in the order specified there. Do not enumerate
-these files yourself — read them from the template's DELIVERABLES section.
-
-The deployment template describes the target runtime environment of
-the generated artifact, not the environment where this prompt is
-being evaluated. Do not make language or toolchain decisions based
-on what is available in your current execution environment.
-
-After writing all files, verify each file exists on disk by listing
-the directory. Report any discrepancies between intended and actual
-deliverables.
-
-Generate a workflow diagram in Pikchr format documenting this specific
-translation run: inputs consumed, decisions made (language selection,
-framework choices, deviations), outputs produced. Write it as
-`translation-workflow.pikchr` in the translation_report/ directory.
-
-Do not ask clarifying questions. If the specification is ambiguous,
-make the most conservative interpretation, implement it, and note
-the ambiguity in the translation report.
+  - <template>.<language>.<library>.hints.md  — library hints for <library>
 ```
+
+**Note for small models:** replace the placeholders in the system prompt
+with the actual filenames. Small models do not reliably resolve
+angle-bracket placeholders. See `prompts/README-small-models.md`.
+
+---
 
 ### Prompt Design Rationale
 
-**System prompt carries environment facts; user prompt carries task instructions.**
-Separating these allows the system prompt to be set once per environment
-and the user prompt to be reused across specifications.
+**Template owns the execution recipe.** A translator reading a single
+template gets everything it needs: deliverables, phase order, compile gate,
+resume logic. No cross-referencing required. A new template author writes
+one self-contained file.
 
-**Concrete filenames in the system prompt, not placeholders.**
-Smaller models do not reliably resolve angle-bracket placeholders to
-actual files. The system prompt must name the files explicitly with
-their role labels ("the deployment template", "the component specification").
+**Concrete filenames in the system prompt.** Smaller models do not
+reliably resolve angle-bracket placeholders to actual files. The system
+prompt must name files explicitly.
 
-**"Before writing any files, briefly state your plan"** — the reasoning
-step before generation. Models that plan before writing produce more
-complete and consistent deliverable sets than those that generate immediately.
+**Resume logic in the template.** Partial run recovery is deployment-specific
+because different templates produce different file sets. The generic prompt
+cannot know which files are expected for a cloud-native component vs a
+CLI tool.
 
-**"Verify each file exists on disk after writing"** — closes the delivery
-loop. The translator confirms what actually landed, not just what it
-intended to write.
-
-**"Derive the target language from the deployment template"** — the
-paradigm's core claim under test. The LLM must read the template and
-resolve the language, not be told explicitly.
-
-**"The deployment template describes the target runtime environment...
-not the environment where this prompt is being evaluated"** — prevents
-the LLM from making language choices based on sandbox constraints.
+**Compile gate in the template.** `go mod tidy` is a Go instruction. A
+Python tool uses `pip install` or `uv sync`. A C library uses `make`.
+These belong in the template, not in a generic prompt.
 
 **"Do not ask clarifying questions"** — forces ambiguities into the
 translation report. This is the feedback mechanism for spec improvement.
@@ -2805,6 +2833,7 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.16 | 2026-03-25 | Two-layer prompt architecture: prompts/prompt.md is now fully language-agnostic; all delivery phases, resume logic, and compile gate instructions moved to template ## EXECUTION sections. EXECUTION section added to cli-tool, cloud-native, and mcp-server templates. RULE-14 added to pcdp-lint: deployment templates must have ## EXECUTION section. A.13 rewritten to document the two-layer design. |
 | 0.3.15 | 2026-03-25 | Added AI-interview workflow for spec authoring. Introduction principle 1 updated: domain experts no longer need to learn the spec format; prompts/interview-prompt.md guides any LLM to conduct a structured interview and produce a complete spec. A.4 Phase 0 and Phase 1 updated to reflect interview-based approach. |
 | 0.3.14 | 2026-03-25 | cloud-native template v0.3.14: INDEPENDENT_TESTS Go naming note; deploy/operator.yaml dedup; HEALTHCHECK contradiction resolved; CRD scope declared in spec; go.sum as generated file. Hints files shipped: go-libvirt and golang-crypto-ssh. Phase 7 compile gate in translator prompt. |
 | 0.3.13 | 2026-03-24 | Resolved all 8 items deferred from v0.3.12, plus 4 new findings from codex lessons. F1: TYPE-BINDINGS table added to deployment templates — maps logical spec types to language-specific types; spec stays language-agnostic. F7: component-based DELIVERABLES section added to spec schema — logical components only; filename mapping stays in templates. F8: TRANSLATION_REPORT confidence table now requires Verification-method and Unverified-claims columns. F10: four formal independent test rules added — one test per EXAMPLE, tests use only declared test doubles, infrastructure-free, multi-pass examples generate multi-step tests. F11 (codex): negative-path EXAMPLES now required for any BEHAVIOR with error exits in STEPS (RULE-10). F12 (codex): TOOLCHAIN-CONSTRAINTS optional spec section added for spec-specific OCI/build/generated-file constraints (RULE-11). F13 (codex): cross-section consistency checking added to pcdp-lint as RULE-12 (identifier, type name, file name consistency; partial implementation). F14 (codex): Constraint: field added to BEHAVIOR headers — required \| supported \| forbidden with default=required (RULE-13). All templates bumped to v0.3.12. CONTRIBUTING.md updated. |
@@ -2823,6 +2852,7 @@ comparison report. This is itself a candidate for specification under PCDP
 | 0.3.0 | 2026-03-17 | Deployment template system. Target: removed from META. |
 | 0.2.3 | 2026-02-10 | Workflow diagram. Dual-path architecture. |
 | 0.2.1 | 2026-02-10 | Initial public draft. |
+
 
 
 
