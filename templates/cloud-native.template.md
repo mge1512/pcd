@@ -200,6 +200,19 @@ Spec authors must never reference these language-specific type names directly.
 | List\<T\>   | []T                                            |                                           |
 | ObjectRef   | corev1.ObjectReference                         | Cross-namespace references                |
 | LabelSet    | map[string]string                              | Standard Kubernetes label map             |
+| bytes       | []byte                                         | Raw byte sequences (e.g. SSH key material)|
+
+## GENERATED-FILE-BINDINGS
+
+Maps logical TOOLCHAIN-CONSTRAINTS generated file names to language-specific
+filenames and tools when LANGUAGE=Go. When the declared tool is unavailable in
+the translation environment, the translator must hand-author a functionally
+correct equivalent — the file must always be present.
+
+| Logical name              | LANGUAGE=Go filename                    | Generator tool                          |
+|---------------------------|-----------------------------------------|-----------------------------------------|
+| type-marshaling-deepcopy  | `api/v1alpha1/zz_generated.deepcopy.go` | `controller-gen object paths="./..."`   |
+| dependency-lock-file      | `go.sum`                                | `go mod tidy`                           |
 
 ---
 
