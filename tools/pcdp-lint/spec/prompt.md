@@ -1,4 +1,3 @@
-
 I am providing two files:
 
 1. cli-tool.template.md — a deployment template that defines
@@ -8,76 +7,128 @@ I am providing two files:
 2. pcdp-lint.md — a specification for a component, written in the
    Post-Coding Development Paradigm format.
 
-Your task:
-Implement the component in full, exactly as specified. Do not add
-features not described in the specification. Do not omit any
-specified behaviour.
+Additional files may be present if listed in the spec's DEPENDENCIES section
+(hints files, interface definitions). Read them before generating any code.
 
-Target language is Go (derived from the cli-tool template default).
+---
 
-## Resuming a partial run
+## Universal principles
 
-Before writing any file, read the output directory. If any of the
-files listed below already exist and are non-empty, do not overwrite
-them — treat them as complete and move to the next missing file.
-Report which files you found and which you are producing.
+**Derive the target language from the deployment template.**
+The template declares the default language and valid alternatives.
+Use the default unless a project preset overrides it.
+If you deviate from the default, state why explicitly in the translation report.
 
-## Required deliverables and delivery order
+**Read the template's `## EXECUTION` section and follow it exactly.**
+The EXECUTION section specifies the delivery phases, their order, resume
+logic, and compile/build verification steps for this deployment type.
+Do not invent a different phase order. Do not skip phases.
 
-Produce files in this exact order. Complete each file fully before
-starting the next.
+**Read deliverables from the template, not from this prompt.**
+Produce all deliverables for every OUTPUT-FORMAT marked `required` in the
+TEMPLATE-TABLE. Produce `supported` deliverables only if active in the
+resolved preset. Do not enumerate files yourself — read the DELIVERABLES
+table in the template.
 
-Phase 1 — Core implementation:
-  main.go
-  go.mod
+**Apply TYPE-BINDINGS mechanically.**
+If the template contains a `## TYPE-BINDINGS` section, every logical type
+named in the spec maps to the concrete language type given in the table for
+the resolved LANGUAGE. Do not substitute your own type judgement.
 
-Phase 2 — Build and packaging:
-  Makefile
-  pcdp-lint.spec
-  debian/control
-  debian/changelog
-  debian/rules
-  debian/copyright
-  LICENSE
+**Apply GENERATED-FILE-BINDINGS mechanically.**
+If the template contains a `## GENERATED-FILE-BINDINGS` section, use the
+filenames given there for generated infrastructure files (CRDs, manifests,
+rbac, etc.). Do not invent filenames not listed there.
 
-Phase 3 — Documentation and report (last):
-  README.md
-  TRANSLATION_REPORT.md
+**Follow STEPS in every BEHAVIOR block.**
+Implement each STEPS entry in the order written. Do not reorder or skip steps.
+Implement MECHANISM: annotations exactly where specified — they are normative,
+not advisory.
 
-Do not produce TRANSLATION_REPORT.md until all other files are
-written and verified on disk. If you are interrupted, restart from
-the first missing file in the order above.
+**Respect the Constraint: field on every BEHAVIOR header.**
+- `required` (default): implement unconditionally.
+- `supported`: implement only if the resolved preset activates it.
+- `forbidden`: never implement. Do not generate code for forbidden behaviors.
 
-## LICENSE
+**Implement all INTERFACES declarations.**
+If the spec contains an `## INTERFACES` section, produce every declared
+implementation: production and all test doubles. Independent tests must
+use only declared test doubles — never the production implementation.
 
-Never write the full GPL-2.0-only license text to disk. Write only:
-name, one-line description, and a reference to the authoritative
-source. The full text is managed separately.
+**Map COMPONENT entries to filenames via the template.**
+If the spec contains a DELIVERABLES section with COMPONENT: entries, map
+each COMPONENT to the concrete filenames defined in the template's
+DELIVERABLES table. Do not invent filenames not listed there.
 
-## Delivery
+**Do not fabricate dependency versions.**
+If hints files are present, use the verified versions they specify.
+If no hints file is present and no stable release exists for a dependency,
+flag it in the translation report and leave the version for the maintainer
+to verify. Never invent commit hashes or pseudo-version timestamps.
 
-You have access to a filesystem MCP server. Write all files directly
-to disk. Report each file path as you complete it.
+**LICENSE files.**
+When writing a LICENSE file, include only the license name, a brief
+description, and a reference URL to the authoritative text.
+Never reproduce the full license text.
 
-Do not attempt to compile, execute, or install anything unless
-explicitly asked.
+**Do not make language or toolchain decisions based on your environment.**
+The deployment template describes the target runtime, not the environment
+where this prompt is evaluated.
+
+**Do not ask clarifying questions.**
+If the specification is ambiguous, make the most conservative interpretation,
+implement it, and document the ambiguity in the translation report.
+
+---
+
+## Delivery modes
+
+Deliver the implementation as follows, depending on your environment:
+
+1. **Filesystem or MCP server available:** write source files directly.
+   Commit or push if possible, and report the location.
+
+2. **Code execution but no persistent storage:** write files within your
+   execution environment and present them as downloadable artifacts.
+
+3. **Browser sandbox or no filesystem access:** deliver complete source
+   code inline, as clearly separated files with explicit filenames.
+
+Do not invent a delivery mechanism not listed above.
+
+---
 
 ## Translation report
 
-TRANSLATION_REPORT.md must cover:
-- Target language and why (template default, no preset override)
-- Delivery mode used
-- How STEPS ordering was followed for each BEHAVIOR block
-- Any specification ambiguities encountered
-- Any rules you could not implement exactly as written, and why
-- Your confidence per EXAMPLE as a table with these exact columns:
+Produce a `TRANSLATION_REPORT.md` covering:
+
+- Target language resolved, and whether any preset overrides the template default
+- Delivery mode used and why
+- How STEPS ordering was applied for each BEHAVIOR block
+- Which INTERFACES test doubles were produced (if INTERFACES section present)
+- How TYPE-BINDINGS were applied (if present in template)
+- How GENERATED-FILE-BINDINGS were applied (if present in template)
+- Which BEHAVIOR blocks had Constraint: supported or forbidden, and how
+  that affected code generation
+- Which COMPONENT entries from spec DELIVERABLES mapped to which filenames
+- Specification ambiguities encountered
+- Rules that could not be implemented exactly as written, and why
+- Compile gate result (see template EXECUTION section)
+- Per-example confidence as a table:
 
   | EXAMPLE | Confidence | Verification method | Unverified claims |
 
-  A claim is verified only if it references a specific named test
-  function that passes without a live external service.
-  Unverified claims must be listed explicitly — never silently omitted.
+  Confidence definitions:
+  - **High** = a named test function in `independent_tests/` passes without
+    any live external service
+  - **Medium** = some paths tested; other paths require live services or
+    are untested
+  - **Low** = no test function covers this; reasoning or code review only
 
-Do not ask clarifying questions. If the specification is ambiguous,
-make the most conservative interpretation, implement it, and note
-the ambiguity in the translation report.
+  A claim is verified only if it references a specific named test function
+  that passes without a live external service. Unverified claims must be
+  listed explicitly — never silently omitted.
+
+Write `TRANSLATION_REPORT.md` last, after all other deliverables are
+complete and the compile gate has passed (or has been explicitly
+documented as not executed — see template EXECUTION section).
