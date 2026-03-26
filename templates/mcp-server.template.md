@@ -130,7 +130,7 @@ must be produced. Supported OUTPUT-FORMATs are produced if active in preset.
 | license | required | `LICENSE` | Full license text or reference to SPDX identifier with authoritative URL. |
 | RPM | required | `{n}.spec` | OBS RPM spec. Must include systemd service unit for http transport mode. |
 | DEB | required | `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright` | DEP-5 copyright. Must include systemd service unit. |
-| OCI | required | `Containerfile` | Multi-stage build. Final stage FROM scratch or distroless. Expose port 8080 for http transport. ENTRYPOINT default to http mode. |
+| OCI | required | `Containerfile` | Multi-stage build. Builder FROM registry.suse.com/bci/golang:latest. Final stage FROM scratch. Expose port 8080 for http transport. ENTRYPOINT default to http mode. Never use unqualified image names. |
 | report | required | `TRANSLATION_REPORT.md` | Must include: framework choice rationale, transport implementation notes, tool list with descriptions, compilation result. |
 
 ### Systemd Service Unit
@@ -185,8 +185,10 @@ require github.com/modelcontextprotocol/go-sdk vX.Y.Z
 
 **Containerfile:**
 ```dockerfile
-FROM golang:1.24 AS builder
+FROM registry.suse.com/bci/golang:latest AS builder
 WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o mcp-server-{n} .
 
@@ -195,6 +197,11 @@ COPY --from=builder /build/mcp-server-{n} /usr/bin/mcp-server-{n}
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/mcp-server-{n}", "http"]
 ```
+
+Builder stage must use `registry.suse.com/bci/golang:latest`.
+Never use unqualified names such as `golang:1.24` or `docker.io/golang`.
+Final stage must be `FROM scratch` for static binaries.
+Do not include a package manager in the final image.
 
 ---
 
@@ -423,8 +430,8 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
 - `<n>.spec` (RPM spec; must include systemd service unit for http transport)
 - `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
   (must include systemd service unit for http transport)
-- `Containerfile` — multi-stage, final stage FROM scratch; EXPOSE 8080;
-  ENTRYPOINT default to http transport
+- `Containerfile` — multi-stage; builder FROM registry.suse.com/bci/golang:latest;
+  final stage FROM scratch; EXPOSE 8080; ENTRYPOINT default to http transport
 - `LICENSE`
 
 **Phase 3 — Test infrastructure**

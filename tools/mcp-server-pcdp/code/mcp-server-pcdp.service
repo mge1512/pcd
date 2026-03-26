@@ -1,0 +1,14 @@
+[Unit]
+Description=MCP server for PCDP specification management
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/mcp-server-pcdp http listen=127.0.0.1:8080
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

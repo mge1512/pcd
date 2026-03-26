@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	CGO_ENABLED=0 go build -ldflags="-X main.serverVersion=0.1.0" -o mcp-server-pcdp .
+
+override_dh_auto_install:
+	install -D -m 0755 mcp-server-pcdp $(CURDIR)/debian/mcp-server-pcdp/usr/bin/mcp-server-pcdp
+	install -D -m 0644 mcp-server-pcdp.service $(CURDIR)/debian/mcp-server-pcdp/usr/lib/systemd/system/mcp-server-pcdp.service
+
+override_dh_auto_test:
+	go test ./...
