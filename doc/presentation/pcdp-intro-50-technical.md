@@ -66,9 +66,9 @@ not just the contract.
 
 `Constraint:` field:
 
-- `required` — always implement
-- `supported` — preset activates it
-- `forbidden` — never implement
+- `required` --- always implement
+- `supported` --- preset activates it
+- `forbidden` --- never implement
 
 ::::
 ::::
@@ -149,11 +149,11 @@ Template excerpt:
 \bigskip
 
 Without TYPE-BINDINGS: one translator produces `string`,\
-another produces `metav1.Duration` — incompatible at the API level.
+another produces `metav1.Duration` --- incompatible at the API level.
 
 \bigskip
 
-With TYPE-BINDINGS: **deterministic, language-specific types** — applied\
+With TYPE-BINDINGS: **deterministic, language-specific types** --- applied\
 mechanically, not by translator judgement.
 
 ---
@@ -169,7 +169,7 @@ mechanically, not by translator judgement.
 :::: {.column width=60%}
 
 Defined in the template's\
-`## EXECUTION` section —\
+`## EXECUTION` section ---\
 **not** in the prompt.
 
 \bigskip
@@ -190,7 +190,7 @@ go build ./...
 \bigskip
 
 `TRANSLATION_REPORT.md` is\
-**always last** — its presence\
+**always last** --- its presence\
 signals a complete run.
 
 ::::
@@ -227,7 +227,7 @@ generated using PCDP itself.
 \bigskip
 
 Running `pcdp-lint` against\
-its own spec passes — the\
+its own spec passes --- the\
 paradigm validates itself.
 
 \bigskip
@@ -252,7 +252,7 @@ Every `TRANSLATION_REPORT.md` includes:
 +----------------+------------+-------------------------------------+--------------------+
 | EXAMPLE        | Confidence | Verification method                 | Unverified claims  |
 +================+============+=====================================+====================+
-| vm-start       | High       | `TestVMStart` — FakeSession         | libvirt UUID format|
+| vm-start       | High       | `TestVMStart` --- FakeSession         | libvirt UUID format|
 +----------------+------------+-------------------------------------+--------------------+
 | graceful-stop  | Medium     | `TestGracefulStop` pass 1 only      | timeout path       |
 +----------------+------------+-------------------------------------+--------------------+
@@ -263,7 +263,7 @@ Every `TRANSLATION_REPORT.md` includes:
 
 - **High** = named test in `independent_tests/` passes without live services
 - **Medium** = partial test coverage
-- **Low** = reasoning only — no test
+- **Low** = reasoning only --- no test
 
 \bigskip
 
@@ -311,7 +311,7 @@ Imports:
 \bigskip
 
 **pcdp-lint v2** (planned):\
-validates full project graph —\
+validates full project graph ---\
 imports, circular deps,\
 interface versioning.
 
@@ -340,7 +340,7 @@ Any MCP-capable host connects directly:
 \bigskip
 
 Preset layering server-side:\
-vendor → `/etc/pcdp-server/` → team → user
+vendor \textrightarrow{} `/etc/pcdp-server/` \textrightarrow{} team \textrightarrow{} user
 
 \bigskip
 

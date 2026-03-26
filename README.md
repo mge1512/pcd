@@ -6,6 +6,8 @@ PCDP is an open specification for a new software development paradigm: domain ex
 
 This is not "AI-assisted coding" where developers write code with AI suggestions. This is **post-coding development** where specifications are the primary artifact and code is a generated output.
 
+**The key distinction:** if the generated code is wrong, you never edit the code — you fix the specification and regenerate. The spec is always the source of truth.
+
 `pcdp-lint`, the reference validator in this repository, was itself specified and generated using PCDP — with zero hand-written implementation code.
 
 ---

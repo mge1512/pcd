@@ -11,6 +11,11 @@ AI generates **all** implementation code.
 
 Engineers never write implementation code directly.
 
+\medskip
+
+\textit{Not vibe coding:} if the output is wrong,\
+you fix the **spec** --- never the code.
+
 ::::
 :::: {.column width=40%}
 
@@ -36,6 +41,11 @@ Engineers never write implementation code directly.
 +---------------------+---------------+---------------+-------------------+
 | Regulated domains   | manual audit  | prohibited    | **enabled**       |
 +---------------------+---------------+---------------+-------------------+
+
+\bigskip
+
+In vibe coding, if the output is wrong, you edit the code.\
+In PCDP, **you never touch the code** --- you fix the spec and regenerate.
 
 ---
 
@@ -102,7 +112,7 @@ Change language across the whole project?
 The spec is untouched.
 
 A spec written today is valid\ 
-in 2045 — regardless of\ 
+in 2045 --- regardless of\ 
 what language is in fashion.
 
 ::::
@@ -119,7 +129,7 @@ what language is in fashion.
 
 Code accumulates technical debt.
 
-Specs describe intent — intent rarely changes.
+Specs describe intent --- intent rarely changes.
 
 \bigskip
 
@@ -178,7 +188,7 @@ No interpreter in the middle.
 
 ## And: formal verification is available
 
-The LLM translation is probabilistic — we do not claim otherwise.
+The LLM translation is probabilistic --- we do not claim otherwise.
 
 \bigskip
 
@@ -190,7 +200,7 @@ For components that **require** stronger guarantees:
 :::: {.column width=60%}
 
 Lean 4, F*, or Dafny can be added\ 
-as an **optional verification layer** —\ 
+as an **optional verification layer** ---\ 
 without changing the specification format.
 
 The spec stays the same.\ 
@@ -211,7 +221,7 @@ The verification path is a template choice.
 
 ## Proof: pcdp-lint
 
-`pcdp-lint` — the specification validator — was\ 
+`pcdp-lint` --- the specification validator --- was\ 
 **specified and generated using PCDP itself.**
 
 Zero hand-written implementation code.
@@ -239,7 +249,7 @@ three continents, one result:
 1. Domain expert writes a spec (or AI interviews them)
 2. `pcdp-lint` validates structure
 3. Deployment template resolves the language
-4. LLM translates spec → code + audit bundle
+4. LLM translates spec \textrightarrow{} code + audit bundle
 
 ---
 
@@ -252,7 +262,7 @@ The spec declares **what** and **where** (deployment context).
 The template resolves **language, packaging, conventions**.
 
 A spec written today is valid if the organisation\
-switches from Go to Rust in 2045 — **no spec change needed**.
+switches from Go to Rust in 2045 --- **no spec change needed**.
 
 ---
 
