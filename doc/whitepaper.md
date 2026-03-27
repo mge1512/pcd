@@ -2,17 +2,20 @@
 
 
 
+
 # Post-Coding Development Paradigm
 ## Human Intent, Machine Implementation
 
 **Status:** Draft  
-**Version:** 0.3.18  
+**Version:** 0.3.19  
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **Date:** 2026-03-24
 
 ---
 
 ## Executive Summary
+
+Informally known as **Piccadilly** — *the place where intent becomes implementation.*
 
 The **Post-Coding Development Paradigm** fundamentally changes how software is created: **domain experts write specifications in structured natural language; AI generates verified implementations**. Engineers never write implementation code. Instead, they author precise specifications in Markdown describing what a system should do—data types, behaviors, invariants, state machines, deployment context. An AI translator converts these specifications into type-safe, memory-safe implementations, optionally through formal verification in proven meta-languages (Lean 4, F*, Dafny).
 
@@ -2915,6 +2918,7 @@ comparison report. This is itself a candidate for specification under PCDP
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.19 | 2026-03-27 | Added informal name "Piccadilly" and tagline "Meet me at the Piccadilly — the place where intent becomes implementation." README subtitle and whitepaper Executive Summary updated. Presentation header subtitle added. |
 | 0.3.18 | 2026-03-26 | A.17 rewritten: mcp-server-pcdp now fully specified, implemented, and tested. Updated to reflect actual tool set (7 tools), native MCP resource registration, embedded prompts, dual transports, registry.suse.com container base. README updated: Self-Hosting expanded to Tooling section covering both pcdp-lint and mcp-server-pcdp; repository layout updated. |
 | 0.3.17 | 2026-03-25 | A.14 updated: LLM-G run added (small frontier model, direct API, no MCP, 15/15 tests pass, full compile gate, two-layer prompt v0.3.16 validated end-to-end). Models and deliverables tables updated. |
 | 0.3.16 | 2026-03-25 | Two-layer prompt architecture: prompts/prompt.md is now fully language-agnostic; all delivery phases, resume logic, and compile gate instructions moved to template ## EXECUTION sections. EXECUTION section added to cli-tool, cloud-native, and mcp-server templates. RULE-14 added to pcdp-lint: deployment templates must have ## EXECUTION section. A.13 rewritten to document the two-layer design. |
@@ -2938,5 +2942,6 @@ comparison report. This is itself a candidate for specification under PCDP
 | 0.2.1 | 2026-02-10 | Change the collaborating AI |
 | 0.1.0 | 2026-01-10 | First draft tracked in GIT  |
 | 0.0.0 | 2026-01-05 | Start thinking about "Optimizing Programming Languages for AI and Human Review" |
+
 
 
