@@ -1,45 +1,93 @@
-# PCDP icon — nib in brackets + wordmark
-# For beamer footer: 20x20px via Makefile
+# PCDP icon -- Piccadilly (small, for beamer footer and favicon)
+# Streets shown at this scale; omit the 6 street lines for 32px and below.
 #
-# make pcdp-icon-green.png
+# Render:  pikchr --svg-only pcdp-icon-green.pikchr \
+#            | sed 's/<text /<text font-family="DejaVu Sans, Liberation Sans, sans-serif" /g' \
+#            > pcdp-icon-green.svg
+# PNG 64px: magick -background none -size 64x64 pcdp-icon-green.svg pcdp-icon-green.png
+# PNG 20px: magick -background none -size 20x20 pcdp-icon-green.svg pcdp-icon-green.png
+#
+# Centre: (0.30in, 0.30in)
+# Rings:  r = 0.06, 0.11, 0.16, 0.22 in
+# Streets: 6 directions at 60deg, r=0.06 to r=0.22
 
-# Left bracket [
-line thick \
-  from (0.18in, 0.50in) \
-  to   (0.10in, 0.50in) \
-  then to (0.10in, 0.10in) \
-  then to (0.18in, 0.10in) \
-  color 0x30ba78
+# Streets
 
-# Right bracket ]
-line thick \
-  from (0.42in, 0.50in) \
-  to   (0.50in, 0.50in) \
-  then to (0.50in, 0.10in) \
-  then to (0.42in, 0.10in) \
-  color 0x30ba78
-
-# Nib — diamond outline
-line \
-  from (0.30in, 0.50in) \
-  to   (0.40in, 0.30in) \
-  then to (0.30in, 0.10in) \
-  then to (0.20in, 0.30in) \
-  then to (0.30in, 0.50in) \
-  color 0x30ba78
-
-# Nib centre split
+# N
 line thin \
-  from (0.30in, 0.30in) \
-  to   (0.30in, 0.10in) \
+  from (0.3000in, 0.2400in) \
+  to   (0.3000in, 0.0800in) \
   color 0x30ba78
 
-# Ink drop
-circle rad 0.030in \
-  at (0.30in, 0.055in) \
+# NE
+line thin \
+  from (0.3520in, 0.2700in) \
+  to   (0.4905in, 0.1900in) \
+  color 0x30ba78
+
+# SE
+line thin \
+  from (0.3520in, 0.3300in) \
+  to   (0.4905in, 0.4100in) \
+  color 0x30ba78
+
+# S
+line thin \
+  from (0.3000in, 0.3600in) \
+  to   (0.3000in, 0.5200in) \
+  color 0x30ba78
+
+# SW
+line thin \
+  from (0.2480in, 0.3300in) \
+  to   (0.1095in, 0.4100in) \
+  color 0x30ba78
+
+# NW
+line thin \
+  from (0.2480in, 0.2700in) \
+  to   (0.1095in, 0.1900in) \
+  color 0x30ba78
+
+# Concentric rings
+
+circle rad 0.22in \
+  at (0.30in, 0.30in) \
+  fill none color 0x30ba78 thin
+
+circle rad 0.16in \
+  at (0.30in, 0.30in) \
+  fill none color 0x30ba78 thin
+
+circle rad 0.11in \
+  at (0.30in, 0.30in) \
+  fill none color 0x30ba78
+
+circle rad 0.06in \
+  at (0.30in, 0.30in) \
+  fill none color 0x30ba78 thick
+
+# Pen nib -- asymmetric, tip at bottom
+line \
+  from (0.300in, 0.255in) \
+  to   (0.335in, 0.282in) \
+  then to (0.300in, 0.360in) \
+  then to (0.265in, 0.282in) \
+  then to (0.300in, 0.255in) \
+  color 0x30ba78
+
+# Nib centre split -- shoulder to tip
+line thin \
+  from (0.300in, 0.282in) \
+  to   (0.300in, 0.360in) \
+  color 0x30ba78
+
+# Ink drop -- below tip
+circle rad 0.014in \
+  at (0.300in, 0.390in) \
   fill 0x30ba78 color 0x30ba78
 
-# Wordmark
-"Piccadilly" bold \
-  at (0.30in, -0.1in) \
+# Wordmark -- comment out for pure icon (favicon) use
+"PCDP" bold \
+  at (0.30in, 0.55in) \
   color 0x30ba78

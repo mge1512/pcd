@@ -1,51 +1,100 @@
-# PCDP logo — concept D
-# Pen nib inside code brackets
+# PCDP logo -- Piccadilly
+# Concentric rings (circus roundabout) + 6 converging streets + pen nib
 #
-# Render: pikchr logo.pikchr > logo.svg
+# Render:  pikchr --svg-only pcdp-logo-green.pikchr \
+#            | sed 's/<text /<text font-family="DejaVu Sans, Liberation Sans, sans-serif" /g' \
+#            > pcdp-logo-green.svg
+# PNG:     magick -background none pcdp-logo-green.svg pcdp-logo-green.png
+#
+# Centre of mark: (1.50in, 1.50in)
+# Rings: r = 0.28, 0.51, 0.76, 1.04 in
+# Streets: 6 directions at 60deg spacing
 
-# Left bracket [
-line thick \
-  from (0.70in, 1.90in) \
-  to   (0.50in, 1.90in) \
-  then to (0.50in, 0.90in) \
-  then to (0.70in, 0.90in) \
-  color 0x30ba78
+# Streets (drawn first, sit behind rings)
+# Endpoints computed: inner ring edge (r=0.28) to outer ring edge (r=1.04)
 
-# Right bracket ]
-line thick \
-  from (2.30in, 1.90in) \
-  to   (2.50in, 1.90in) \
-  then to (2.50in, 0.90in) \
-  then to (2.30in, 0.90in) \
-  color 0x30ba78
-
-# Nib — diamond outline
-line \
-  from (1.50in, 1.90in) \
-  to   (1.82in, 1.40in) \
-  then to (1.50in, 0.90in) \
-  then to (1.18in, 1.40in) \
-  then to (1.50in, 1.90in) \
-  color 0x30ba78
-
-# Nib centre split
+# N
 line thin \
-  from (1.50in, 1.40in) \
-  to   (1.50in, 0.90in) \
+  from (1.5000in, 1.2200in) \
+  to   (1.5000in, 0.4600in) \
   color 0x30ba78
 
-# Ink drop at nib tip
-circle rad 0.07in \
-  at (1.50in, 0.79in) \
+# NE
+line thin \
+  from (1.7425in, 1.3600in) \
+  to   (2.4007in, 0.9800in) \
+  color 0x30ba78
+
+# SE
+line thin \
+  from (1.7425in, 1.6400in) \
+  to   (2.4007in, 2.0200in) \
+  color 0x30ba78
+
+# S
+line thin \
+  from (1.5000in, 1.7800in) \
+  to   (1.5000in, 2.5400in) \
+  color 0x30ba78
+
+# SW
+line thin \
+  from (1.2575in, 1.6400in) \
+  to   (0.5993in, 2.0200in) \
+  color 0x30ba78
+
+# NW
+line thin \
+  from (1.2575in, 1.3600in) \
+  to   (0.5993in, 0.9800in) \
+  color 0x30ba78
+
+# Concentric rings -- outermost to innermost
+# thin / thin / default / thick gives four visible weights
+
+circle rad 1.04in \
+  at (1.50in, 1.50in) \
+  fill none color 0x30ba78 thin
+
+circle rad 0.76in \
+  at (1.50in, 1.50in) \
+  fill none color 0x30ba78 thin
+
+circle rad 0.51in \
+  at (1.50in, 1.50in) \
+  fill none color 0x30ba78
+
+circle rad 0.28in \
+  at (1.50in, 1.50in) \
+  fill none color 0x30ba78 thick
+
+# Pen nib -- rotated 180° (tip now at top, shoulders at bottom)
+# Tip (top): (1.50, 1.28)
+# Wide sides: (1.34, 1.64) and (1.66, 1.64)
+# Shoulder bottom: (1.50, 1.78)
+line \
+  from (1.50in, 1.28in) \
+  to   (1.34in, 1.64in) \
+  then to (1.50in, 1.78in) \
+  then to (1.66in, 1.64in) \
+  then to (1.50in, 1.28in) \
+  color 0x30ba78
+# Nib centre split -- tip to shoulder
+line thin \
+  from (1.50in, 1.28in) \
+  to   (1.50in, 1.64in) \
+  color 0x30ba78
+# Ink drop -- above nib tip
+circle rad 0.06in \
+  at (1.50in, 1.18in) \
   fill 0x30ba78 color 0x30ba78
 
 # Wordmark
 "Piccadilly" big bold \
-  at (1.50in, 0.55in) \
+  at (1.48in, 0.57in) \
   color 0x30ba78
 
-# Tagline
-"Post-Coding Development Paradigm" big \
-"Write Specs, Not Code" big \
-  at (1.50in, 0.25in) \
+"Post-Coding Development Paradigm" big bold \
+  at (1.50in, 0.33in) \
   color 0x30ba78
+
