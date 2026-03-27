@@ -40,7 +40,7 @@ sudo apt-get install pcdp-lint
 ### From Source
 
 ```bash
-git clone https://github.com/pcdp/pcdp-lint.git
+git clone https://github.com/mge1512/pcdp-lint.git
 cd pcdp-lint
 make build
 sudo make install
@@ -185,7 +185,7 @@ PCDP specification files are Markdown files (`.md` extension) with the following
 - `## INVARIANTS` — Invariants that must hold
 - `## EXAMPLES` — Examples demonstrating the operation
 
-See https://github.com/pcdp/pcdp-spec for the complete PCDP specification.
+See https://github.com/mge1512/pcdp-spec for the complete PCDP specification.
 
 ## Signal Handling
 
@@ -217,6 +217,6 @@ Matthias G. Eckermann <pcdp@mailbox.org>
 
 ## References
 
-- [PCDP Specification](https://github.com/pcdp/pcdp-spec)
+- [PCDP Specification](https://github.com/mge1512/pcdp-spec)
 - [SPDX License List](https://spdx.org/licenses/)
 - [Semantic Versioning](https://semver.org/)

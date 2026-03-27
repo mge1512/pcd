@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: pcdp-lint
 Upstream-Contact: Matthias G. Eckermann <pcdp@mailbox.org>
-Source: https://github.com/pcdp/pcdp-lint
+Source: https://github.com/mge1512/pcdp-lint
 
 Files: *
 Copyright: 2026 Matthias G. Eckermann

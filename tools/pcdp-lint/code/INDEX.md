@@ -232,7 +232,7 @@ For detailed information, see:
 
 **Author:** Matthias G. Eckermann <pcdp@mailbox.org>  
 **License:** GNU General Public License v2.0 (GPL-2.0-only)  
-**Repository:** https://github.com/pcdp/pcdp-lint
+**Repository:** https://github.com/mge1512/pcdp-lint
 
 ---
 

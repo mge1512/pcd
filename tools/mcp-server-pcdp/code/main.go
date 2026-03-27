@@ -16,8 +16,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/pcdp/mcp-server-pcdp/internal/lint"
-	"github.com/pcdp/mcp-server-pcdp/internal/store"
+	"github.com/mge1512/mcp-server-pcdp/internal/lint"
+	"github.com/mge1512/mcp-server-pcdp/internal/store"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pcdp/mcp-server-pcdp/internal/store"
+	"github.com/mge1512/mcp-server-pcdp/internal/store"
 )
 
 // LintContent validates a PCDP specification and returns diagnostics

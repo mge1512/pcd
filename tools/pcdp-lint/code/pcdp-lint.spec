@@ -4,7 +4,7 @@ Release:        1
 Summary:        Linter and validator for Post-Coding Development Paradigm specifications
 
 License:        GPL-2.0-only
-URL:            https://github.com/pcdp/pcdp-lint
+URL:            https://github.com/mge1512/pcdp-lint
 
 Source0:        pcdp-lint-0.3.13.tar.gz
 

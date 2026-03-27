@@ -36,7 +36,7 @@ apt install mcp-server-pcdp
 ### From Source
 
 ```bash
-git clone https://github.com/pcdp/mcp-server-pcdp.git
+git clone https://github.com/mge1512/mcp-server-pcdp.git
 cd mcp-server-pcdp
 make build
 sudo make install
@@ -364,6 +364,6 @@ Matthias G. Eckermann <pcdp@mailbox.org>
 
 ## Links
 
-- PCDP Specification: https://github.com/pcdp/pcdp
+- PCDP Specification: https://github.com/mge1512/pcdp
 - MCP Protocol: https://modelcontextprotocol.io/
 - OBS (Open Build Service): https://build.opensuse.org/

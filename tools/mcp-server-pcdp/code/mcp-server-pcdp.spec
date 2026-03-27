@@ -4,7 +4,7 @@ Release:        1%{?dist}
 Summary:        MCP server for PCDP specification management and linting
 
 License:        GPL-2.0-only
-URL:            https://github.com/pcdp/mcp-server-pcdp
+URL:            https://github.com/mge1512/mcp-server-pcdp
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  golang >= 1.24

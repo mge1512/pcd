@@ -434,7 +434,7 @@ See README.md for detailed tool reference.
 For issues, questions, or contributions:
 - **Author:** Matthias G. Eckermann <pcdp@mailbox.org>
 - **License:** GPL-2.0-only
-- **Repository:** https://github.com/pcdp/mcp-server-pcdp
+- **Repository:** https://github.com/mge1512/mcp-server-pcdp
 
 ---
 

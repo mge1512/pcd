@@ -1,4 +1,4 @@
-module github.com/pcdp/mcp-server-pcdp
+module github.com/mge1512/mcp-server-pcdp
 
 go 1.24
 

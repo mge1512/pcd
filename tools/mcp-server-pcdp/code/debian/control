@@ -3,8 +3,8 @@ Priority: optional
 Maintainer: Matthias G. Eckermann <pcdp@mailbox.org>
 Build-Depends: debhelper-compat (= 13), golang-go (>= 1.24)
 Standards-Version: 4.6.1
-Homepage: https://github.com/pcdp/mcp-server-pcdp
-Vcs-Git: https://github.com/pcdp/mcp-server-pcdp.git
+Homepage: https://github.com/mge1512/mcp-server-pcdp
+Vcs-Git: https://github.com/mge1512/mcp-server-pcdp.git
 
 Package: mcp-server-pcdp
 Architecture: any

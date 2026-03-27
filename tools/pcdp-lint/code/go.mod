@@ -1,3 +1,3 @@
-module github.com/pcdp/pcdp-lint
+module github.com/mge1512/pcdp-lint
 
 go 1.21

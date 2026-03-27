@@ -3,7 +3,7 @@ Maintainer: Matthias G. Eckermann <pcdp@mailbox.org>
 Section: devel
 Priority: optional
 Standards-Version: 4.6.1
-Homepage: https://github.com/pcdp/pcdp-lint
+Homepage: https://github.com/mge1512/pcdp-lint
 Build-Depends: golang-go (>= 1.21), debhelper-compat (= 13)
 
 Package: pcdp-lint

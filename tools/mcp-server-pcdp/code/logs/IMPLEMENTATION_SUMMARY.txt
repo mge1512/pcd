@@ -196,7 +196,7 @@ Test Code: ~600 lines
 Documentation: ~8700 lines (README.md)
 
 Package Structure:
-  github.com/pcdp/mcp-server-pcdp
+  github.com/mge1512/mcp-server-pcdp
     ├── main.go
     ├── go.mod
     └── internal/
@@ -204,7 +204,7 @@ Package Structure:
         └── lint/      (Rule engine, RULE-01 through RULE-14)
 
 Test Package:
-  github.com/pcdp/mcp-server-pcdp/independent_tests
+  github.com/mge1512/mcp-server-pcdp/independent_tests
 
 ================================================================================
                           DEPLOYMENT OPTIONS
