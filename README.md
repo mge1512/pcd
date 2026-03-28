@@ -2,7 +2,7 @@
 
 # Post-Coding Development 
 
-## Meet me at the Piccadilly — where intent becomes implementation
+## Meet me at the PiCcaDilly — where intent becomes implementation
 
 **Human Intent, Machine Implementation.**
 
