@@ -16,10 +16,6 @@ This is not "AI-assisted coding" where developers write code with AI suggestions
 
 ---
 
-Note on naming: The project was originally named "PCD" (Post-Coding Development), but will be renamed to just "PCD" end of March 2026.
-
----
-
 ## Core Workflow
 
 ```mermaid
