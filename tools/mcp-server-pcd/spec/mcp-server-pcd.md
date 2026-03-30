@@ -3,7 +3,7 @@
 ## META
 Deployment:        mcp-server
 Version:           0.1.0
-Spec-Schema:       0.3.17
+Spec-Schema:       0.3.19
 Author:            Matthias G. Eckermann <pcd@mailbox.org>
 License:           GPL-2.0-only
 Verification:      none
@@ -28,7 +28,7 @@ HintsKey := string
 // Example: "cloud-native.go.go-libvirt"
 
 ResourceURI := string
-// Format: "pcd://<type>/<name>"
+// Format: "pcd://<type>/<n>"
 // Types: templates, prompts, hints
 // Examples:
 //   pcd://templates/cli-tool
@@ -82,66 +82,63 @@ Filesystem {
     }
 }
 
-TemplateStore {
-  // Provides template and hints content.
-  // In production: reads from the filesystem search path hierarchy at
-  // startup (last-wins — project-local overrides system):
-  //   1. /usr/share/pcd/templates/  and  /usr/share/pcd/hints/
-  //   2. /etc/pcd/templates/         and  /etc/pcd/hints/
-  //   3. ~/.config/pcd/templates/    and  ~/.config/pcd/hints/
-  //   4. ./.pcd/templates/           and  ./.pcd/hints/
-  // Directories that do not exist are silently skipped.
-  // In tests: in-memory map.
-  required-methods:
-    ListTemplates()                        -> TemplateRecord[]
-    GetTemplate(name, version)             -> (TemplateRecord, error)
-    GetHints(key: HintsKey)                -> (content: string, error)
-    ListHintsKeys()                        -> ([]string, error)
-  implementations-required:
-    production:  LayeredTemplateStore {
-      // Initialised by NewLayeredTemplateStore() which:
-      //   1. Calls templateSearchDirs() and hintsSearchDirs() to get
-      //      ordered lists of existing directories.
-      //   2. Calls loadTemplatesFrom(dir) for each template dir in order.
-      //      loadTemplatesFrom reads all *.template.md files in the dir,
-      //      parses Template-For, Version, and LANGUAGE default from each,
-      //      and stores them in a map[name]map[version]TemplateRecord.
-      //      Later dirs overwrite earlier entries (last-wins).
-      //   3. Calls loadHintsFrom(dir) for each hints dir in order.
-      //      loadHintsFrom reads all *.hints.md files, derives the key
-      //      from the filename (strip .hints.md suffix), stores content.
-      //      Later dirs overwrite earlier entries (last-wins).
-      // parseTemplateMeta(content) extracts Template-For, Version, and
-      // the default LANGUAGE from the ## TEMPLATE-TABLE section.
-    }
-    test-double: FakeTemplateStore {
-      configurable: Templates []TemplateRecord, Hints map[string]string
-    }
-}
+AssetStore {
+  // Provides templates, hints, and prompt content to all MCP tools.
+  //
+  // ASSET EMBEDDING (build-time):
+  //   All assets (templates, hints, prompts) are compiled into the
+  //   binary at build time using the language's native asset embedding
+  //   mechanism. The binary is self-contained and fully functional
+  //   with no pcd-templates package installed at runtime.
+  //
+  //   The build system stages assets into a location the compiler can
+  //   embed from, relative to the store implementation. The exact
+  //   mechanism is implementation-defined — see the language hints file.
+  //
+  //   Staged asset directories are build artefacts only:
+  //     - populated by the build system before compilation
+  //     - listed in .gitignore
+  //     - removed by the clean target
+  //     - never committed to the repository
+  //     - not required at runtime
+  //
+  // RUNTIME OVERLAYS (optional, site-local):
+  //   After serving embedded assets, the implementation checks
+  //   filesystem overlay directories and applies them with last-wins
+  //   precedence. All overlay directories are optional — their absence
+  //   is not an error.
+  //
+  //   Overlay search order (ascending precedence):
+  //     /usr/share/pcd/templates|hints|prompts/
+  //     /etc/pcd/templates|hints|prompts/
+  //     ~/.config/pcd/templates|hints|prompts/
+  //     ./.pcd/templates|hints|prompts/
+  //
+  //   A filesystem entry with the same key as an embedded entry
+  //   replaces it. New keys in the filesystem are added alongside
+  //   embedded entries.
 
-PromptStore {
-  // Provides interview and translator prompt content.
-  // Content is embedded at build time as Go string constants —
-  // no filesystem access at runtime, no install path required.
-  // The translator reads the prompt files from the working directory
-  // during the translation run and embeds their full text as constants.
-  //
-  // Known prompts (embedded at build time):
-  //   "interview"   <- prompts/interview-prompt.md
-  //   "translator"  <- prompts/prompt.md
-  //
-  // FakePromptStore is used in tests to inject arbitrary content.
   required-methods:
-    GetPrompt(name: string) -> (content: string, error)
-    ListPrompts()           -> []string
+    ListTemplates()              -> ([]TemplateRecord, error)
+    GetTemplate(name, version)   -> (TemplateRecord, error)
+    GetHints(key: string)        -> (content: string, error)
+    ListHintsKeys()              -> ([]string, error)
+    GetPrompt(name: string)      -> (content: string, error)
+    ListPrompts()                -> ([]string, error)
+
   implementations-required:
-    production:  EmbeddedPromptStore {
-      // All prompt content compiled in as string constants.
-      // GetPrompt returns NotFound for any name not in the embedded set.
-      // ListPrompts returns the fixed list of embedded prompt names.
+    production:  EmbeddedLayeredStore {
+      // Serves all embedded assets as the base layer.
+      // Applies filesystem overlays on top at startup.
+      // Returns NotFound only if the key is absent from both
+      // embedded assets and all overlay directories.
     }
-    test-double: FakePromptStore {
-      configurable: Prompts map[string]string
+    test-double: FakeStore {
+      configurable:
+        Templates []TemplateRecord
+        Hints     map[string]string
+        Prompts   map[string]string
+      // In-memory only. No filesystem access. No embedded assets.
     }
 }
 ```
@@ -155,10 +152,10 @@ INPUTS:
   none
 
 PRECONDITIONS:
-  - TemplateStore is reachable
+  - AssetStore is reachable
 
 STEPS:
-  1. Call TemplateStore.ListTemplates().
+  1. Call AssetStore.ListTemplates().
      On failure: return MCP error -32603 with store error message.
   2. Return the list as a JSON array of TemplateRecord objects,
      omitting the content field.
@@ -171,7 +168,7 @@ POSTCONDITIONS:
   - content field is absent from each entry.
 
 ERRORS:
-  - -32603  TemplateStore unreachable or read error
+  - -32603  AssetStore unreachable or read error
 
 ---
 
@@ -187,7 +184,7 @@ PRECONDITIONS:
   - version is "latest" or a valid semantic version
 
 STEPS:
-  1. Call TemplateStore.GetTemplate(name, version).
+  1. Call AssetStore.GetTemplate(name, version).
      On TemplateNotFound: return MCP error -32602,
        message "unknown template: {name}".
      On VersionNotFound: return MCP error -32602,
@@ -211,27 +208,26 @@ INPUTS:
   none
 
 PRECONDITIONS:
-  - TemplateStore is reachable
-  - PromptStore is always reachable (embedded, no I/O)
+  - AssetStore is reachable
 
 STEPS:
-  1. Call TemplateStore.ListTemplates() to enumerate template URIs.
+  1. Call AssetStore.ListTemplates() to enumerate template URIs.
      On failure: record error, continue with empty template list.
-  2. Call PromptStore.ListPrompts() to enumerate prompt URIs.
-     Cannot fail (embedded store; always returns fixed list).
-  3. Enumerate available hints keys from TemplateStore.
+  2. Call AssetStore.ListPrompts() to enumerate prompt URIs.
+  3. Call AssetStore.ListHintsKeys() to enumerate hints URIs.
   4. Assemble ResourceRecord list with URIs in format:
-       pcd://templates/<name>
-       pcd://prompts/<name>
+       pcd://templates/<n>
+       pcd://prompts/<n>
        pcd://hints/<key>
   5. Return list.
 
 POSTCONDITIONS:
-  - All installed templates, prompts, and hints are represented.
+  - All embedded templates, prompts, and hints are represented.
+  - Filesystem overlay entries are included if present.
   - Each entry has uri and name. content is absent.
 
 ERRORS:
-  - Partial results returned if TemplateStore fails; PromptStore cannot fail.
+  - Partial results returned if AssetStore fails for one asset type.
 
 ---
 
@@ -243,7 +239,7 @@ INPUTS:
 
 PRECONDITIONS:
   - uri is a non-empty string
-  - uri matches "pcd://<type>/<name>" where type is one of:
+  - uri matches "pcd://<type>/<n>" where type is one of:
     templates, prompts, hints
 
 STEPS:
@@ -251,13 +247,13 @@ STEPS:
      On parse failure: return MCP error -32602,
        message "invalid resource URI: {uri}".
   2. Dispatch by type:
-     - "templates": call TemplateStore.GetTemplate(name, "latest").
+     - "templates": call AssetStore.GetTemplate(name, "latest").
        On TemplateNotFound: return MCP error -32602,
          message "resource not found: {uri}".
-     - "prompts": call PromptStore.GetPrompt(name).
+     - "prompts": call AssetStore.GetPrompt(name).
        On not found: return MCP error -32602,
          message "resource not found: {uri}".
-     - "hints": call TemplateStore.GetHints(name).
+     - "hints": call AssetStore.GetHints(name).
        On not found: return MCP error -32602,
          message "resource not found: {uri}".
      - unknown type: return MCP error -32602,
@@ -348,7 +344,7 @@ STEPS:
      MECHANISM: value is compiled in as a constant; no runtime lookup.
 
 POSTCONDITIONS:
-  - Response is a semantic version string, e.g. "0.3.17".
+  - Response is a semantic version string, e.g. "0.3.19".
 
 ERRORS:
   none
@@ -429,7 +425,16 @@ ERRORS:
 - [observable]      server is idempotent: same request always returns same response
 - [observable]      server never exits with code other than 0, 1, or 2
 - [implementation]  rule execution order: RULE-01 through RULE-14, same as pcd-lint
-- [implementation]  resource URIs follow pcd://<type>/<name> scheme exactly
+- [implementation]  resource URIs follow pcd://<type>/<n> scheme exactly
+- [implementation]  all assets (templates, hints, prompts) are embedded into the
+                    binary at build time using a single unified asset embedding
+                    mechanism — no distinction in method between asset types
+- [implementation]  staged asset directories used during build are not committed
+                    to the repository and not required at runtime
+- [observable]      GetTemplate, GetHints, and GetPrompt succeed for all assets
+                    shipped with the binary, regardless of runtime filesystem state
+- [observable]      the binary is fully functional with no pcd-templates package
+                    installed and no overlay directories present on the system
 
 ---
 
@@ -437,7 +442,7 @@ ERRORS:
 
 EXAMPLE: list_templates_returns_names
 GIVEN:
-  TemplateStore contains cli-tool@0.3.17 and mcp-server@0.3.17
+  AssetStore contains cli-tool@0.3.19 and mcp-server@0.3.19
 WHEN:
   tool list_templates called with no arguments
 THEN:
@@ -447,16 +452,16 @@ THEN:
 
 EXAMPLE: get_template_cli_tool
 GIVEN:
-  TemplateStore contains cli-tool@0.3.17
+  AssetStore contains cli-tool@0.3.19
 WHEN:
   tool get_template called with name="cli-tool" version="latest"
 THEN:
-  response contains name="cli-tool" version="0.3.17"
+  response contains name="cli-tool" version="0.3.19"
   response contains full template Markdown in content field
 
 EXAMPLE: get_template_unknown
 GIVEN:
-  TemplateStore does not contain "serverless"
+  AssetStore does not contain "serverless"
 WHEN:
   tool get_template called with name="serverless"
 THEN:
@@ -465,7 +470,7 @@ THEN:
 
 EXAMPLE: read_resource_interview_prompt
 GIVEN:
-  PromptStore contains prompt named "interview"
+  AssetStore contains prompt named "interview"
 WHEN:
   tool read_resource called with uri="pcd://prompts/interview"
 THEN:
@@ -559,25 +564,56 @@ THEN:
   error message written to stderr
   server exits with code 1
 
+EXAMPLE: standalone_no_pcd_templates
+GIVEN:
+  pcd-templates package is not installed
+  no overlay directories exist on the system
+WHEN:
+  server started and list_templates called
+THEN:
+  response contains all templates shipped with the binary
+  server does not error or exit
+
 ---
 
 ## TOOLCHAIN-CONSTRAINTS
 
 ```
-EMBED-FILES:
-  - source: prompts/interview-prompt.md
-    constant: promptInterview
-    package:  internal/store
-  - source: prompts/prompt.md
-    constant: promptTranslator
-    package:  internal/store
-```
+EMBED-ASSETS:
+  // All asset types (templates, hints, prompts) are compiled into
+  // the binary using the language's native asset embedding mechanism.
+  // No distinction in embedding method between asset types.
+  //
+  // BUILD-TIME LAYOUT:
+  //   The build system must stage all assets into a location the
+  //   compiler can embed from, relative to the store implementation.
+  //   The exact relative paths are implementation-defined — see the
+  //   language hints file.
+  //
+  //   Source of truth in the repository:
+  //     repo-root/templates/    (all *.template.md files)
+  //     repo-root/hints/        (all *.hints.md files)
+  //     repo-root/prompts/      (all *.md prompt files)
+  //
+  //   The build system copies or links these to the staging location
+  //   before compilation. Staged directories are build artefacts only.
 
-These files must be present in the working directory at translation time.
-The translator reads them and embeds their full text as Go string constants.
-Do not use `go:embed` directives — write the content as explicit `const`
-or `var` string literals so the embedded text is visible in the source
-without toolchain support.
+  - type: templates
+    source: repo-root/templates/*.template.md
+    key-derivation: filename stem before ".template.md"
+      // e.g. "cli-tool.template.md" -> key "cli-tool"
+
+  - type: hints
+    source: repo-root/hints/*.hints.md
+    key-derivation: filename stem before ".hints.md"
+      // e.g. "python-tool.hints.md" -> key "python-tool"
+
+  - type: prompts
+    source: repo-root/prompts/*.md
+    key-derivation: filename stem before ".md"
+      // e.g. "interview-prompt.md" -> key "interview"
+      // e.g. "translator.md"       -> key "translator"
+```
 
 ---
 
@@ -599,9 +635,9 @@ COMPONENT: implementation
   files: main.go, internal/lint/*.go, internal/store/*.go
   notes: >
     Split into packages: main (transport wiring), internal/lint
-    (rule engine, shared with pcd-lint), internal/store (template,
-    prompt, hints stores). Reuse lint rule logic from pcd-lint if
-    available as a library; otherwise inline.
+    (rule engine, shared with pcd-lint), internal/store (unified
+    AssetStore — templates, hints, prompts). Reuse lint rule logic
+    from pcd-lint if available as a library; otherwise inline.
 
 COMPONENT: module
   files: go.mod
@@ -609,10 +645,22 @@ COMPONENT: module
 
 COMPONENT: build
   files: Makefile
+  notes: >
+    Must include an embed-assets target that stages templates, hints,
+    and prompts into the build-time embedding location before go build.
+    Must include a clean target that removes staged directories.
+    See hints/mcp-server.go.mcp-go.hints.md for exact paths and commands.
 
 COMPONENT: packaging
   files: mcp-server-pcd.spec, debian/control, debian/changelog,
          debian/rules, debian/copyright
+  notes: >
+    Source0: mcp-server-pcd-{version}.tar.xz
+    Source1: mcp-server-pcd-{version}-vendor.tar.xz
+    Vendor tarball generated by: go mod vendor &&
+      tar -cJf mcp-server-pcd-{version}-vendor.tar.xz vendor/
+    RPM %build must run make embed-assets before go build.
+    Requires: (none). Recommends: pcd-templates.
 
 COMPONENT: container
   files: Containerfile
@@ -630,9 +678,10 @@ COMPONENT: license
 COMPONENT: tests
   files: independent_tests/INDEPENDENT_TESTS.go
   notes: >
-    All tests use FakeTemplateStore, FakePromptStore, FakeFilesystem.
+    All tests use FakeStore, FakeFilesystem.
     No filesystem access. No network calls. No live pcd-lint binary.
     Must include TestLintMatchesCLI (verifies lint_content invariant).
+    FakeStore replaces FakeTemplateStore and FakePromptStore.
 
 COMPONENT: documentation
   files: README.md
@@ -651,24 +700,23 @@ Install locations:
   System config: /etc/pcd/
   Service unit:  /usr/lib/systemd/system/mcp-server-pcd.service
 
-Template and hints files are NOT installed by this package.
-They are provided by the pcd-templates package:
-  Templates:     /usr/share/pcd/templates/   (pcd-templates)
-  Hints:         /usr/share/pcd/hints/        (pcd-templates)
+The binary embeds all templates, hints, and prompts at build time.
+It is self-contained and functional without pcd-templates installed.
 
-Prompt content is compiled into the binary — no separate install path.
-To update prompts, rebuild the binary from updated source files.
+Install pcd-templates to enable site-local asset overrides:
+  Templates:  /usr/share/pcd/templates/   (pcd-templates)
+  Hints:      /usr/share/pcd/hints/        (pcd-templates)
+  Prompts:    /usr/share/pcd/prompts/      (pcd-templates)
 
 Runtime dependency:
-  Requires: pcd-templates
-  mcp-server-pcd reads templates and hints from the filesystem search
-  path at startup. It does not install these files itself.
+  Requires:    (none — binary is self-contained)
+  Recommends:  pcd-templates
 
-Template and hints search path (last-wins, ascending precedence):
-  1. /usr/share/pcd/templates|hints/    vendor default (pcd-templates)
-  2. /etc/pcd/templates|hints/          system administrator
-  3. ~/.config/pcd/templates|hints/     user
-  4. ./.pcd/templates|hints/            project-local
+Asset overlay search path (last-wins, ascending precedence):
+  1. /usr/share/pcd/templates|hints|prompts/   (pcd-templates)
+  2. /etc/pcd/templates|hints|prompts/          (system administrator)
+  3. ~/.config/pcd/templates|hints|prompts/     (user)
+  4. ./.pcd/templates|hints|prompts/            (project-local)
   Directories that do not exist are silently skipped.
 
 mcphost config (stdio):
