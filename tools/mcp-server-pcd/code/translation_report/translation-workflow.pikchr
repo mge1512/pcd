@@ -1,33 +1,18 @@
-# Translation Workflow for mcp-server-pcd
-# Pikchr diagram showing the PCD translation phases
+// Translation workflow diagram for mcp-server-pcd
+// Rendered with pikchr (https://pikchr.org/)
 
-digraph {
-  rankdir = TB
-  node [shape=box, style=rounded]
-  
-  Start [label="Start: Read Specification\n& Template"]
-  
-  Phase1 [label="Phase 1: Core Implementation\n- main.go (transports)\n- go.mod (dependencies)"]
-  
-  Phase2 [label="Phase 2: Build & Packaging\n- Makefile\n- RPM spec\n- DEB control\n- Containerfile\n- LICENSE"]
-  
-  Phase3 [label="Phase 3: Test Infrastructure\n- independent_tests/\n- translation-workflow.pikchr"]
-  
-  Phase4 [label="Phase 4: Documentation\n- README.md"]
-  
-  Phase5 [label="Phase 5: Compile Gate\n- go mod tidy\n- go build ./..."]
-  
-  Phase6 [label="Phase 6: Translation Report\n- TRANSLATION_REPORT.md"]
-  
-  End [label="Complete:\nAll Files Generated"]
-  
-  Start -> Phase1 [label="Sequential\nExecution"]
-  Phase1 -> Phase2
-  Phase2 -> Phase3
-  Phase3 -> Phase4
-  Phase4 -> Phase5 [label="Verify\nCompilation"]
-  Phase5 -> Phase6
-  Phase6 -> End
-  
-  Phase5 -> Phase1 [label="On Build\nFailure", style=dashed, color=red]
-}
+// Phase boxes
+box "Phase 1" "Core Implementation" "main.go, go.mod" width 2.0 height 0.6 fill lightblue
+arrow right 0.3
+box "Phase 2" "Build & Packaging" "Makefile, spec, deb," "Containerfile, LICENSE" width 2.0 height 0.6 fill lightyellow
+arrow right 0.3
+box "Phase 3" "Test Infrastructure" "INDEPENDENT_TESTS.go" "translation-workflow.pikchr" width 2.0 height 0.6 fill lightgreen
+
+arrow down 0.5 from last box.s
+box "Phase 4" "Documentation" "README.md" "man page" width 2.0 height 0.6 fill lightyellow at (last arrow.end.x, last arrow.end.y + 0.3)
+
+arrow down 0.5 from last box.s
+box "Phase 5" "Compile Gate" "go mod tidy" "go build ./..." width 2.0 height 0.6 fill lightcoral at (last arrow.end.x, last arrow.end.y + 0.3)
+
+arrow down 0.5 from last box.s
+box "Phase 6" "Translation Report" "TRANSLATION_REPORT.md" width 2.0 height 0.6 fill lightgray at (last arrow.end.x, last arrow.end.y + 0.3)

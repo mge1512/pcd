@@ -1,415 +1,325 @@
+// Package store implements the AssetStore interface for mcp-server-pcd.
+// Assets (templates, hints, prompts) are embedded at build time via embed.FS.
+// Filesystem overlays are applied at startup with last-wins precedence.
+// SPDX-License-Identifier: GPL-2.0-only
+
 package store
 
 import (
-	"fmt"
+	"embed"
+	"errors"
+	iofs "io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
 
-// TemplateRecord represents a PCD template with metadata and content
+// ── Embedded asset declarations ───────────────────────────────────────────────
+// These directives require internal/store/assets/{templates,hints,prompts}/
+// to be populated by `make embed-assets` before compilation.
+
+//go:embed assets/templates
+var embeddedTemplates embed.FS
+
+//go:embed assets/hints
+var embeddedHints embed.FS
+
+//go:embed assets/prompts
+var embeddedPrompts embed.FS
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+// TemplateRecord holds metadata and content for a deployment template.
 type TemplateRecord struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	Language string `json:"language"`
-	Content  string `json:"content"`
+	Name     string
+	Version  string
+	Language string
+	Content  string
 }
 
-// ResourceRecord represents a PCD resource (template, prompt, or hints)
-type ResourceRecord struct {
-	URI     string `json:"uri"`
-	Name    string `json:"name"`
-	Content string `json:"content,omitempty"`
+// ErrNotFound is returned when an asset key is not found.
+var ErrNotFound = errors.New("not found")
+
+// ── Key derivation ────────────────────────────────────────────────────────────
+
+// assetKey strips directory prefix and suffix to produce a map key.
+// suffix is one of ".template", ".hints", or "" (for prompts).
+//
+// Key derivation rules (per TOOLCHAIN-CONSTRAINTS):
+//   templates: "cli-tool.template.md"         -> "cli-tool"
+//   hints:     "cli-tool.go.milestones.hints.md" -> "cli-tool.go.milestones"
+//   prompts:   "interview-prompt.md"          -> "interview"
+//              "reverse-prompt.md"            -> "reverse"
+//              "prompt.md"                    -> "translator"  (special mapping)
+func assetKey(p, suffix string) string {
+	base := path.Base(p)
+	if suffix != "" {
+		// templates and hints: strip "<suffix>.md"
+		base = strings.TrimSuffix(base, suffix+".md")
+	} else {
+		// prompts: strip .md, then strip -prompt suffix if present
+		base = strings.TrimSuffix(base, ".md")
+		base = strings.TrimSuffix(base, "-prompt")
+		// Special mapping: bare "prompt" stem -> "translator"
+		if base == "prompt" {
+			base = "translator"
+		}
+	}
+	return base
 }
 
-// Diagnostic represents a linting diagnostic with location and severity
-type Diagnostic struct {
-	Severity string `json:"severity"`
-	Line     int    `json:"line"`
-	Section  string `json:"section"`
-	Message  string `json:"message"`
-	Rule     string `json:"rule"`
+// ── Embedded asset loader ─────────────────────────────────────────────────────
+
+func loadEmbedded(fsys embed.FS, dir, suffix string) (map[string]string, error) {
+	result := make(map[string]string)
+	err := iofs.WalkDir(fsys, dir, func(p string, d iofs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
+			return err
+		}
+		data, readErr := fsys.ReadFile(p)
+		if readErr != nil {
+			return readErr
+		}
+		result[assetKey(p, suffix)] = string(data)
+		return nil
+	})
+	return result, err
 }
 
-// LintResult represents the result of linting a specification
-type LintResult struct {
-	Valid       bool         `json:"valid"`
-	Errors      int          `json:"errors"`
-	Warnings    int          `json:"warnings"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
+// ── Overlay directories ───────────────────────────────────────────────────────
+
+func overlayDirs(sub string) []string {
+	home, _ := os.UserHomeDir()
+	return []string{
+		filepath.Join("/usr/share/pcd", sub),
+		filepath.Join("/etc/pcd", sub),
+		filepath.Join(home, ".config", "pcd", sub),
+		filepath.Join(".pcd", sub),
+	}
 }
 
-// ============ Filesystem Interface ============
-
-// Filesystem interface for reading files
-type Filesystem interface {
-	ReadFile(path string) (string, error)
-}
-
-// OSFilesystem is the production implementation using os package
-type OSFilesystem struct{}
-
-func NewOSFilesystem() Filesystem {
-	return &OSFilesystem{}
-}
-
-func (fs *OSFilesystem) ReadFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+func applyOverlay(base map[string]string, dir, suffix string) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", err
+		return // directory absent — silently skip
 	}
-	return string(data), nil
-}
-
-// FakeFilesystem is a test double for Filesystem
-type FakeFilesystem struct {
-	Files   map[string]string
-	ReadErr map[string]error
-}
-
-func NewFakeFilesystem() *FakeFilesystem {
-	return &FakeFilesystem{
-		Files:   make(map[string]string),
-		ReadErr: make(map[string]error),
-	}
-}
-
-func (fs *FakeFilesystem) ReadFile(path string) (string, error) {
-	if err, ok := fs.ReadErr[path]; ok {
-		return "", err
-	}
-	if content, ok := fs.Files[path]; ok {
-		return content, nil
-	}
-	return "", os.ErrNotExist
-}
-
-// ============ Search Path Helpers ============
-
-// templateSearchDirs returns the ordered list of directories to search
-// for template files. Later entries take precedence (last-wins merge).
-func templateSearchDirs() []string {
-	dirs := []string{"/usr/share/pcd/templates"}
-	if dirExists("/etc/pcd/templates") {
-		dirs = append(dirs, "/etc/pcd/templates")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		if d := filepath.Join(home, ".config", "pcd", "templates"); dirExists(d) {
-			dirs = append(dirs, d)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
 		}
-	}
-	if dirExists(".pcd/templates") {
-		dirs = append(dirs, ".pcd/templates")
-	}
-	return dirs
-}
-
-// hintsSearchDirs returns the ordered list of directories to search
-// for hints files. Later entries take precedence (last-wins merge).
-func hintsSearchDirs() []string {
-	dirs := []string{"/usr/share/pcd/hints"}
-	if dirExists("/etc/pcd/hints") {
-		dirs = append(dirs, "/etc/pcd/hints")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		if d := filepath.Join(home, ".config", "pcd", "hints"); dirExists(d) {
-			dirs = append(dirs, d)
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
 		}
+		key := assetKey(e.Name(), suffix)
+		base[key] = string(data)
 	}
-	if dirExists(".pcd/hints") {
-		dirs = append(dirs, ".pcd/hints")
-	}
-	return dirs
 }
 
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
+// ── Template metadata parser ──────────────────────────────────────────────────
 
-// parseTemplateMeta extracts Template-For, Version, and default Language
-// from a template file's META section and TEMPLATE-TABLE.
-func parseTemplateMeta(content string) (name, version, language string) {
-	inMeta := false
-	inTable := false
+// parseTemplateRecord extracts Name, Version, Language from template Markdown content.
+func parseTemplateRecord(name, content string) TemplateRecord {
+	rec := TemplateRecord{Name: name, Content: content}
 	for _, line := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "## META" {
-			inMeta = true
-			continue
-		}
-		if inMeta && strings.HasPrefix(trimmed, "## ") {
-			inMeta = false
-		}
-		if inMeta {
-			if strings.HasPrefix(trimmed, "Template-For:") {
-				name = strings.TrimSpace(strings.TrimPrefix(trimmed, "Template-For:"))
-			}
-			if strings.HasPrefix(trimmed, "Version:") {
-				version = strings.TrimSpace(strings.TrimPrefix(trimmed, "Version:"))
-			}
-		}
-		if trimmed == "## TEMPLATE-TABLE" {
-			inTable = true
-			continue
-		}
-		if inTable && strings.HasPrefix(trimmed, "## ") {
-			inTable = false
-		}
-		if inTable && language == "" {
-			// Match rows like: | LANGUAGE | Go | default | ... |
-			parts := strings.Split(trimmed, "|")
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Version:") {
+			rec.Version = strings.TrimSpace(strings.TrimPrefix(line, "Version:"))
+		} else if strings.HasPrefix(line, "| LANGUAGE |") || strings.Contains(line, "| LANGUAGE |") {
+			// parse TEMPLATE-TABLE row: | LANGUAGE | Go | default | ...
+			parts := strings.Split(line, "|")
 			if len(parts) >= 4 {
 				key := strings.TrimSpace(parts[1])
 				val := strings.TrimSpace(parts[2])
 				constraint := strings.TrimSpace(parts[3])
-				if key == "LANGUAGE" && constraint == "default" {
-					language = val
+				if strings.EqualFold(key, "LANGUAGE") && strings.EqualFold(constraint, "default") {
+					rec.Language = val
 				}
 			}
 		}
 	}
-	return name, version, language
+	return rec
 }
 
-// ============ TemplateStore Interface ============
+// ── EmbeddedLayeredStore ──────────────────────────────────────────────────────
 
-// TemplateStore interface for accessing templates and hints
-type TemplateStore interface {
+// EmbeddedLayeredStore implements AssetStore using embedded assets as base
+// and filesystem overlays applied at startup.
+type EmbeddedLayeredStore struct {
+	templates map[string]string // key -> content
+	hints     map[string]string // key -> content
+	prompts   map[string]string // key -> content
+}
+
+// NewEmbeddedLayeredStore loads embedded assets and applies filesystem overlays.
+func NewEmbeddedLayeredStore() (*EmbeddedLayeredStore, error) {
+	s := &EmbeddedLayeredStore{}
+
+	var err error
+	s.templates, err = loadEmbedded(embeddedTemplates, "assets/templates", ".template")
+	if err != nil {
+		return nil, err
+	}
+	s.hints, err = loadEmbedded(embeddedHints, "assets/hints", ".hints")
+	if err != nil {
+		return nil, err
+	}
+	s.prompts, err = loadEmbedded(embeddedPrompts, "assets/prompts", "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply filesystem overlays (last-wins, ascending precedence)
+	for _, dir := range overlayDirs("templates") {
+		applyOverlay(s.templates, dir, ".template")
+	}
+	for _, dir := range overlayDirs("hints") {
+		applyOverlay(s.hints, dir, ".hints")
+	}
+	for _, dir := range overlayDirs("prompts") {
+		applyOverlay(s.prompts, dir, "")
+	}
+
+	return s, nil
+}
+
+// ListTemplates returns all template records (without content).
+func (s *EmbeddedLayeredStore) ListTemplates() ([]TemplateRecord, error) {
+	var records []TemplateRecord
+	for name, content := range s.templates {
+		rec := parseTemplateRecord(name, content)
+		rec.Content = "" // omit content in list
+		records = append(records, rec)
+	}
+	return records, nil
+}
+
+// GetTemplate returns the full TemplateRecord for the given name and version.
+// version "latest" resolves to the only installed version.
+func (s *EmbeddedLayeredStore) GetTemplate(name, version string) (TemplateRecord, error) {
+	content, ok := s.templates[name]
+	if !ok {
+		return TemplateRecord{}, ErrNotFound
+	}
+	rec := parseTemplateRecord(name, content)
+	return rec, nil
+}
+
+// GetHints returns the content of the hints file for the given key.
+func (s *EmbeddedLayeredStore) GetHints(key string) (string, error) {
+	content, ok := s.hints[key]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return content, nil
+}
+
+// ListHintsKeys returns all known hints keys.
+func (s *EmbeddedLayeredStore) ListHintsKeys() ([]string, error) {
+	keys := make([]string, 0, len(s.hints))
+	for k := range s.hints {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// GetPrompt returns the content of the prompt for the given name.
+func (s *EmbeddedLayeredStore) GetPrompt(name string) (string, error) {
+	content, ok := s.prompts[name]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return content, nil
+}
+
+// ListPrompts returns all known prompt names.
+func (s *EmbeddedLayeredStore) ListPrompts() ([]string, error) {
+	names := make([]string, 0, len(s.prompts))
+	for k := range s.prompts {
+		names = append(names, k)
+	}
+	return names, nil
+}
+
+// ── FakeStore (test double) ───────────────────────────────────────────────────
+
+// FakeStore is an in-memory AssetStore for use in tests.
+// No filesystem access. No embedded assets.
+type FakeStore struct {
+	Templates []TemplateRecord
+	Hints     map[string]string
+	Prompts   map[string]string
+}
+
+func (f *FakeStore) ListTemplates() ([]TemplateRecord, error) {
+	result := make([]TemplateRecord, len(f.Templates))
+	for i, t := range f.Templates {
+		result[i] = TemplateRecord{
+			Name:     t.Name,
+			Version:  t.Version,
+			Language: t.Language,
+			// Content omitted in list
+		}
+	}
+	return result, nil
+}
+
+func (f *FakeStore) GetTemplate(name, version string) (TemplateRecord, error) {
+	for _, t := range f.Templates {
+		if t.Name == name {
+			return t, nil
+		}
+	}
+	return TemplateRecord{}, ErrNotFound
+}
+
+func (f *FakeStore) GetHints(key string) (string, error) {
+	if f.Hints == nil {
+		return "", ErrNotFound
+	}
+	content, ok := f.Hints[key]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return content, nil
+}
+
+func (f *FakeStore) ListHintsKeys() ([]string, error) {
+	keys := make([]string, 0, len(f.Hints))
+	for k := range f.Hints {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (f *FakeStore) GetPrompt(name string) (string, error) {
+	if f.Prompts == nil {
+		return "", ErrNotFound
+	}
+	content, ok := f.Prompts[name]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return content, nil
+}
+
+func (f *FakeStore) ListPrompts() ([]string, error) {
+	names := make([]string, 0, len(f.Prompts))
+	for k := range f.Prompts {
+		names = append(names, k)
+	}
+	return names, nil
+}
+
+// ── AssetStore interface ──────────────────────────────────────────────────────
+
+// AssetStore is the interface satisfied by both EmbeddedLayeredStore and FakeStore.
+type AssetStore interface {
 	ListTemplates() ([]TemplateRecord, error)
 	GetTemplate(name, version string) (TemplateRecord, error)
 	GetHints(key string) (string, error)
-	ListHints() []string
 	ListHintsKeys() ([]string, error)
-}
-
-// LayeredTemplateStore is the production implementation that reads from
-// the filesystem search path hierarchy (later entries take precedence):
-//
-//	/usr/share/pcd/templates/    (pcd-templates package)
-//	/etc/pcd/templates/          (system admin overrides)
-//	~/.config/pcd/templates/     (user overrides)
-//	./.pcd/templates/            (project-local)
-type LayeredTemplateStore struct {
-	templates map[string]map[string]TemplateRecord
-	hints     map[string]string
-}
-
-func NewLayeredTemplateStore() TemplateStore {
-	ts := &LayeredTemplateStore{
-		templates: make(map[string]map[string]TemplateRecord),
-		hints:     make(map[string]string),
-	}
-	for _, dir := range templateSearchDirs() {
-		ts.loadTemplatesFrom(dir)
-	}
-	for _, dir := range hintsSearchDirs() {
-		ts.loadHintsFrom(dir)
-	}
-	return ts
-}
-
-func (ts *LayeredTemplateStore) loadTemplatesFrom(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return // directory absent or unreadable — skip silently
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".template.md") {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		content := string(data)
-		name, version, language := parseTemplateMeta(content)
-		if name == "" {
-			name = strings.TrimSuffix(e.Name(), ".template.md")
-		}
-		if version == "" {
-			version = "latest"
-		}
-		if _, ok := ts.templates[name]; !ok {
-			ts.templates[name] = make(map[string]TemplateRecord)
-		}
-		// later dir entries overwrite earlier ones (last-wins)
-		ts.templates[name][version] = TemplateRecord{
-			Name:     name,
-			Version:  version,
-			Language: language,
-			Content:  content,
-		}
-	}
-}
-
-func (ts *LayeredTemplateStore) loadHintsFrom(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return // directory absent or unreadable — skip silently
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".hints.md") {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		key := strings.TrimSuffix(e.Name(), ".hints.md")
-		ts.hints[key] = string(data) // last-wins
-	}
-}
-
-func (ts *LayeredTemplateStore) ListTemplates() ([]TemplateRecord, error) {
-	var results []TemplateRecord
-	for _, versions := range ts.templates {
-		for _, rec := range versions {
-			results = append(results, rec)
-		}
-	}
-	return results, nil
-}
-
-func (ts *LayeredTemplateStore) GetTemplate(name, version string) (TemplateRecord, error) {
-	if versions, ok := ts.templates[name]; ok {
-		if version == "latest" {
-			for _, rec := range versions {
-				return rec, nil
-			}
-		}
-		if rec, ok := versions[version]; ok {
-			return rec, nil
-		}
-		return TemplateRecord{}, fmt.Errorf("version %s not found for template %s", version, name)
-	}
-	return TemplateRecord{}, fmt.Errorf("unknown template: %s", name)
-}
-
-func (ts *LayeredTemplateStore) GetHints(key string) (string, error) {
-	if content, ok := ts.hints[key]; ok {
-		return content, nil
-	}
-	return "", fmt.Errorf("hints not found: %s", key)
-}
-
-func (ts *LayeredTemplateStore) ListHints() []string {
-	var keys []string
-	for k := range ts.hints {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (ts *LayeredTemplateStore) ListHintsKeys() ([]string, error) {
-	return ts.ListHints(), nil
-}
-
-// FakeTemplateStore is a test double for TemplateStore
-type FakeTemplateStore struct {
-	Templates []TemplateRecord
-	Hints     map[string]string
-}
-
-func NewFakeTemplateStore() *FakeTemplateStore {
-	return &FakeTemplateStore{
-		Templates: []TemplateRecord{},
-		Hints:     make(map[string]string),
-	}
-}
-
-func (ts *FakeTemplateStore) ListTemplates() ([]TemplateRecord, error) {
-	return ts.Templates, nil
-}
-
-func (ts *FakeTemplateStore) GetTemplate(name, version string) (TemplateRecord, error) {
-	for _, t := range ts.Templates {
-		if t.Name == name {
-			if version == "latest" || version == t.Version {
-				return t, nil
-			}
-		}
-	}
-	return TemplateRecord{}, fmt.Errorf("unknown template: %s", name)
-}
-
-func (ts *FakeTemplateStore) GetHints(key string) (string, error) {
-	if content, ok := ts.Hints[key]; ok {
-		return content, nil
-	}
-	return "", fmt.Errorf("hints not found: %s", key)
-}
-
-func (ts *FakeTemplateStore) ListHints() []string {
-	var keys []string
-	for k := range ts.Hints {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (ts *FakeTemplateStore) ListHintsKeys() ([]string, error) {
-	return ts.ListHints(), nil
-}
-
-// ============ PromptStore Interface ============
-
-// PromptStore interface for accessing embedded prompts
-type PromptStore interface {
 	GetPrompt(name string) (string, error)
-	ListPrompts() []string
-}
-
-// EmbeddedPromptStore is the production implementation
-// with prompts embedded as Go string constants
-type EmbeddedPromptStore struct {
-	prompts map[string]string
-}
-
-func NewEmbeddedPromptStore() PromptStore {
-	store := &EmbeddedPromptStore{
-		prompts: make(map[string]string),
-	}
-	store.prompts["interview"] = promptInterview
-	store.prompts["translator"] = promptTranslator
-	return store
-}
-
-func (ps *EmbeddedPromptStore) GetPrompt(name string) (string, error) {
-	if content, ok := ps.prompts[name]; ok {
-		return content, nil
-	}
-	return "", fmt.Errorf("prompt not found: %s", name)
-}
-
-func (ps *EmbeddedPromptStore) ListPrompts() []string {
-	return []string{"interview", "translator"}
-}
-
-// FakePromptStore is a test double for PromptStore
-type FakePromptStore struct {
-	Prompts map[string]string
-}
-
-func NewFakePromptStore() *FakePromptStore {
-	return &FakePromptStore{
-		Prompts: make(map[string]string),
-	}
-}
-
-func (ps *FakePromptStore) GetPrompt(name string) (string, error) {
-	if content, ok := ps.Prompts[name]; ok {
-		return content, nil
-	}
-	return "", fmt.Errorf("prompt not found: %s", name)
-}
-
-func (ps *FakePromptStore) ListPrompts() []string {
-	var names []string
-	for name := range ps.Prompts {
-		names = append(names, name)
-	}
-	return names
+	ListPrompts() ([]string, error)
 }

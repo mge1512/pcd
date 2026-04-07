@@ -1,5 +1,5 @@
 [Unit]
-Description=MCP server for PCD specification management
+Description=mcp-server-pcd MCP server
 After=network.target
 
 [Service]

@@ -1,77 +1,71 @@
-.PHONY: build test install clean container container-podman lint fmt vet coverage
+BINARY  := mcp-server-pcd
+VERSION := 0.2.0
+STORE   := internal/store/assets
 
-# Build configuration
-BINARY_NAME=mcp-server-pcd
-VERSION=0.1.0
-LDFLAGS=-ldflags "-X main.serverVersion=$(VERSION)"
-CONTAINER_IMAGE=mcp-server-pcd:latest
-CONTAINER_REGISTRY=registry.suse.com
+# Asset source directories.
+# When building inside the PCD repository, assets live two levels up.
+# When building standalone (e.g. from an OBS source tarball), they are
+# expected to be staged manually or via a custom embed-assets invocation.
+REPO_ROOT  := ../..
+TMPL_SRC   := $(REPO_ROOT)/templates
+HINTS_SRC  := $(REPO_ROOT)/hints
+PROMPTS_SRC := $(REPO_ROOT)/prompts
 
-# Build targets
-build:
-	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY_NAME) .
+.PHONY: all build embed-assets vendor-tarball test install clean man
+
+all: build
+
+# Stage assets from the repository root into the embed location.
+# Must run before go build.
+# Prompts: only stage actual prompt files (not README-*.md).
+embed-assets:
+	mkdir -p $(STORE)/templates $(STORE)/hints $(STORE)/prompts
+	@if ls $(TMPL_SRC)/*.template.md 1>/dev/null 2>&1; then \
+	  cp $(TMPL_SRC)/*.template.md $(STORE)/templates/; \
+	else \
+	  echo "WARNING: no template files found in $(TMPL_SRC)/"; \
+	  touch $(STORE)/templates/.keep; \
+	fi
+	@if ls $(HINTS_SRC)/*.hints.md 1>/dev/null 2>&1; then \
+	  cp $(HINTS_SRC)/*.hints.md $(STORE)/hints/; \
+	else \
+	  echo "WARNING: no hints files found in $(HINTS_SRC)/"; \
+	  touch $(STORE)/hints/.keep; \
+	fi
+	@if ls $(PROMPTS_SRC)/*.md 1>/dev/null 2>&1; then \
+	  for f in $(PROMPTS_SRC)/*.md; do \
+	    base=$$(basename "$$f"); \
+	    case "$$base" in README-*) ;; *) cp "$$f" $(STORE)/prompts/;; esac; \
+	  done; \
+	else \
+	  echo "WARNING: no prompt files found in $(PROMPTS_SRC)/"; \
+	  touch $(STORE)/prompts/.keep; \
+	fi
+
+build: embed-assets
+	CGO_ENABLED=0 go build \
+	    -mod=vendor \
+	    -ldflags="-X main.serverVersion=$(VERSION)" \
+	    -o $(BINARY) \
+	    .
 
 test:
-	go test -v ./...
+	go test -mod=vendor ./independent_tests/...
 
 install: build
-	install -D -m 0755 $(BINARY_NAME) $(DESTDIR)/usr/bin/$(BINARY_NAME)
-	install -D -m 0644 $(BINARY_NAME).service $(DESTDIR)/usr/lib/systemd/system/$(BINARY_NAME).service
+	install -D -m 0755 $(BINARY) $(DESTDIR)/usr/bin/$(BINARY)
+	install -D -m 0644 mcp-server-pcd.service \
+	    $(DESTDIR)/usr/lib/systemd/system/mcp-server-pcd.service
+	install -D -m 0644 mcp-server-pcd.1 \
+	    $(DESTDIR)/usr/share/man/man1/mcp-server-pcd.1
+
+man: mcp-server-pcd.1.md
+	pandoc mcp-server-pcd.1.md -s -t man -o mcp-server-pcd.1
+
+# Generate vendor tarball for OBS/RPM builds — run once per release.
+vendor-tarball:
+	go mod vendor
+	tar -cJf $(BINARY)-$(VERSION)-vendor.tar.xz vendor/
 
 clean:
-	rm -f $(BINARY_NAME)
-	go clean
-
-lint:
-	golangci-lint run ./...
-
-fmt:
-	go fmt ./...
-
-vet:
-	go vet ./...
-
-coverage:
-	go test -v -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-
-## Container build targets
-
-# Build OCI container using podman
-# Uses registry.suse.com/bci/golang:latest as builder base image
-# Final stage uses FROM scratch for minimal image size
-container: container-podman
-
-container-podman:
-	@echo "Building container image with podman..."
-	@echo "Builder base: registry.suse.com/bci/golang:latest"
-	@echo "Final stage: FROM scratch"
-	podman build -t $(CONTAINER_IMAGE) -f Containerfile .
-	@echo "Container image built successfully: $(CONTAINER_IMAGE)"
-	@echo ""
-	@echo "To run the container:"
-	@echo "  podman run -p 8080:8080 $(CONTAINER_IMAGE)"
-	@echo ""
-	@echo "To test the container:"
-	@echo "  podman run $(CONTAINER_IMAGE) http listen=127.0.0.1:8080"
-
-container-test: container-podman
-	@echo "Testing container image with podman..."
-	@echo "Starting container..."
-	podman run --rm -d --name mcp-test -p 8080:8080 $(CONTAINER_IMAGE)
-	@echo "Container started. Waiting for startup..."
-	sleep 2
-	@echo "Testing HTTP endpoint..."
-	curl -s -X POST http://127.0.0.1:8080/mcp \
-		-H "Content-Type: application/json" \
-		-d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq . || true
-	@echo ""
-	@echo "Stopping test container..."
-	podman stop mcp-test || true
-	@echo "Test complete"
-
-container-clean:
-	podman rmi -f $(CONTAINER_IMAGE) || true
-	@echo "Container image removed"
-
-.DEFAULT_GOAL := build
+	rm -rf $(STORE) $(BINARY) mcp-server-pcd.1

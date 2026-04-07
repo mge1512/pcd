@@ -1,6 +1,6 @@
-module github.com/mge1512/mcp-server-pcd
+module mcp-server-pcd
 
-go 1.24
+go 1.23.0
 
 require github.com/mark3labs/mcp-go v0.46.0
 

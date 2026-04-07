@@ -1,5 +1,5 @@
-mcp-server-pcd (0.1.0-1) UNRELEASED; urgency=medium
+mcp-server-pcd (0.2.0-1) unstable; urgency=low
 
-  * Initial release
+  * Initial Debian package release.
 
- -- Matthias G. Eckermann <pcd@mailbox.org>  Thu, 26 Mar 2026 17:30:00 +0000
+ -- Matthias G. Eckermann <pcd@mailbox.org>  Tue, 07 Apr 2026 13:00:00 +0200

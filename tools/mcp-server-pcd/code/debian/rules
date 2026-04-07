@@ -1,14 +1,28 @@
 #!/usr/bin/make -f
 
+export DH_VERBOSE = 1
+export CGO_ENABLED = 0
+export GOFLAGS = -mod=vendor
+
 %:
 	dh $@
 
 override_dh_auto_build:
-	CGO_ENABLED=0 go build -ldflags="-X main.serverVersion=0.1.0" -o mcp-server-pcd .
+	make embed-assets
+	go build \
+	    -mod=vendor \
+	    -ldflags="-X main.serverVersion=$(shell dpkg-parsechangelog -S Version)" \
+	    -o mcp-server-pcd \
+	    .
+	pandoc mcp-server-pcd.1.md -s -t man -o mcp-server-pcd.1
 
 override_dh_auto_install:
-	install -D -m 0755 mcp-server-pcd $(CURDIR)/debian/mcp-server-pcd/usr/bin/mcp-server-pcd
-	install -D -m 0644 mcp-server-pcd.service $(CURDIR)/debian/mcp-server-pcd/usr/lib/systemd/system/mcp-server-pcd.service
+	install -D -m 0755 mcp-server-pcd \
+	    debian/mcp-server-pcd/usr/bin/mcp-server-pcd
+	install -D -m 0644 mcp-server-pcd.service \
+	    debian/mcp-server-pcd/lib/systemd/system/mcp-server-pcd.service
+	install -D -m 0644 mcp-server-pcd.1 \
+	    debian/mcp-server-pcd/usr/share/man/man1/mcp-server-pcd.1
 
 override_dh_auto_test:
-	go test ./...
+	go test ./independent_tests/...

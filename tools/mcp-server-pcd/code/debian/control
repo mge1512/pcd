@@ -1,16 +1,26 @@
 Source: mcp-server-pcd
+Section: utils
 Priority: optional
 Maintainer: Matthias G. Eckermann <pcd@mailbox.org>
-Build-Depends: debhelper-compat (= 13), golang-go (>= 1.24)
-Standards-Version: 4.6.1
-Homepage: https://github.com/mge1512/mcp-server-pcd
-Vcs-Git: https://github.com/mge1512/mcp-server-pcd.git
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.22), pandoc
+Standards-Version: 4.6.2
+Homepage: https://github.com/mge1512/pcd
+Rules-Requires-Root: no
 
 Package: mcp-server-pcd
 Architecture: any
-Depends: pcd-templates, ${shlibs:Depends}, ${misc:Depends}
-Description: MCP server for PCD specification management
- mcp-server-pcd is an MCP (Model Context Protocol) server that provides
- tools and resources for managing PCD (Post-Coding Development)
- specifications. It supports template management, resource serving, and
- specification linting.
+Depends: ${misc:Depends}
+Recommends: pcd-templates
+Description: PCD MCP server — templates, hints, lint, and milestone tools
+ mcp-server-pcd is a Model Context Protocol (MCP) server for the Post-Coding
+ Development (PCD) workflow. It provides MCP tools and resources for:
+  - Listing and retrieving PCD deployment templates
+  - Listing and reading hints files and prompts
+  - Linting PCD specification files (RULE-01 through RULE-17)
+  - Setting milestone status in spec files
+ .
+ The binary is self-contained: all templates, hints, and prompts are embedded
+ at build time. Install pcd-templates to enable site-local asset overrides.
+ .
+ Supports stdio transport (for mcphost, Claude Desktop) and streamable-HTTP
+ transport (for web-based MCP hosts and remote access).
