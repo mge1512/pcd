@@ -1,14 +1,6 @@
-LICENSE: GPL-2.0-only
+SPDX-License-Identifier: GPL-2.0-only
 
-pcd-lint is licensed under the GNU General Public License v2.0 (GPLv2).
+This software is licensed under the GNU General Public License, version 2 only.
 
-For the complete license text, see:
-https://www.gnu.org/licenses/gpl-2.0.html
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Full license text: https://spdx.org/licenses/GPL-2.0-only.html
+Authoritative source: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html

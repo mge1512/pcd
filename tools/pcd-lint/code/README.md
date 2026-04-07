@@ -1,222 +1,203 @@
 # pcd-lint
 
-A command-line linter and validator for Post-Coding Development (PCD) specifications.
+Post-Coding Development specification linter.
+
+**Version:** 0.3.21 | **License:** GPL-2.0-only | **Schema:** 0.3.21
+
+---
 
 ## Overview
 
-`pcd-lint` validates specification files written in the Post-Coding Development format. It enforces structural rules, semantic validation, and cross-section consistency checks according to the PCD specification schema (v0.3.13).
+`pcd-lint` validates Post-Coding Development (PCD) specification files
+against the structural rules defined in the PCD spec schema. It checks:
 
-## Features
+- Required sections (META, TYPES, BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES)
+- META field completeness and format (SPDX license, semantic versioning)
+- BEHAVIOR block structure (STEPS required, Constraint: field validation)
+- EXAMPLES structure (GIVEN/WHEN/THEN completeness, multi-pass support)
+- INVARIANTS tagging ([observable] / [implementation])
+- MILESTONE sections (structure, status, BEHAVIOR name existence)
+- Negative-path EXAMPLE coverage for BEHAVIOR blocks with error exits
 
-- **Comprehensive validation** of PCD specification files
-- **14 validation rules** covering structure, metadata, examples, and behavior definitions
-- **Strict mode** for treating warnings as errors
-- **Multiple output formats** for integration with CI/CD pipelines
-- **Template discovery** with `list-templates` command
-- **No external dependencies** — single static binary
+All rules are evaluated — linting does not stop at the first error.
+
+---
 
 ## Installation
 
-### From OBS (openSUSE Build Service)
+`pcd-lint` is distributed via [OBS (build.opensuse.org)](https://build.opensuse.org)
+as part of the **pcd-tools** package.
 
-#### openSUSE Leap / SUSE Linux Enterprise
-
-```bash
-sudo zypper install pcd-lint
+**openSUSE / SUSE Linux Enterprise:**
+```
+zypper install pcd-tools
 ```
 
-#### Fedora
-
-```bash
-sudo dnf install pcd-lint
+**Fedora:**
+```
+dnf install pcd-tools
 ```
 
-#### Debian / Ubuntu
-
-```bash
-sudo apt-get install pcd-lint
+**Debian / Ubuntu:**
+```
+apt install pcd-tools
 ```
 
-### From Source
+The **pcd-templates** package is required and provides template files to
+`/usr/share/pcd/templates/`.
 
-```bash
-git clone https://github.com/mge1512/pcd-lint.git
-cd pcd-lint
-make build
-sudo make install
-```
+> **Note:** No curl-based installation is supported (supply chain security requirement).
+
+---
 
 ## Usage
 
-### Basic Validation
-
-Validate a specification file:
-
-```bash
-pcd-lint myspec.md
 ```
-
-### Strict Mode
-
-Treat warnings as errors:
-
-```bash
-pcd-lint strict=true myspec.md
-```
-
-### List Available Templates
-
-Display all known deployment templates:
-
-```bash
+pcd-lint [strict=true] <specfile.md>
 pcd-lint list-templates
-```
-
-### Version Information
-
-Display version and schema information:
-
-```bash
 pcd-lint version
 ```
 
-## Command-Line Options
+### Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `strict=true` | Treat warnings as errors | `false` |
-| `strict=false` | Warnings do not affect exit code | (default) |
-| `list-templates` | Print all known deployment templates | N/A |
-| `version` | Print version information | N/A |
+| `strict=true` | Treat warnings as errors; exit 1 on any warning | `false` |
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `list-templates` | Print all known deployment templates with default language annotations |
+| `version` | Print pcd-lint version, schema version, and SPDX list version |
+
+---
 
 ## Exit Codes
 
 | Code | Meaning |
 |------|---------|
-| `0` | Specification is valid (no errors; no warnings if strict=true) |
-| `1` | Specification is invalid (contains errors, or strict mode with warnings) |
-| `2` | Invocation error (bad arguments, missing file, file not readable) |
+| `0` | Valid specification (no errors; no warnings unless strict=false) |
+| `1` | Invalid specification (errors present; or strict=true with warnings) |
+| `2` | Invocation error (bad arguments, file not found, wrong extension) |
 
-## Validation Rules
+---
 
-`pcd-lint` enforces the following validation rules in order:
+## Output Streams
 
-- **RULE-01**: Required sections present (META, TYPES, BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES)
-- **RULE-02**: META fields present and non-empty
-- **RULE-02b**: Author field (at least one required)
-- **RULE-02c**: Version semantic versioning format
-- **RULE-02d**: Spec-Schema semantic versioning format
-- **RULE-02e**: License SPDX identifier validation
-- **RULE-03**: Deployment template resolution
-- **RULE-04**: Deprecated META fields detection
-- **RULE-05**: Verification field value validation
-- **RULE-06**: EXAMPLES section structure validation
-- **RULE-07**: EXAMPLES minimum content validation
-- **RULE-08**: BEHAVIOR blocks must contain STEPS
-- **RULE-09**: INVARIANTS entries should carry observable/implementation tags
-- **RULE-10**: Negative-path EXAMPLE required for BEHAVIOR with error exits
-- **RULE-13**: Constraint field value validation
-- **RULE-14**: EXECUTION section required in deployment templates
+- **stderr**: Diagnostic lines (errors and warnings)
+- **stdout**: Summary line (lint) or template list (list-templates)
 
-## Output Format
-
-### Diagnostic Line Format
+### Diagnostic Format
 
 ```
-SEVERITY  file:line  [section]  message
+{SEVERITY}  {file}:{line}  [{section}]  {message}
 ```
 
-Example:
+Examples:
 ```
-ERROR    account_transfer.md:1    [structure]  Missing required section: ## INVARIANTS
-WARNING  account_transfer.md:6    [META]       META field 'Target' is deprecated since v0.3.0
+ERROR    spec.md:1    [structure]  Missing required section: ## INVARIANTS
+ERROR    spec.md:4    [META]       Missing required META field: Deployment
+WARNING  spec.md:6    [META]       META field 'Target' is deprecated since v0.3.0
+ERROR    spec.md:42   [EXAMPLES]   Example 'foo' missing THEN: marker
 ```
 
-### Summary Line Format
+### Summary Format
 
 ```
-✓ file: valid                                        (exit 0, no warnings)
-✓ file: valid (N warning(s))                         (exit 0, warnings present)
-✗ file: N error(s), M warning(s)                     (exit 1, errors present)
-✗ file: N error(s), M warning(s) [strict mode]       (exit 1, strict mode)
+✓ spec.md: valid
+✓ spec.md: valid (N warning(s))
+✗ spec.md: N error(s), M warning(s)
+✗ spec.md: N error(s), M warning(s) [strict mode]
 ```
+
+---
 
 ## Examples
 
-### Valid Specification
-
-```bash
-$ pcd-lint valid-spec.md
-✓ valid-spec.md: valid
+**Lint a specification file:**
+```
+pcd-lint mycomponent.md
 ```
 
-### Specification with Warnings
-
-```bash
-$ pcd-lint spec-with-warnings.md
-✓ spec-with-warnings.md: valid (1 warning(s))
+**Lint with strict mode:**
+```
+pcd-lint strict=true mycomponent.md
 ```
 
-### Invalid Specification
-
-```bash
-$ pcd-lint invalid-spec.md
-ERROR    invalid-spec.md:1    [structure]  Missing required section: ## INVARIANTS
-✗ invalid-spec.md: 1 error(s), 0 warning(s)
+**List all known deployment templates:**
+```
+pcd-lint list-templates
+```
+Output (example):
+```
+wasm  →  (template file not found)
+ebpf  →  (template file not found)
+cli-tool  →  Go
+...
 ```
 
-### Strict Mode
-
-```bash
-$ pcd-lint strict=true spec-with-warnings.md
-WARNING  spec-with-warnings.md:6  [META]  META field 'Target' is deprecated
-✗ spec-with-warnings.md: 0 error(s), 1 warning(s) [strict mode]
+**Print version:**
+```
+pcd-lint version
+# pcd-lint 0.3.21 (schema 0.3.21) spdx/3.24.0
 ```
 
-## Specification Format
+---
 
-PCD specification files are Markdown files (`.md` extension) with the following required sections:
+## Template Search Path
 
-- `## META` — Metadata (Deployment, Version, Author, License, etc.)
-- `## TYPES` — Type definitions
-- `## BEHAVIOR` — Operation definitions (one or more)
-- `## PRECONDITIONS` — Pre-conditions for the operation
-- `## POSTCONDITIONS` — Post-conditions for the operation
-- `## INVARIANTS` — Invariants that must hold
-- `## EXAMPLES` — Examples demonstrating the operation
+Template files are searched in ascending precedence order (last wins):
 
-See https://github.com/mge1512/pcd-spec for the complete PCD specification.
+1. `/usr/share/pcd/templates/` — vendor default (pcd-templates package)
+2. `/etc/pcd/templates/` — system administrator
+3. `~/.config/pcd/templates/` — user
+4. `./.pcd/templates/` — project-local
 
-## Signal Handling
+---
 
-`pcd-lint` exits cleanly on SIGTERM and SIGINT (Ctrl-C). No partial output is produced.
+## Validation Rules Summary
 
-## Platform Support
+| Rule | Description | Severity |
+|------|-------------|----------|
+| RULE-01 | Required sections present | Error |
+| RULE-02 | META fields present and non-empty | Error |
+| RULE-02b | Author field required | Error |
+| RULE-02c | Version: MAJOR.MINOR.PATCH format | Error |
+| RULE-02d | Spec-Schema: MAJOR.MINOR.PATCH format | Error |
+| RULE-02e | License: valid SPDX identifier | Error |
+| RULE-03 | Deployment: known template | Error |
+| RULE-04 | Deprecated META fields (Target, Domain) | Warning |
+| RULE-05 | Verification: known value | Warning |
+| RULE-06 | EXAMPLES block structure (GIVEN/WHEN/THEN) | Error |
+| RULE-07 | EXAMPLES block content non-empty | Warning |
+| RULE-08 | BEHAVIOR blocks contain STEPS | Error |
+| RULE-09 | INVARIANTS entries carry tags | Warning |
+| RULE-10 | Negative-path EXAMPLE for BEHAVIOR with error exits | Error |
+| RULE-11 | TOOLCHAIN-CONSTRAINTS structure | Warning |
+| RULE-12 | Cross-section consistency | Error/Warning |
+| RULE-13 | Constraint: field valid values | Error/Warning |
+| RULE-14 | EXECUTION section in deployment templates | Warning |
+| RULE-15 | MILESTONE structure and single-active | Error/Warning |
+| RULE-16 | MILESTONE BEHAVIOR names exist | Error |
+| RULE-17 | Scaffold milestone ordering and uniqueness | Error |
 
-- **Linux** (primary)
-- **macOS** (supported)
-- **Windows** (not supported in v1)
+---
+
+## Building from Source
+
+```
+git clone <repository>
+cd pcd-lint
+make build
+make man
+make install
+```
+
+Requirements: Go 1.21+, pandoc (for man page generation).
+
+---
 
 ## License
 
-GNU General Public License v2.0 (GPL-2.0-only)
-
-See LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome. Please ensure all tests pass and follow the existing code style.
-
-```bash
-make test
-```
-
-## Author
-
-Matthias G. Eckermann <pcd@mailbox.org>
-
-## References
-
-- [PCD Specification](https://github.com/mge1512/pcd-spec)
-- [SPDX License List](https://spdx.org/licenses/)
-- [Semantic Versioning](https://semver.org/)
+GPL-2.0-only — see [https://spdx.org/licenses/GPL-2.0-only.html](https://spdx.org/licenses/GPL-2.0-only.html)

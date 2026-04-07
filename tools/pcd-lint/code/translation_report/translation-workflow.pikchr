@@ -1,0 +1,21 @@
+// translation-workflow.pikchr
+// Translation workflow diagram for pcd-lint
+// SPDX-License-Identifier: GPL-2.0-only
+
+box "pcd-lint.md" "(spec)" fit
+arrow right 1.0
+box "cli-tool.template.md" "(template)" fit
+arrow right 1.0
+box "Resolve" "Language=Go" "BINARY-TYPE=static" fit
+arrow down 0.8
+box "Phase 1" "main.go" "go.mod" fit
+arrow down 0.8
+box "Phase 2" "Makefile" "pcd-lint.spec" "debian/*" "LICENSE" fit
+arrow down 0.8
+box "Phase 3" "independent_tests/" "translation_report/" fit
+arrow down 0.8
+box "Phase 4" "README.md" "pcd-lint.1.md" fit
+arrow down 0.8
+box "Phase 5" "Compile Gate" "go mod tidy" "go build ./..." fit
+arrow down 0.8
+box "Phase 6" "TRANSLATION_REPORT.md" fit
