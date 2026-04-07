@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 export CGO_ENABLED=0
-export DH_GOPKG := github.com/pcd-tools/pcd-lint
+export DH_GOPKG := github.com/mge1512/pcd-lint
 
 %:
 	dh $@

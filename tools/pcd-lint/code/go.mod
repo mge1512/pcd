@@ -1,3 +1,3 @@
-module github.com/pcd-tools/pcd-lint
+module github.com/mge1512/pcd-lint
 
 go 1.21
