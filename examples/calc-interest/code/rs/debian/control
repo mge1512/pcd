@@ -1,0 +1,15 @@
+Source: calc-interest
+Section: utils
+Priority: optional
+Maintainer: Unknown <unknown@example.com>
+Build-Depends: debhelper-compat (= 13), cargo, rustc, pandoc
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: calc-interest
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Simple interest calculator
+ Reads principal, annual rate, and number of periods from standard input
+ and writes the computed simple interest and total repayment amount to
+ standard output. No network access; no configuration files.

@@ -1,0 +1,18 @@
+// translation-workflow.pikchr
+// Workflow diagram for calc-interest Rust translation
+// Render with: pikchr translation-workflow.pikchr
+
+arrow right 200% "Spec" "calc-interest.spec.md" below
+box "Resolve\nLanguage=Rust" fit
+arrow right 200%
+box "Phase 1\nCore Impl\nmain.rs\nCargo.toml" fit
+arrow right 200%
+box "Phase 2\nPackaging\nMakefile\nRPM/DEB\nLICENSE" fit
+arrow down 200% at last box.s
+box "Phase 3\nTests\nindependent_tests.rs" fit
+arrow left 200%
+box "Phase 4\nDocs\nREADME.md\nman page" fit
+arrow left 200%
+box "Phase 5\nCompile Gate\ncargo build\ncargo test" fit
+arrow left 200%
+box "Phase 6\nReport\nTRANSLATION_REPORT.md" fit

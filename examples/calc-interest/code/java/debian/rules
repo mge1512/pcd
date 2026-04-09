@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+# debian/rules for calc-interest
+# Template: cli-tool.template.md v0.3.20
+# OUTPUT-FORMAT: DEB (required)
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	mvn -q package -DskipTests -Dmaven.repo.local=$(CURDIR)/debian/.m2
+	pandoc calc-interest.1.md -s -t man -o calc-interest.1
+
+override_dh_auto_install:
+	install -d debian/calc-interest/usr/share/java
+	install -d debian/calc-interest/usr/bin
+	install -d debian/calc-interest/usr/share/man/man1
+	install -m 644 target/calc-interest.jar \
+	    debian/calc-interest/usr/share/java/calc-interest.jar
+	# Thin wrapper script
+	printf '#!/bin/sh\nexec java -jar /usr/share/java/calc-interest.jar "$$@"\n' \
+	    > debian/calc-interest/usr/bin/calc-interest
+	chmod 755 debian/calc-interest/usr/bin/calc-interest
+	install -m 644 calc-interest.1 \
+	    debian/calc-interest/usr/share/man/man1/calc-interest.1
+
+override_dh_auto_test:
+	mvn -q test -Dmaven.repo.local=$(CURDIR)/debian/.m2
+
+override_dh_auto_clean:
+	mvn -q clean
+	rm -f calc-interest.1

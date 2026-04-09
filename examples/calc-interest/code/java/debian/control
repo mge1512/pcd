@@ -1,0 +1,20 @@
+Source: calc-interest
+Section: utils
+Priority: optional
+Maintainer: Unknown <unknown@example.com>
+Build-Depends: debhelper-compat (= 13),
+               default-jdk,
+               maven,
+               pandoc
+Standards-Version: 4.6.2
+Homepage: https://github.com/example/calc-interest
+
+Package: calc-interest
+Architecture: all
+Depends: default-jre-headless
+Description: Simple interest calculator CLI tool
+ calc-interest reads principal, annual rate, and number of periods from
+ standard input (one value per line), computes simple interest and total
+ repayment amount, then writes the results to standard output.
+ .
+ Simple interest formula: interest = principal * rate * periods

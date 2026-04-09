@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+# debian/rules for calc-interest (Rust)
+
+export DH_VERBOSE = 1
+export RUSTFLAGS = -C target-feature=+crt-static
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	pandoc calc-interest.1.md -s -t man -o calc-interest.1
+	cargo build --release
+
+override_dh_auto_install:
+	install -Dm755 target/release/calc-interest \
+	    debian/calc-interest/usr/bin/calc-interest
+	install -Dm644 calc-interest.1 \
+	    debian/calc-interest/usr/share/man/man1/calc-interest.1
+
+override_dh_auto_test:
+	cargo test --release
+
+override_dh_auto_clean:
+	cargo clean
+	rm -f calc-interest.1
+	dh_auto_clean

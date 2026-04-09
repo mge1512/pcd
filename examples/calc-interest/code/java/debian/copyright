@@ -1,0 +1,9 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: calc-interest
+Upstream-Contact: Unknown <unknown@example.com>
+Source: https://github.com/example/calc-interest
+
+Files: *
+Copyright: 2026 Unknown
+License: Apache-2.0
+ License text available at: https://www.apache.org/licenses/LICENSE-2.0

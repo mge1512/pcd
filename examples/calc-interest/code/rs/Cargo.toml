@@ -1,0 +1,13 @@
+[package]
+name = "calc-interest"
+version = "0.1.0"
+edition = "2021"
+description = "Simple interest calculator — CLI tool"
+license = "Apache-2.0"
+authors = ["Unknown"]
+
+# No external dependencies — standard library only (per spec DEPENDENCIES: None)
+
+[[bin]]
+name = "calc-interest"
+path = "src/main.rs"

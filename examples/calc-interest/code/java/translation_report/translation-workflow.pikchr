@@ -1,0 +1,17 @@
+// translation-workflow.pikchr
+// Translation workflow diagram for calc-interest (Java)
+// Template: cli-tool.template.md v0.3.20
+// Spec:     calc-interest v0.1.0
+
+// Phase boxes
+box "Phase 1" "Core Implementation" "Main.java / pom.xml" fit fill lightblue
+arrow
+box "Phase 2" "Build & Packaging" "Makefile, RPM spec," "debian/*, LICENSE" fit fill lightyellow
+arrow
+box "Phase 3" "Test Infrastructure" "CalcInterestTest.java" "translation-workflow.pikchr" fit fill lightgreen
+arrow
+box "Phase 4" "Documentation" "README.md" "calc-interest.1.md" fit fill lightyellow
+arrow
+box "Phase 5" "Compile Gate" "mvn package" "mvn test" fit fill lightsalmon
+arrow
+box "Phase 6" "Report" "TRANSLATION_REPORT.md" fit fill lightgrey

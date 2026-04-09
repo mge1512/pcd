@@ -1,0 +1,5 @@
+calc-interest (0.1.0-1) unstable; urgency=low
+
+  * Initial Debian package release.
+
+ -- Unknown <unknown@example.com>  Thu, 09 Apr 2026 14:10:39 +0200
