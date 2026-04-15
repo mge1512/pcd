@@ -1533,6 +1533,7 @@ This keeps specifications clean and stable. A spec written today remains valid i
 | `manual` | *Must declare all* | — | No template assistance | Fully explicit fallback |
 | `project-manifest` | N/A | — | Multi-component project definition | Architect artifact. No code generated; produces project audit bundle. v0.3.9 target. |
 | `mcp-server` | Go | Rust | MCP protocol (stdio / HTTP+SSE), tool registration, error conventions | For MCP server components. v0.3.9 target. |
+| `spack-package` | Python | — | Spack declarative DSL; `spack audit` compliance required; no EXECUTION phase | Declarative specification target. Output is `package.py`, not an executable. Spack 1.1.1 baseline. No man page. |
 
 **GUI tool platform slots:**
 
@@ -3154,6 +3155,10 @@ the translator. This asymmetry should inform the default choice.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.22 | 2026-04-13/15 | Spec hash embedding (A.20, RULE-18, all templates, prompt.md); doc restructure (user-guide, technical-reference, whitepaper 6-pager); mcp-server-pcd v0.3.1 spec (verify_spec_hash); `spack-package` deployment template added (10th template; first declarative specification target type; derived from Spack 1.1.1 source; all 18 `spack audit` checks mapped to INVARIANTS) |
+| 0.3.21 | 2026-04-04/07 | MILESTONE mechanism; Scaffold-first pattern; stub contract; RULE-15/16/17 added to pcd-lint; mcp-server-pcd set_milestone_status tool; doc restructure (user-guide, reverse-prompt, interview-prompt Phase 9) |
+| 0.3.20 | 2026-04-01 | Man pages as required deliverable (all templates except cloud-native and project-manifest); pandoc as build-time dependency; all 9 templates pcd-lint clean |
+| 0.3.19 | 2026-03-31 | LICENSE deliverable fix; BCI builder image fix; naming patches |
 | 0.3.19 | 2026-03-27 | Added informal name "Piccadilly" and tagline "Meet me at the Piccadilly — the place where intent becomes implementation." README subtitle and whitepaper Executive Summary updated. Presentation header subtitle added. |
 | 0.3.18 | 2026-03-26 | A.17 rewritten: mcp-server-pcd now fully specified, implemented, and tested. Updated to reflect actual tool set (7 tools), native MCP resource registration, embedded prompts, dual transports, registry.suse.com container base. README updated: Self-Hosting expanded to Tooling section covering both pcd-lint and mcp-server-pcd; repository layout updated. |
 | 0.3.17 | 2026-03-25 | A.14 updated: LLM-G run added (small frontier model, direct API, no MCP, 15/15 tests pass, full compile gate, two-layer prompt v0.3.16 validated end-to-end). Models and deliverables tables updated. |
