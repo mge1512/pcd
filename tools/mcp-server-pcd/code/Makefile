@@ -6,7 +6,7 @@ STORE   := internal/store/assets
 # When building inside the PCD repository, assets live two levels up.
 # When building standalone (e.g. from an OBS source tarball), they are
 # expected to be staged manually or via a custom embed-assets invocation.
-REPO_ROOT  := ../..
+REPO_ROOT  := ../../..
 TMPL_SRC   := $(REPO_ROOT)/templates
 HINTS_SRC  := $(REPO_ROOT)/hints
 PROMPTS_SRC := $(REPO_ROOT)/prompts
