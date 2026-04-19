@@ -67,19 +67,5 @@ vendor-tarball:
 	go mod vendor
 	tar -cJf $(BINARY)-$(VERSION)-vendor.tar.xz vendor/
 
-# Generate source tarball for OBS/RPM builds.
-# embed-assets must run first so the staged assets are included.
-dist: embed-assets
-	tar -cJf $(BINARY)-$(VERSION).tar.xz \
-	    --transform 's|^|$(BINARY)-$(VERSION)/|' \
-	    --exclude='$(BINARY)' \
-	    --exclude='mcp-server-pcd.1' \
-	    --exclude='*.tar.xz' \
-	    --exclude='*.tar.gz' \
-	    $(shell git ls-files) \
-	    $(STORE)/templates \
-	    $(STORE)/hints \
-	    $(STORE)/prompts
-
 clean:
 	rm -rf $(STORE) $(BINARY) mcp-server-pcd.1

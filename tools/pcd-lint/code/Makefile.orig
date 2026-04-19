@@ -7,12 +7,12 @@ PREFIX   := /usr/local
 BINDIR   := $(PREFIX)/bin
 MANDIR   := $(PREFIX)/share/man/man1
 
-.PHONY: all build test install clean man dist vendor-tarball
+.PHONY: all build test install clean man
 
 all: build man
 
 build:
-	CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o $(BINARY) .
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) .
 
 test:
 	go test ./...
@@ -36,12 +36,3 @@ clean:
 vendor-tarball:
 	go mod vendor
 	tar -czf $(BINARY)-$(VERSION)-vendor.tar.gz vendor/
-
-# Generate source tarball for OBS/RPM builds — run once per release.
-dist:
-	tar -czf $(BINARY)-$(VERSION).tar.gz \
-	    --transform 's|^|$(BINARY)-$(VERSION)/|' \
-	    --exclude='$(BINARY)' \
-	    --exclude='$(BINARY).1' \
-	    --exclude='*.tar.gz' \
-	    $(shell git ls-files)
