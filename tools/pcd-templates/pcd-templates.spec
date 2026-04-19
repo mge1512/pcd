@@ -55,6 +55,7 @@ install -m 0644 templates/project-manifest.template.md %{buildroot}%{_datadir}/p
 install -m 0644 templates/python-tool.template.md      %{buildroot}%{_datadir}/pcd/templates/
 install -m 0644 templates/verified-library.template.md %{buildroot}%{_datadir}/pcd/templates/
 install -m 0644 templates/spack-package.template.md    %{buildroot}%{_datadir}/pcd/templates/
+install -m 0644 templates/cockpit-module.template.md   %{buildroot}%{_datadir}/pcd/templates/
 
 # Hints
 install -m 0644 hints/cloud-native.go.go-libvirt.hints.md       %{buildroot}%{_datadir}/pcd/hints/
@@ -81,6 +82,7 @@ install -m 0644 hints/python-tool.hints.md                       %{buildroot}%{_
 %{_datadir}/pcd/templates/python-tool.template.md
 %{_datadir}/pcd/templates/verified-library.template.md
 %{_datadir}/pcd/templates/spack-package.template.md
+%{_datadir}/pcd/templates/cockpit-module.template.md
 
 # Hints
 %{_datadir}/pcd/hints/cloud-native.go.go-libvirt.hints.md
