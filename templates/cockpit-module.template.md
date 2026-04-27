@@ -656,9 +656,20 @@ Makefile dist target:
   structs), result[0] is the array. Each element is an array of fields
   in the D-Bus struct order. Map them to named objects immediately.
 
-- PatternFly 4 is available at ../static/patternfly/ in recent Cockpit
-  versions on SLES/openSUSE. Do not assume a specific version; test
-  on the target distribution. Prefer plain CSS for MVP.
+- PatternFly CSS is available from Cockpit's own installed files — no npm
+  required. Load it with a plain <link> tag:
+    <link rel="stylesheet" href="../static/patternfly/patternfly.min.css">
+  This gives full PatternFly visual consistency (design tokens, dark mode
+  CSS variables, component classes) identical to what cockpit-snapshots
+  compiles into its npm bundle — but loaded directly from the system.
+  The CSS is installed as part of cockpit-bridge on both SLE 15 and SLE 16.
+  Verify the exact path on the target distribution before writing tests;
+  the location is stable across Cockpit versions but not formally guaranteed.
+  PatternFly version present: PF4 on SLE 15 / Leap 15.x;
+  PF5 on SLE 16 / Leap 16.x / Tumbleweed.
+  For cross-version compatibility, use only CSS classes common to PF4 and PF5
+  (layout, typography, button, table, alert, badge) and avoid PF5-only
+  component classes in MVP.
 
 - The "conditions" path-exists check runs at Cockpit startup, not on
   every page load. Install/remove of the target package requires a
