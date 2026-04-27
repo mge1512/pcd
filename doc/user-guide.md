@@ -9,17 +9,31 @@
 
 ## Introduction — Human intent. Machine implementation.
 
-Post-Coding Development (PCD) changes one thing about how software is built:
-humans write specifications describing what a component should do, and AI
-translates those specifications into complete, packaged, tested implementations.
-Engineers never write implementation code. The specification is the source of
-truth. If the generated code is wrong, the specification is fixed and the code
-is regenerated — the code is never edited directly.
+The leverage of LLMs is in describing intent precisely enough that the model
+can take it from there. For personal workflows this is now widespread —
+people write a markdown file describing what they want done, drop it in a
+directory, and the model handles the rest. The pattern is widely known as
+"skills."
+
+Post-Coding Development (PCD) is what this pattern looks like when the
+deliverable isn't a personal helper but software shipping to others — software
+that has to survive packaging, signing, translation to a different language,
+an audit. Same insight that the markdown is the leverage; different
+constraints on what it has to carry.
+
+In practical terms, PCD changes one thing about how software is built: humans
+write specifications describing what a component should do, and AI translates
+those specifications into the complete deliverable — source code, packaging,
+documentation, test infrastructure, and the audit record of every translation
+decision. Engineers no longer maintain these artifacts by hand. The
+specification is the source of truth. If the generated code is wrong, the
+specification is fixed and everything downstream regenerates from it — the
+code is never edited directly.
 
 This is not AI-assisted coding. In vibe coding, humans write code and AI
 suggests improvements. In PCD, humans write specifications and AI generates
-all implementation code. The specification is what you version-control, review,
-and certify. The code is a build artifact.
+the full set of deliverables. The specification is what you version-control,
+review, and certify. The code is a build artifact.
 
 **The key rule, stated once:** if the output is wrong, fix the specification
 and regenerate. Never edit the generated code.

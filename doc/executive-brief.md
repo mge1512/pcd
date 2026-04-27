@@ -38,8 +38,10 @@ The Post-Coding Development (PCD) solves this problem.
 PCD is not AI-assisted coding, where engineers write code and AI
 suggests completions. It is a fundamentally different approach: domain
 experts write structured natural-language specifications describing
-*what* a system should do, and AI generates all implementation code
-from those specifications. The specifications — not the generated code —
+*what* a system should do, and AI generates the complete deliverable
+from those specifications — source code, packaging, documentation,
+test infrastructure, and the audit record of every translation
+decision. The specifications — not the generated code —
 are the auditable artifact.
 
 This distinction is decisive. Regulators can review a specification
@@ -69,11 +71,15 @@ the template applies the appropriate language, packaging conventions,
 and safety constraints. Language choice is an implementation detail,
 not an authoring decision.
 
-An AI translator converts the specification into working code, packaging
-artifacts, and a translation report documenting every decision made
-during translation. For safety-critical components, an optional formal
-verification path produces mathematical proofs of key properties —
-memory safety, conservation invariants, state machine correctness.
+An AI translator converts the specification into the full set of
+deliverables — source code, packaging artifacts, documentation, test
+infrastructure, and a translation report documenting every decision
+made during translation. Engineers no longer maintain these artifacts
+by hand; the specification is the source of truth, and everything
+downstream regenerates from it. For safety-critical components, an
+optional formal verification path produces mathematical proofs of key
+properties — memory safety, conservation invariants, state machine
+correctness.
 
 The output is an audit bundle: specification, generated code, proofs
 (where applicable), and translation report. This bundle is the
