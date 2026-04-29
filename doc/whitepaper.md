@@ -1787,6 +1787,11 @@ At AWS re:Invent 2025, Amazon CTO Werner Vogels dedicated his final keynote to s
 
 Key differences from Post-Coding Development: Kiro is a proprietary, IDE-integrated, AWS-hosted product. It does not define a portable, lintable specification format, has no deployment template abstraction, no formal verification path, no supply chain or packaging conventions, and no pathway to regulated-domain certification. The paradigms are complementary rather than competing. The convergence of Werner Vogels' final keynote with the core thesis of this work—independently developed—is notable external validation of the problem framing.
 
+**Structured-Prompt-Driven Development (SPDD), Thoughtworks (Industry, 2026)**
+On 28 April 2026, Wei Zhang and Jessie Xia of Thoughtworks published *Structured-Prompt-Driven Development*, a method that treats prompts as version-controlled, reviewable, reusable engineering artifacts. SPDD organises prompts through a seven-part *REASONS Canvas* (Requirements, Entities, Approach, Structure, Operations, Norms, Safeguards) and ships an open-source CLI (`openspdd`) that orchestrates the workflow from analysis through code generation. The core invariant — *"when reality diverges, fix the prompt first, then update the code"* — is shared with PCD \[Zhang2026\].
+
+Key differences from Post-Coding Development: SPDD permits hand-editing of generated code under an explicit *refactor-then-sync* path that flows changes from code back to the prompt; its Operations section specifies method signatures and parameter types, making the prompt language-bound rather than language-neutral; and it does not address formal verification, supply-chain provenance, or regulated-domain certification. Birgitta Böckeler categorises SPDD as a *spec-anchored* approach; PCD is *spec-only*. The two paradigms target different domains and are complementary: SPDD targets enterprise IT delivery where prompts and code evolve together; PCD targets regulated and long-lived components where the specification must remain the sole audit point. The convergence — SPDD, AWS Kiro, and PCD all arriving at structured-spec-before-code in the same window — is independent confirmation of the problem framing.
+
 ### A Note on the Name
 
 The term **Post-Coding Development** is occasionally used informally in SDLC
@@ -1816,6 +1821,7 @@ throughout the tooling and documentation.
 | Dafny | Dafny code | No | Yes (SMT) | No | No |
 | LLM code generation | Prompts + code | Yes | No | **Prohibited** | No |
 | AWS Kiro | IDE-guided spec | Yes | No | No | No |
+| Thoughtworks SPDD | Structured prompt (REASONS Canvas) | Yes | No | No | No |
 | Program synthesis (research) | Formal spec language | Partial | Yes | No | No |
 | **Post-Coding Development** | **Structured natural language** | **Yes** | **Optional, pluggable** | **Yes (primary target)** | **Yes** |
 
@@ -2952,6 +2958,8 @@ comparison report. This is itself a candidate for specification under PCD
 ## References
 
 - \[Vogels2025\] Werner Vogels, *"The Renaissance Developer"*, AWS re:Invent 2025 Special Closing Keynote, Las Vegas, December 2025. https://www.youtube.com/watch?v=3Y1G9najGiI
+
+- \[Zhang2026\] Wei Zhang and Jessie Xia, *"Structured-Prompt-Driven Development (SPDD)"*, martinfowler.com, 28 April 2026. https://martinfowler.com/articles/structured-prompt-driven/
 
 ---
 
