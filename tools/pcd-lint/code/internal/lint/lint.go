@@ -243,7 +243,7 @@ var KnownTemplates = []string{
 	"cli-tool", "gui-tool", "cloud-native", "backend-service",
 	"library-c-abi", "enterprise-software", "academic",
 	"python-tool", "enhance-existing", "manual", "template",
-	"mcp-server", "project-manifest",
+	"mcp-server", "project-manifest", "kubectl-style-cli",
 }
 
 var specialTemplateAnnotations = map[string]string{
