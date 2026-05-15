@@ -60,7 +60,7 @@ edit the code. In PCD, you fix the specification and regenerate. The spec
 is always the source of truth.
 
 **Key artifacts:**
-- `pcd-lint` — validates PCD specification files (RULE-01 through RULE-14)
+- `pcd-lint` — validates PCD specification files (RULE-01 through RULE-18)
 - `mcp-server-pcd` — MCP server serving templates, prompts, and hints;
   exposes `lint_content` and `lint_file` tools for in-session validation
 - Deployment templates — define target language, packaging, conventions,
@@ -69,6 +69,51 @@ is always the source of truth.
 **Licenses:**
 - Whitepaper, specs, templates, examples: CC-BY-4.0
 - Tools (`pcd-lint`, `mcp-server-pcd`): GPL-2.0-only
+
+---
+
+## How This File Relates to PCD
+
+`AGENTS.md` is one of four guidance layers in a PCD repository. They
+compose; none replaces the others.
+
+**This file** captures cross-cutting conventions that apply to any
+contribution, regardless of which component is being changed: supply
+chain rules, honesty expectations, the spec-not-code invariant. Generic
+agent guidance lives here.
+
+**Deployment templates** (in [`templates/`](templates/)) capture
+conventions specific to one *kind* of component. The `cli-tool` template
+fixes the language to Go by default, mandates man pages, and forbids
+`curl` as an install method. The `python-tool` template mandates POSIX
+`--flag` style. An agent writing a CLI tool reads the `cli-tool`
+template; an agent writing a Python script reads `python-tool`. Per-kind
+guidance lives there.
+
+**Hints files** (in [`hints/`](hints/)) capture conventions specific to
+one library, one language, or one project. The `mcp-server.go.mcp-go`
+hints file records the verified `mcp-go` v0.46.0 API shapes. A project's
+`style.hints.md` records its naming conventions. Per-library and
+per-project guidance lives there.
+
+**The PCD specification** (the file under translation) captures the
+actual requirements of one component: its types, behaviours, invariants,
+and examples. Per-component requirements live there.
+
+An agent making a change reads all four layers. This file tells the
+agent what is universally true about PCD contributions. The template
+tells it what is true for components of this kind. The hints files tell
+it what is true for the libraries and projects involved. The
+specification tells it what is true for this component.
+
+The distinction matters in practice. A rule like "no `curl`" belongs in
+this file — it applies to every contribution. A rule like "use
+`NewStreamableHTTPServer`, not `NewSSEServer`" belongs in a hints file —
+it applies to one library in one language. A rule like "Balance must
+never be negative" belongs in the specification — it applies to one
+component. Putting a per-library rule in this file makes the file grow
+without bound; putting a universal rule in a hints file means it gets
+missed.
 
 ---
 
@@ -91,7 +136,8 @@ is always the source of truth.
 - Changes to the spec schema (required sections, field names, constraints)
 - Any claim about model accuracy, security properties, or certification
   readiness
-- Publication decisions — the repository is currently private
+- Publication decisions affecting external visibility — announcements,
+  conference submissions, public positioning statements
 
 ---
 
@@ -103,7 +149,7 @@ Required sections: `META`, `TYPES`, `BEHAVIOR`, `PRECONDITIONS`,
 `POSTCONDITIONS`, `INVARIANTS`, `EXAMPLES`
 
 Optional sections: `INTERFACES`, `DEPENDENCIES`, `TOOLCHAIN-CONSTRAINTS`,
-`DELIVERABLES`
+`DELIVERABLES`, `MILESTONE`, `DELTA`
 
 Every `BEHAVIOR` block requires:
 - `STEPS:` — ordered algorithm with explicit error exits on each step
@@ -127,29 +173,38 @@ templates/<n>.template.md      — deployment-specific ## EXECUTION section:
 ```
 
 `pcd-lint` RULE-14 validates that every deployment template has
-a `## EXECUTION` section with the required subsections.
+a `## EXECUTION` section with the required subsections. RULE-15
+through RULE-17 validate MILESTONE structure; RULE-18 validates
+spec-hash embedding in `TRANSLATION_REPORT.md`.
 
 ### Deployment templates (current)
 
-| Template | Status | Default language |
+| Template | Default language | Notes |
 |---|---|---|
-| `cli-tool` | Complete | Go |
-| `mcp-server` | Complete | Go |
-| `cloud-native` | Complete | Go |
-| `verified-library` | Stub | C |
-| `library-c-abi` | Stub | C |
-| `python-tool` | Stub | Python |
-| `project-manifest` | Stub | — |
+| `cli-tool` | Go | `--flag`-free CLI; Rust, C, C++, C# alternatives |
+| `kubectl-style-cli` | Go | Multi-verb CLI; `--flag` style; Rust alternative |
+| `mcp-server` | Go | stdio + streamable-HTTP |
+| `backend-service` | Go | 12-factor; systemd unit required |
+| `cloud-native` | Go | Kubernetes operators; Go-only |
+| `gui-tool` | OS-dependent | Qt6, Tauri, Flutter |
+| `cockpit-module` | HTML + JS + CSS | Cockpit web-admin plugins |
+| `python-tool` | Python | QM only; POSIX `--flag` style mandatory |
+| `library-c-abi` | C | Rust alternative via `cbindgen` |
+| `verified-library` | C | Lean4/F\*/Dafny required; QM forbidden |
+| `spack-package` | Python (Spack DSL) | Declarative; no compile gate |
+| `project-manifest` | N/A | Architect artifact; no code generated |
 
 ### mcp-server-pcd
 
-7 tools: `list_templates`, `get_template`, `list_resources`,
-`read_resource`, `lint_content`, `lint_file`, `get_schema_version`
+9 tools: `list_templates`, `get_template`, `list_resources`,
+`lint_content`, `lint_file`, `get_schema_version`,
+`set_milestone_status`, `assess_change_impact`, `verify_spec_hash`
 
 Native MCP resources (browseable without tool calls):
 - `pcd://templates/{name}` — full template Markdown
 - `pcd://prompts/interview` — interview prompt (embedded at build time)
 - `pcd://prompts/translator` — translator prompt (embedded at build time)
+- `pcd://prompts/reverse` — reverse-engineering prompt
 - `pcd://hints/{template}.{lang}.{lib}` — library hints
 
 Transports — same binary, bare-word selection:
@@ -161,7 +216,7 @@ mcp-server-pcd http    # default: 127.0.0.1:8080
 ### Repository layout
 
 ```
-prompts/          — translator prompt, interview prompt, usage guides
+prompts/          — translator, interview, reverse, and change-impact prompts
 templates/        — deployment templates (*.template.md)
 hints/            — library hints files (*.hints.md — not PCD specs)
 tools/
@@ -179,9 +234,12 @@ examples/         — example PCD specs
 
 ## Conventions
 
-### CLI style (all pcd tools)
-- `key=value` for options, bare words for commands
-- No `--flag` style. Ever.
+### CLI style (PCD toolchain itself)
+- Applies to `pcd-lint` and `mcp-server-pcd` — not to every PCD-generated
+  component. Per-template CLI conventions are defined by each deployment
+  template; `python-tool` mandates POSIX `--flag` style and forbids
+  `key=value`, and `kubectl-style-cli` uses subcommand-flag style.
+- For the PCD toolchain: `key=value` for options, bare words for commands
 - `stderr` for diagnostics, `stdout` for summaries
 - Exit codes: `0` = valid/success, `1` = errors, `2` = invocation error
 
@@ -214,11 +272,13 @@ examples/         — example PCD specs
 ## Tooling Notes
 
 - **pcd-lint:** `pcd-lint myspec.md` / `pcd-lint strict=true myspec.md` /
-  `pcd-lint list-templates`
-- **mcp-go:** v0.46.0. Use `NewStreamableHTTPServer` (not `NewSSEServer`).
-  Use `mcp.NewToolResultError` for domain errors, not Go `error` returns.
-- **pikchr:** system dependency; install via OBS. Font fix required:
-  `sed 's/<text /<text font-family="DejaVu Sans, Liberation Sans, sans-serif" /g'`
+  `pcd-lint check-report=true myspec.md` / `pcd-lint list-templates`.
+  Full rule reference in [`tools/README.md`](tools/README.md).
+- **mcp-go API gotchas:** see
+  [`hints/mcp-server.go.mcp-go.hints.md`](hints/mcp-server.go.mcp-go.hints.md)
+  — version pin, correct constructors, error return convention.
+- **Pikchr font fix and diagram conventions:** see the project's
+  diagram-tooling notes; Pikchr is a system dependency installed via OBS.
 - **Slides:** pandoc → pdflatex. Use `\textrightarrow{}` not `$\rightarrow$`
   in list contexts. UTF-8 em-dashes require `---`. Consider XeLaTeX for
   native UTF-8 support.
