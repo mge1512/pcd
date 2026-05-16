@@ -1044,10 +1044,14 @@ For `mcp-server-pcd` style components with many embedded assets, full
 input (all templates, hints, prompts) is required for correct embedding
 — partial input produces placeholder assets.
 
-For dual-LLM mode, pair a translator and a verifier from independent
-model families. The reference pairing for non-SUSE PCD work is Claude
-Sonnet (translator), Mistral Large 2 via La Plateforme (independent EU
-verifier), GPT-5 (tiebreaker when verifier and translator disagree).
+For dual-LLM mode, pair a primary translator and a secondary test author
+from independent model families. The reference pairing for non-SUSE PCD
+work is Claude Sonnet (primary), Mistral Large 2 via La Plateforme
+(secondary, independent EU jurisdiction). A third model — GPT-5 in the
+current reference pairing — is invoked only when a human reviewer needs
+a second opinion on whether a failed secondary test reflects a primary
+defect, a secondary misreading, or genuine spec ambiguity. It is not run
+automatically.
 
 ---
 
@@ -1081,7 +1085,7 @@ infallible — the spec is your responsibility, not the model's.
 | `prompts/reverse-prompt.md`   | Existing code: reverse-engineer → spec           | `pcd://prompts/reverse`       |
 | `prompts/change-impact.md`    | Assess impact of a spec change                   | `pcd://prompts/change-impact` |
 | `prompts/reviewer.md`         | Independent review of a translation run          | `pcd://prompts/reviewer`      |
-| `prompts/tiebreaker.md`       | Adjudicate dual-translator divergence            | `pcd://prompts/tiebreaker`    |
+| `prompts/tiebreaker.md`       | Adjudicate ambiguous secondary-test failures     | `pcd://prompts/tiebreaker`    |
 
 ---
 
