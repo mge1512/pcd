@@ -5,7 +5,7 @@
 
 ## META
 Deployment:        mcp-server
-Version:           0.3.1
+Version:           0.3.2
 Spec-Schema:       0.3.21
 Author:            Matthias G. Eckermann <pcd@mailbox.org>
 License:           GPL-2.0-only
@@ -937,6 +937,46 @@ THEN:
   result.previous_status = "active"
   result.new_status = "released"
 
+EXAMPLE: list_resources_includes_workflow_prompts
+GIVEN:
+  AssetStore is initialised from the embedded build
+WHEN:
+  tool list_resources called with no arguments
+THEN:
+  response contains pcd://prompts/translator
+  response contains pcd://prompts/interview
+  response contains pcd://prompts/reverse
+  response contains pcd://prompts/change-impact
+  response contains pcd://prompts/reviewer
+  response contains pcd://prompts/tiebreaker
+
+EXAMPLE: read_resource_change_impact_prompt
+GIVEN:
+  AssetStore contains the change-impact prompt
+WHEN:
+  tool read_resource called with uri="pcd://prompts/change-impact"
+THEN:
+  response.content begins with "# PCD Change Impact Assessment Prompt"
+  response.mime_type = "text/markdown"
+
+EXAMPLE: read_resource_reviewer_prompt
+GIVEN:
+  AssetStore contains the reviewer prompt
+WHEN:
+  tool read_resource called with uri="pcd://prompts/reviewer"
+THEN:
+  response.content begins with "# PCD Translation Review Prompt"
+  response.mime_type = "text/markdown"
+
+EXAMPLE: read_resource_tiebreaker_prompt
+GIVEN:
+  AssetStore contains the tiebreaker prompt
+WHEN:
+  tool read_resource called with uri="pcd://prompts/tiebreaker"
+THEN:
+  response.content begins with "# PCD Translation Tie-Breaker Prompt"
+  response.mime_type = "text/markdown"
+
 ---
 
 ## TOOLCHAIN-CONSTRAINTS
@@ -975,10 +1015,18 @@ EMBED-ASSETS:
 
   - type: prompts
     source: repo-root/prompts/*.md
-    key-derivation: filename stem before ".md"
-      // e.g. "interview-prompt.md" -> key "interview"
-      // e.g. "reverse-prompt.md"  -> key "reverse"
-      // e.g. "prompt.md"          -> key "translator"
+    filter: exclude README-*.md
+    key-derivation: filename stem before ".md", with special mapping:
+      - prompt.md            → "translator"
+      - interview-prompt.md  → "interview"
+      - reverse-prompt.md    → "reverse"
+    known-keys:
+      - translator      // primary translation prompt
+      - interview       // guided spec authoring → spec
+      - reverse         // reverse-engineer code → spec
+      - change-impact   // assess spec change impact → recommendation
+      - reviewer        // single-translation review → REVIEW_REPORT.md
+      - tiebreaker      // dual-translation divergence → TIEBREAK_REPORT.md
 ```
 
 ---

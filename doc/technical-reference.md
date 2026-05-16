@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.3.22
+**Version:** 0.3.23
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-04-13
+**Date:** 2026-05-16
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -365,6 +365,28 @@ all files are delivered cannot accurately document what was produced. The orderi
 requirement was added after early runs produced reports that described planned
 deliverables rather than actual ones.
 
+**Why tests are written before implementation code.** Within a single primary
+translation run, the prompt mandates that test functions under
+`independent_tests/<llm-name>/` are written before the implementation. The
+purpose is to prevent post-hoc test tuning — tests written after seeing the
+code tend to assert what the code does rather than what the spec requires.
+The ordering is the same TDD discipline practised by human engineers, applied
+to the LLM workflow. Tests may be refined when the implementation reveals a
+gap, but every refinement must be logged in the report's Test Refinements
+table with documented rationale; an unlogged test edit after a test run is a
+translation defect.
+
+**Why the prompt has two roles.** The translator prompt operates in either
+`primary` mode (the default — produce tests and code) or `secondary` mode
+(produce only tests, then stop). The role is selected at invocation via an
+optional `ROLE.md` file in the input directory. A single prompt with two
+roles is simpler than two separate prompts: the rules about derived language,
+test framework, hints, and ambiguity handling apply identically in both
+roles, and only one prompt has to be maintained, embedded in
+`mcp-server-pcd`, and reasoned about. The role selection is the only
+difference between a single-LLM translation and the test-generation phase of
+a dual-LLM verification run.
+
 **Why the spec hash must be computed before generating any output.** The SHA256
 of the specification file must be computed once, at the start of the translation
 run, before any output files are written. This ensures all artifacts from the
@@ -418,39 +440,69 @@ diagram, making it reproducible and version-controllable.
 AI translation is probabilistic. The same specification translated twice by the
 same model may produce different implementations — each correct, but making
 different architectural decisions. Over multiple runs, this variance accumulates.
-Two mechanisms address this.
+Three mechanisms address this: the per-EXAMPLE confidence table in
+TRANSLATION_REPORT.md, the tests-first discipline within every primary
+translation run, and (optionally) an independent test suite produced by a
+second LLM before the primary translation.
 
 **The translation confidence table.** Every translation report must include a
 per-example confidence table with three levels: High (a named test function in
-`independent_tests/` passes without any live external service), Medium (some
-paths tested, others require live services), and Low (no test covers this, code
+`independent_tests/<llm-name>/` passes without any live external service;
+when a secondary suite is present, both suites pass), Medium (some paths
+tested, others require live services), and Low (no test covers this, code
 review only). A claim is verified only if it references a specific named test
 function. Unverified claims must be listed explicitly. This discipline was
 introduced after early translation reports claimed high confidence for examples
 that had no corresponding tests — the confidence was the translator's assessment
 of its own work, not an empirical measurement.
 
-**Second-agent independent test generation.** A second AI translator reads only
-the specification — not the primary translation's code — and generates a test
-suite. This test suite is then run against the primary translation's code.
-Failures indicate specification ambiguity (both translators read the spec
-differently) or translation error (the primary translator's code does not
-satisfy the spec's semantics). The second agent has no access to the primary
-translation; its tests are truly independent.
+**The tests-first discipline.** In every primary translation run, the translator
+writes test functions under `independent_tests/<llm-name>/` *before* writing
+implementation code. The ordering matters: tests written after implementation
+tend to assert what the code does rather than what the spec requires, because
+the code's existence anchors the test author's interpretation of the spec.
+Writing tests first forces a direct reading of the EXAMPLES, PRECONDITIONS,
+POSTCONDITIONS, and INVARIANTS without the bias of an existing implementation.
+The same discipline that has made TDD valuable in human engineering for two
+decades is what makes tests-first valuable for LLM-driven translation.
 
-This approach was validated empirically. Second-agent tests consistently found
-edge cases and boundary conditions that the spec author did not think to include
-in the EXAMPLES section. The tests serve two purposes: as a validation mechanism
-for the current translation, and as a candidate addition to the spec's EXAMPLES
-section for future translations.
+**Test refinement discipline.** Tests may be refined after a test run reveals
+a gap, but every refinement must be recorded in a `Test Refinements` table in
+the TRANSLATION_REPORT.md, with one row per refinement and an explicit
+rationale. The permitted actions are `code fixed` (the test was right; the
+implementation was changed), `test edited` (the test was wrong; rationale
+must reference a spec section, never "made the test pass"), `spec ambiguous`
+(the spec does not determine the answer; failure documented), and
+`interface rebind` (secondary mode only). An unlogged test edit after a test
+run is a translation defect. The table is the audit artifact that makes the
+test-tuning failure mode visible to a reviewer: a passing build with no Test
+Refinements section after a failing test is a red flag.
 
-Dual-LLM verification — two independent translators producing separate
-implementations, cross-validated against each other's test suites — is a more
-intensive variant for highest-assurance components. Four cross-validation
-combinations are possible: tests_1 against ir_1 (self-check), tests_1 against
-ir_2 (cross-check), tests_2 against ir_1 (cross-check), tests_2 against ir_2
-(self-check). If all four pass, confidence is high. If cross-tests fail, either
-the specification is ambiguous or one translator hallucinated.
+**Independent test generation by a second LLM.** A second AI translator can
+read only the specification — not any primary translation's code — and
+generate a test suite. This test suite is then run against the primary
+translation's code in addition to the primary's own tests. Failures indicate
+specification ambiguity (both translators read the spec differently) or
+translation error (the primary translator's code does not satisfy the spec's
+semantics). The second agent has no access to the primary translation; its
+tests are truly independent. Section 15 covers the operational workflow and
+when this escalation is appropriate.
+
+Second-LLM tests consistently find edge cases and boundary conditions that
+the spec author did not think to include in the EXAMPLES section. The tests
+serve two purposes: as a validation mechanism for the current translation,
+and as a candidate addition to the spec's EXAMPLES section for future
+translations.
+
+**Why the same language for tests and code.** Tests and the implementation
+are written in the same language. This is a production constraint, not a
+methodological preference: minimal runtime environments — Common Criteria
+images, OBS build workers, certified container images — carry the toolchain
+for one language only. A Go implementation tested by Python tests would
+require both runtimes in the certified image, doubling the supply-chain
+surface for no operational benefit. The cost of forgoing cross-language
+independence is accepted; tests are made independent by being written
+*against the spec alone*, not by being written *in a different language*.
 
 ---
 
@@ -667,21 +719,113 @@ cannot provide.
 
 ## 15. Dual-LLM Verification
 
-For highest-assurance components, two independent AI translators produce
-separate implementations from the same specification. Each translator also
-produces a test suite. The four cross-validation combinations — each test
-suite run against each implementation — provide the validation matrix.
+PCD distinguishes two operational modes for translation. The default is
+**single-LLM mode**: one translator (primary) writes tests under
+`independent_tests/<llm-name>/` first, then the implementation, then runs
+the tests. The optional escalation is **dual-LLM mode**: a second translator
+(secondary) writes a test suite first, with no access to any implementation;
+primary then runs as in single-LLM mode and additionally runs secondary's
+test suite against its implementation.
 
-If all four combinations pass: high confidence. The two translators agreed on
-the semantics. If the cross-tests fail while the self-tests pass: either the
-specification is ambiguous (both translators read it differently but
-self-consistently) or one translator hallucinated. The failure pattern
-distinguishes between these: if both cross-tests fail symmetrically, the spec
-is ambiguous; if only one direction fails, one implementation is wrong.
+Most translations run in single-LLM mode. Dual-LLM mode is the appropriate
+escalation when one or more of the following applies: the component has
+`Safety-Level` above QM; the component has `Verification:` not equal to
+`none`; the spec is novel or has a high suspected ambiguity surface; the
+component is part of the PCD toolchain itself (where a regression would
+affect every downstream user). The gate is operational, not declarative —
+no META field controls it. The user runs secondary, or they do not.
 
-This approach is not required for standard use cases. It is the appropriate
-choice for components where a runtime defect has safety, security, or
-regulatory consequences that justify the additional translation cost.
+**Milestone-level dual-LLM.** For large specifications partitioned into
+milestones, dual-LLM mode may be applied per milestone rather than across
+the full specification. This restricts the additional translation cost to
+the milestones with the highest verification value — typically the scaffold
+milestone (where the package structure and interface shapes are committed)
+and any milestone covering safety-critical or security-critical behaviours
+— while keeping the bulk of the work in single-LLM mode. The mechanism is
+the same as the full-spec case: secondary runs first against the milestone-
+scoped translation, primary runs second against the same scope, and the
+hash and template continuity checks apply at the milestone level. The
+choice of which milestones to escalate is recorded in the audit bundle by
+the presence or absence of secondary's directory next to each milestone's
+TRANSLATION_REPORT.md.
+
+**The operational flow in dual-LLM mode.**
+
+1. Secondary runs first. Its `ROLE.md` declares `mode: secondary` and an
+   `llm-name`. Secondary reads the spec and the deployment template, writes
+   tests under `independent_tests/<secondary-llm-name>/` in the same
+   language the implementation will use, and produces a `TEST_REPORT.md`.
+   Secondary does not write any implementation code, scaffolding, or
+   packaging.
+2. Primary runs next. It finds secondary's tests already present in the
+   input directory. Primary first verifies that the `Spec-SHA256` recorded
+   in secondary's `TEST_REPORT.md` matches the current specification's
+   hash. If the hashes differ — the specification has been edited between
+   secondary's run and primary's run — primary aborts with a diagnostic
+   and the user re-runs secondary against the current specification.
+   Stale secondary tests are not run against primary's implementation.
+   Primary then verifies that the deployment template, preset resolution,
+   and hints files in scope are the same as those secondary used; mismatch
+   on any of these is treated the same way as a hash mismatch. With both
+   checks passed, primary writes its own tests under
+   `independent_tests/<primary-llm-name>/` *before* reading secondary's
+   tests, then writes the implementation, then runs both test suites.
+3. Primary may refine its own tests after the test run, subject to the
+   refinement discipline. Primary **may not** edit secondary's tests under
+   any circumstances. Secondary's tests are the independent cross-check;
+   the property that gives them value is that they were written without
+   knowledge of any implementation.
+4. If secondary's tests fail on primary's implementation: the failure is
+   diagnostic, not stop-the-world. Primary records the failure in
+   TRANSLATION_REPORT.md. The reviewer determines the cause — primary
+   bug, secondary test misreads spec, or spec ambiguity — and acts
+   accordingly. Primary may fix the implementation, the spec may be
+   clarified and both LLMs rerun, or secondary may be re-invoked to
+   regenerate tests *from a clarified spec*. Secondary's tests are never
+   adjusted to match primary's behaviour.
+
+**The library-interface special case.** For deployment templates targeting
+shared libraries (`library-c-abi`, `verified-library`), secondary's tests
+need to reference function and type names that the spec may not pin
+precisely. Secondary writes tests in two phases. Phase A (before primary):
+test logic is written with `<INTERFACE_PLACEHOLDER>` markers for any
+function or type name the spec does not pin. Phase B (after primary): a
+mechanical rebind pass replaces placeholders with primary's actual names.
+The rebind is logged as `interface rebind` in the Test Refinements table
+and may not change assertions, expected values, or coverage. The
+independence property is preserved because the test content — what is
+asserted, against which examples, with which expected outputs — was
+determined before primary committed any code.
+
+**Same language for tests and code.** Both primary and secondary write
+tests in the language declared by the deployment template. This is the
+same production constraint described in section 9: certified runtime
+images carry the toolchain for one language only. The cost of forgoing
+cross-language independence is accepted. Independence is provided by
+secondary writing *against the spec alone*, not by writing in a different
+language.
+
+**Directory naming.** Test directories are named after the LLM that
+produced them: `independent_tests/<llm-name>/`. Names are lowercase,
+hyphen-separated, and contain no version-decimal suffix
+(`claude-sonnet-4-5`, not `Claude-Sonnet-4.5`). The directory listing
+under `independent_tests/` is itself an audit artifact: it tells a
+reviewer which models were involved without parsing any metadata. Dates
+and full version strings live in TRANSLATION_REPORT.md, not in directory
+names — otherwise the directory accumulates copies on every regeneration.
+
+**Cost asymmetry.** Single-LLM mode costs one translation run. Dual-LLM
+mode costs two runs and one additional test-execution pass against the
+primary implementation. For a component where a runtime defect has
+safety, security, or regulatory consequences, the additional cost is
+justified by the spec-ambiguity probe and the independent test suite.
+For components without such consequences, the cost is overhead. The
+operational gate keeps the choice explicit and visible.
+
+**Delivery-mode constraint.** Dual-LLM verification requires a delivery
+mode that persists files between runs — filesystem or MCP. Browser/inline
+mode is single-LLM by definition because secondary's tests cannot be
+carried across to primary's run without persistent storage.
 
 ---
 

@@ -110,7 +110,7 @@ mcpServers:
 
 **Tools:** `list_templates`, `get_template`, `lint_content`, `lint_file`, `get_schema_version`, `set_milestone_status`, `assess_change_impact`, `verify_spec_hash`, `list_resources`
 
-**Resources:** `pcd://templates/{name}`, `pcd://prompts/interview`, `pcd://prompts/translator`, `pcd://prompts/reverse`, `pcd://hints/{key}`
+**Resources:** `pcd://templates/{name}`, `pcd://prompts/translator`, `pcd://prompts/interview`, `pcd://prompts/reverse`, `pcd://prompts/change-impact`, `pcd://prompts/reviewer`, `pcd://prompts/tiebreaker`, `pcd://hints/{key}`
 
 Self-specified: `tools/mcp-server-pcd/spec/mcp-server-pcd.md` → generated Go binary.
 

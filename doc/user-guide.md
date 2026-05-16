@@ -1,8 +1,8 @@
 # PCD User Guide
 
-**Version:** 0.3.22
+**Version:** 0.3.23
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-04-13
+**Date:** 2026-05-16
 **License:** CC-BY-4.0
 
 ---
@@ -913,32 +913,141 @@ Once your spec passes `pcd-lint` with zero errors:
 pcd-lint myspec.md   # must show zero errors before proceeding
 ```
 
-Provide the spec and the appropriate deployment template to an AI translator
-using `prompts/prompt.md` as the system prompt:
+### Single-LLM mode (the default)
+
+Provide the spec, the deployment template, and `prompts/prompt.md` to a
+capable LLM. The minimum input directory looks like:
 
 ```
-Input files in the same directory:
-  cli-tool.template.md    (the deployment template)
-  myspec.md               (your specification)
+mytool.md               # your specification
+cli-tool.template.md    # the deployment template
 ```
 
-The translator derives the target language from the template, follows the
-template's EXECUTION phases, produces all required deliverables, and writes
-a `TRANSLATION_REPORT.md` documenting every decision.
+You may optionally include a `ROLE.md` file declaring the LLM name (used
+to name the test directory). If omitted, the placeholder `primary` is used:
+
+```
+mode: primary
+llm-name: claude-sonnet-4-5
+```
+
+The translator follows this order, enforced by the prompt:
+
+1. Read the spec, template, and any hints files.
+2. Write the test suite under `independent_tests/<llm-name>/`. Tests use
+   the same language as the implementation will use, with the language's
+   standard testing framework (`go test`, `cargo test`, `pytest`, JUnit,
+   etc.).
+3. Write the implementation code, the packaging deliverables, and any
+   other files declared in the template's DELIVERABLES table.
+4. Run the test suite against the implementation. If any test fails,
+   either fix the code or refine the test with documented rationale.
+5. Write `TRANSLATION_REPORT.md`, including the Test Refinements table
+   if any tests were edited after a test run.
 
 **If a milestone is active:** the translator reads the active milestone,
 implements only its Included BEHAVIORs, generates stubs for Deferred
-BEHAVIORs, and verifies the acceptance criteria.
+BEHAVIORs, and verifies the acceptance criteria. Tests for the included
+BEHAVIORs are written first in the same way; tests for deferred BEHAVIORs
+are left as skeletons from the scaffold pass.
 
 **If the output is wrong:** fix the specification and regenerate. Do not edit
 the generated code.
 
-**Choosing a translator:** any capable LLM works. The paradigm has been
-validated on frontier cloud models, 120B open-weight models at EU providers,
-and 30B local models (Ollama). Larger context windows produce more complete
-deliverable sets. For `mcp-server-pcd` style components with many embedded
-assets, full input (all templates, hints, prompts) is required for correct
-embedding — partial input produces placeholder assets.
+### Dual-LLM mode (escalation)
+
+For components where a runtime defect has safety, security, or regulatory
+consequences, run an independent test suite from a second LLM before the
+primary translation. Typical triggers: `Safety-Level` above QM,
+`Verification` not equal to `none`, novel specs with high suspected
+ambiguity, or any component in the PCD toolchain itself.
+
+The flow has two steps:
+
+**Step 1: Run secondary.** Add a `ROLE.md` to the input directory:
+
+```
+mode: secondary
+llm-name: mistral-large-2
+```
+
+Invoke the same `prompts/prompt.md` with a different LLM. Secondary writes
+only tests under `independent_tests/mistral-large-2/` in the language the
+deployment template will resolve to. Secondary produces a `TEST_REPORT.md`
+and stops — no implementation, no packaging.
+
+**Step 2: Run primary.** Replace `ROLE.md` with the primary version:
+
+```
+mode: primary
+llm-name: claude-sonnet-4-5
+```
+
+Keep secondary's `independent_tests/mistral-large-2/` directory in place.
+Invoke the prompt with the primary LLM. Primary first verifies that the
+spec hash and template continuity are intact:
+
+- The `Spec-SHA256` recorded in secondary's `TEST_REPORT.md` must match
+  the current specification's hash. If the specification has been edited
+  between secondary's run and primary's run, primary aborts and you must
+  re-run secondary against the current spec.
+- The deployment template, preset resolution, and hints files in scope
+  must be the same as those secondary used.
+
+With both checks passed, primary writes its own tests under
+`independent_tests/claude-sonnet-4-5/` *before* reading secondary's, then
+writes the implementation, then runs **both** test suites. The
+TRANSLATION_REPORT.md reports results for both suites separately.
+
+**On `llm-name` values.** Include enough of the model identifier to
+reproduce the run later. `claude-sonnet-4-5` is precise enough when only
+one Sonnet 4.5 ever existed; if you need to distinguish between snapshots,
+extend the name (`mistral-large-2-2407`). The full identifier and any
+provider-specific details go in the report; the directory name is the
+short form. Keep it lowercase, hyphen-separated, no version-decimal
+suffix.
+
+**Key rule:** primary may not edit secondary's tests under any
+circumstances. If secondary's tests fail on primary's code, the failure
+is a diagnostic signal — investigate whether primary has a bug, secondary
+misread the spec, or the spec is ambiguous. Fix the cause; do not fix the
+test.
+
+**Library special case.** For `library-c-abi` and `verified-library`
+templates, secondary writes tests with `<INTERFACE_PLACEHOLDER>` markers
+for any function or type names the spec does not pin. After primary
+commits the interface, re-invoke secondary with `mode: secondary-rebind`
+to bind placeholders to primary's actual names. Rebinding is mechanical
+only — assertions and coverage do not change.
+
+**Delivery mode constraint.** Dual-LLM mode requires filesystem or MCP
+delivery — secondary's tests have to persist between runs. Browser/inline
+mode is single-LLM by definition.
+
+**Milestone-level dual-LLM.** For large specs partitioned into milestones
+(see section 6), you do not have to run dual-LLM across the whole
+specification. Escalating only the milestones that warrant it — the
+scaffold pass, and any milestone covering safety- or security-critical
+behaviours — keeps the bulk of the work in single-LLM mode while
+preserving the independent cross-check where it matters. The flow is the
+same per-milestone: secondary runs first against the milestone scope,
+primary runs second, hash and template continuity checks apply at the
+milestone boundary. Sitar's scaffold milestone is a typical candidate;
+its later milestones implementing individual collectors may not be.
+
+### Choosing a translator
+
+Any capable LLM works. The paradigm has been validated on frontier cloud
+models, 120B open-weight models at EU providers, and 30B local models
+(Ollama). Larger context windows produce more complete deliverable sets.
+For `mcp-server-pcd` style components with many embedded assets, full
+input (all templates, hints, prompts) is required for correct embedding
+— partial input produces placeholder assets.
+
+For dual-LLM mode, pair a translator and a verifier from independent
+model families. The reference pairing for non-SUSE PCD work is Claude
+Sonnet (translator), Mistral Large 2 via La Plateforme (independent EU
+verifier), GPT-5 (tiebreaker when verifier and translator disagree).
 
 ---
 
@@ -964,12 +1073,15 @@ infallible — the spec is your responsibility, not the model's.
 
 ## 11. Prompts Reference
 
-| Prompt | Purpose | MCP resource |
-|---|---|---|
-| `prompts/interview-prompt.md` | New component: guided interview → spec | `pcd://prompts/interview` |
-| `prompts/reverse-prompt.md` | Existing code: reverse-engineer → spec | `pcd://prompts/reverse` |
-| `prompts/prompt.md` | Translate spec → code (universal translator) | `pcd://prompts/translator` |
-| `prompts/change-impact.md` | Assess impact of a spec change | — |
+
+| Prompt                        | Purpose                                          | MCP resource                  |
+|-------------------------------|--------------------------------------------------|-------------------------------|
+| `prompts/prompt.md`           | Translate spec → code (universal translator)     | `pcd://prompts/translator`    |
+| `prompts/interview-prompt.md` | New component: guided interview → spec           | `pcd://prompts/interview`     |
+| `prompts/reverse-prompt.md`   | Existing code: reverse-engineer → spec           | `pcd://prompts/reverse`       |
+| `prompts/change-impact.md`    | Assess impact of a spec change                   | `pcd://prompts/change-impact` |
+| `prompts/reviewer.md`         | Independent review of a translation run          | `pcd://prompts/reviewer`      |
+| `prompts/tiebreaker.md`       | Adjudicate dual-translator divergence            | `pcd://prompts/tiebreaker`    |
 
 ---
 
