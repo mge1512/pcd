@@ -348,13 +348,23 @@ found and which are being produced.
 ### Delivery phases
 
 Produce files in this exact order. Complete each phase before starting
-the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 
-**Phase 1 — Core implementation**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/<spec-name>_test.go` (and additional
+  files as needed). The directory is named after the translator LLM
+  per `ROLE.md`.
+- Tests must cover every EXAMPLE, every declared error path, every
+  `[observable]` INVARIANT, and the boundary conditions implied by TYPE
+  refinement predicates.
+- Tests use Go's standard testing package; no custom in-tree harness.
+- This phase MUST complete before any non-test source file is written.
+
+**Phase 2 — Core implementation**
 - All source files
 - `go.mod`
 
-**Phase 2 — Service and packaging**
+**Phase 3 — Service and packaging**
 - `Makefile`
 - `<n>.service`
 - `<n>.spec`
@@ -362,21 +372,33 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
 - `Containerfile` (if OCI is active in preset)
 - `LICENSE`
 
-**Phase 3 — Test infrastructure**
-- `independent_tests/INDEPENDENT_TESTS.go`
+**Phase 4 — Auxiliary artefacts**
 - `translation_report/translation-workflow.pikchr`
 
-**Phase 4 — Documentation**
+**Phase 5 — Documentation**
 - `README.md`
 
-**Phase 5 — Compile gate**
+**Phase 6 — Compile gate**
 
-**Phase 6 — Report (last)**
+**Phase 7 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of:
+
+```
+$ go vet ./independent_tests/<llm-name>/...
+$ gofmt -l ./independent_tests/<llm-name>/
+```
+
+Both must succeed (exit 0 for `go vet`, empty output for `gofmt -l`)
+before `TEST_REPORT.md` is written.
 
 ### Compile gate
 
-Execute after Phase 4 and before Phase 6. If your environment cannot
+Execute after Phase 5 and before Phase 7. If your environment cannot
 execute shell commands, document this explicitly in `TRANSLATION_REPORT.md`.
 
 **Step 1 — Dependency resolution**
@@ -393,7 +415,21 @@ Run: `go build ./...`
 
 If compilation fails, fix only the identified errors and re-run.
 
-**Step 3 — Record result**
+**Step 3 — Translator test run**
+
+Run: `go test ./independent_tests/<llm-name>/...`
+
+If tests fail, either fix the implementation or refine the test with
+documented rationale (logged in Test Refinements).
+
+**Step 4 — Test-author test run** (dual-LLM mode only)
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and
+the prompt's continuity checks passed, run:
+`go test ./independent_tests/<other-role-llm-name>/...`. Do not edit
+test-author's tests.
+
+**Step 5 — Record result**
 
 Record pass/fail for each step in `TRANSLATION_REPORT.md`.
 Once all steps pass, do not modify any source files further.

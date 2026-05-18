@@ -435,14 +435,24 @@ found and which are being produced.
 ### Delivery phases
 
 Produce files in this exact order. Complete each phase before starting
-the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 
-**Phase 1 — Core implementation**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/<spec-name>_test.go` (and additional
+  files as needed). The directory is named after the translator LLM
+  per `ROLE.md`.
+- Tests must cover every EXAMPLE, every declared error path, every
+  `[observable]` INVARIANT, and the boundary conditions implied by TYPE
+  refinement predicates.
+- Tests use Go's standard testing package; no custom in-tree harness.
+- This phase MUST complete before any non-test source file is written.
+
+**Phase 2 — Core implementation**
 - `main.go` — implements both stdio and http transports; transport selected
   by bare-word argument (`stdio` | `http`)
 - `go.mod` — direct dependencies only; see Compile gate below
 
-**Phase 2 — Build and packaging**
+**Phase 3 — Build and packaging**
 - `Makefile`
 - `<n>.spec` (RPM spec; must include systemd service unit for http transport)
 - `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
@@ -451,24 +461,36 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
   final stage FROM scratch; EXPOSE 8080; ENTRYPOINT default to http transport
 - `LICENSE`
 
-**Phase 3 — Test infrastructure**
-- `independent_tests/INDEPENDENT_TESTS.go`
+**Phase 4 — Auxiliary artefacts**
 - `translation_report/translation-workflow.pikchr`
 
-**Phase 4 — Documentation**
+**Phase 5 — Documentation**
 - `README.md` — must document stdio invocation, http invocation with
   `listen=` option, and all exposed MCP tools
 
-**Phase 5 — Compile gate** (see below)
+**Phase 6 — Compile gate** (see below)
 
-**Phase 6 — Report (last)**
+**Phase 7 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of:
+
+```
+$ go vet ./independent_tests/<llm-name>/...
+$ gofmt -l ./independent_tests/<llm-name>/
+```
+
+Both must succeed (exit 0 for `go vet`, empty output for `gofmt -l`)
+before `TEST_REPORT.md` is written.
 
 ### Compile gate
 
-Execute after Phase 4 and before Phase 6. If your environment cannot
+Execute after Phase 5 and before Phase 7. If your environment cannot
 execute shell commands, document this explicitly under the heading
-"Phase 5 — Compile gate not executed" in TRANSLATION_REPORT.md and
+"Phase 6 — Compile gate not executed" in TRANSLATION_REPORT.md and
 state why. Do not silently omit this phase.
 
 **Step 1 — Framework selection**
@@ -494,11 +516,25 @@ Run: `go build ./...`
 If compilation fails, fix only the identified errors and re-run.
 Do not rewrite unaffected files.
 
-**Step 4 — Record result**
+**Step 4 — Translator test run**
+
+Run: `go test ./independent_tests/<llm-name>/...`
+
+If tests fail, either fix the implementation or refine the test with
+documented rationale (logged in Test Refinements).
+
+**Step 5 — Test-author test run** (dual-LLM mode only)
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and
+the prompt's continuity checks passed, run:
+`go test ./independent_tests/<other-role-llm-name>/...`. Do not edit
+test-author's tests.
+
+**Step 6 — Record result**
 
 Record pass/fail in TRANSLATION_REPORT.md.
 Once all steps pass, do not modify source files further.
-Proceed immediately to Phase 6.
+Proceed immediately to Phase 7.
 
 ### Dual-transport requirement
 

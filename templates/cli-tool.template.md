@@ -419,14 +419,26 @@ found and which are being produced.
 ### Delivery phases
 
 Produce files in this exact order. Complete each phase before starting
-the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 
-**Phase 1 — Core implementation**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/<spec-name>_test.go` (and additional
+  files as needed). The directory is named after the translator LLM
+  per `ROLE.md` (e.g. `independent_tests/claude-sonnet-4-5/`).
+- Tests must cover every EXAMPLE, every declared error path, every
+  `[observable]` INVARIANT, and the boundary conditions implied by TYPE
+  refinement predicates.
+- Tests use Go's standard testing package; no custom in-tree harness.
+- This phase MUST complete before any non-test source file is written.
+  The prompt's Tests-First guard halts the translator if this directory
+  is empty when Phase 2 begins.
+
+**Phase 2 — Core implementation**
 - All `.go` source files (typically `main.go`, or `cmd/<n>/main.go` for
   larger tools, plus any additional `.go` files for interfaces and helpers)
 - `go.mod` — direct dependencies only; see Compile gate below
 
-**Phase 2 — Build and packaging**
+**Phase 3 — Build and packaging**
 - `Makefile`
 - `<n>.spec` (RPM spec)
 - `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
@@ -434,23 +446,42 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
 - `<n>.pkgbuild` (if PKG/macOS is active in preset)
 - `LICENSE`
 
-**Phase 3 — Test infrastructure**
-- `independent_tests/INDEPENDENT_TESTS.go`
+**Phase 4 — Auxiliary artefacts**
 - `translation_report/translation-workflow.pikchr`
 
-**Phase 4 — Documentation**
+**Phase 5 — Documentation**
 - `README.md`
 
-**Phase 5 — Compile gate** (see below)
+**Phase 6 — Compile gate** (see below)
 
-**Phase 6 — Report (last)**
+**Phase 7 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of these commands,
+run in order. Each must succeed; the first failure halts the run before
+`TEST_REPORT.md` is written.
+
+```
+$ go vet ./independent_tests/<llm-name>/...
+$ gofmt -l ./independent_tests/<llm-name>/
+```
+
+`go vet` must exit 0. `gofmt -l` must produce no output (an empty list of
+unformatted files). A non-empty `gofmt -l` indicates a parse failure or
+formatting drift; both are blockers. If the test files reference packages
+or symbols that the translator will provide (e.g. `exec.Command("./pcd-lint")`
+where `pcd-lint` does not yet exist), this is acceptable — the test-author
+syntax check verifies that the test files themselves parse and conform to
+Go's syntax, not that they compile against a complete implementation.
 
 ### Compile gate
 
-Execute after Phase 4 and before Phase 6. If your environment cannot
+Execute after Phase 5 and before Phase 7. If your environment cannot
 execute shell commands, document this explicitly under the heading
-"Phase 5 — Compile gate not executed" in TRANSLATION_REPORT.md and
+"Phase 6 — Compile gate not executed" in TRANSLATION_REPORT.md and
 state why. Do not silently omit this phase.
 
 **Step 1 — Dependency resolution**
@@ -472,11 +503,28 @@ If compilation fails, fix only the identified errors and re-run.
 Do not rewrite unaffected files. Repeat until compilation succeeds
 or all reasonable fixes are exhausted.
 
-**Step 3 — Record result**
+**Step 3 — Translator test run**
+
+Run: `go test ./independent_tests/<llm-name>/...`
+
+If tests fail, either fix the implementation (logged in Test Refinements
+as `code fixed`) or refine the test with documented rationale referencing
+the spec (logged as `test edited`). Never edit a test without justification.
+
+**Step 4 — Test-author test run** (dual-LLM mode only)
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and the
+continuity checks in the prompt's step 7 passed, run:
+`go test ./independent_tests/<other-role-llm-name>/...`
+
+Record results separately. Do not edit test-author's tests under any
+circumstances.
+
+**Step 5 — Record result**
 
 Record pass/fail for each step in TRANSLATION_REPORT.md.
 Once all steps pass, do not modify any source files further.
-Proceed immediately to Phase 6.
+Proceed immediately to Phase 7.
 
 ### go.mod rules
 

@@ -104,11 +104,19 @@ single-LLM is a fully supported invocation.
    in-tree harness. The tests assert on every EXAMPLE in the spec,
    on declared error paths, on INVARIANTS, and on boundary conditions
    implied by the TYPES refinement predicates.
-3. Write the implementation code, following the rest of this prompt.
-4. Run the test suite against the implementation. Record results.
-5. If any test fails: either fix the implementation, or refine the test
+3. **Verify that `independent_tests/<llm-name>/` exists in the output
+   directory and contains at least one test file.** If not, halt with
+   the diagnostic: "Error: Tests-First discipline requires a test suite
+   in `independent_tests/<llm-name>/` before any implementation file is
+   written. No test file found. Return to step 2." This guard is
+   structural; it cannot be satisfied by acknowledging Tests First in
+   prose. The translator may not begin step 4 (writing implementation
+   source) until this check passes.
+4. Write the implementation code, following the rest of this prompt.
+5. Run the test suite against the implementation. Record results.
+6. If any test fails: either fix the implementation, or refine the test
    *with documented rationale* (see **Test Refinements** below).
-6. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
+7. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
    in the input directory, first verify continuity before running it:
    - Read `TEST_REPORT.md` (produced by test-author). Confirm its
      `Spec-SHA256` matches the SHA256 of the current spec file. If they
@@ -119,7 +127,12 @@ single-LLM is a fully supported invocation.
    - Confirm the deployment template, preset resolution, and hints
      files listed in `TEST_REPORT.md` match those in scope for this
      run. On any mismatch, halt with the same diagnostic pattern.
-   - With both checks passed, run test-author's test suite against the
+   - Confirm that `TEST_REPORT.md` records `Test-Compile-Gate: pass`. If
+     it records `fail`, halt and report: "Error: test-author test suite
+     did not pass its syntax check. Re-run test-author and ensure
+     `Test-Compile-Gate: pass` before running translator." Do not
+     attempt to run the test-author suite.
+   - With all checks passed, run test-author's test suite against the
      implementation and record results separately. **Do not edit
      test-author's tests under any circumstances** — they are the
      independent cross-check.
@@ -152,7 +165,22 @@ For a **test-author** run:
 3. Write the test suite under
    `independent_tests/<llm-name>/`, in the language declared by the
    deployment template (resolve the same way translator would).
-4. If the deployment template targets a **library** (e.g. `library-c-abi`,
+4. **Run the syntax/build check on the test files just produced.** This is
+   a structural gate, not a recommendation. The exact commands are declared
+   in the deployment template's `## EXECUTION` section under the heading
+   `### Test-author syntax check`. Run them in order; each must succeed.
+   For Go targets this is `go vet ./independent_tests/<llm-name>/...` and
+   `gofmt -l ./independent_tests/<llm-name>/`; for Rust `cargo check
+   --tests`; for Python `python -m py_compile <each test file>`; the
+   template provides the canonical list for its target language.
+
+   If any check fails: halt and report the first failure verbatim. Do
+   not write `TEST_REPORT.md`. Do not proceed. A test file that does not
+   parse provides no verification value and must be fixed before the
+   run is complete. The translator pass will refuse to consume this
+   test-author output if the syntax check did not pass.
+
+5. If the deployment template targets a **library** (e.g. `library-c-abi`,
    `verified-library`): tests are written in two phases. Phase A
    (this run): write the test logic with `<INTERFACE_PLACEHOLDER>`
    markers for any function or type names the spec does not pin
@@ -160,7 +188,7 @@ For a **test-author** run:
    re-run this prompt in `mode: test-author-rebind` and bind the
    placeholders to translator's actual names. The rebind is mechanical
    only — assertions, expected values, and test coverage may not change.
-5. Stop. Do not write code. Do not write packaging. Do not write a
+6. Stop. Do not write code. Do not write packaging. Do not write a
    `TRANSLATION_REPORT.md` — write a `TEST_REPORT.md` instead (see
    **Reports** below).
 
@@ -211,10 +239,19 @@ the test language are the same. This is a production constraint: minimal
 runtime environments (Common Criteria images, OBS builders, container
 images) carry the toolchain for one language only.
 
-**Read the template's `## EXECUTION` section and follow it exactly.**
+**Read the template's `## EXECUTION` section and follow it.**
 The EXECUTION section specifies the delivery phases, their order, resume
 logic, and compile/build verification steps for this deployment type.
 Do not invent a different phase order. Do not skip phases.
+
+**Tests-First overrides template phase ordering.** If a template's
+`## EXECUTION` section orders implementation phases before the test
+infrastructure phase, the translator must still write tests first,
+per the **Tests First** rules above. Templates whose phase numbering
+contradicts Tests-First are being progressively updated; in the meantime,
+the prompt rule takes precedence. The structural guard at step 3 of the
+translator flow enforces this — implementation source files cannot be
+written until tests exist.
 
 **Read deliverables from the template, not from this prompt.**
 Produce all deliverables for every OUTPUT-FORMAT marked `required` in the
@@ -398,6 +435,12 @@ Produce a `TRANSLATION_REPORT.md` covering:
 - **Spec-SHA256:** `<hash>` — SHA256 of `<specname>.md` as provided
 - **LLM-Name:** `<llm-name>` — from `ROLE.md` or placeholder
 - **Mode:** `translator`
+- **Tests-First-Compliance:** `yes` or `no` (with explanation). `yes`
+  requires that every file in `independent_tests/<llm-name>/` was written
+  before any implementation source file. If `no`, every test that passed
+  on first run is demoted from High to Medium confidence in the
+  per-EXAMPLE table below — post-hoc test-tuning risk was not controlled,
+  and the structural guard at step 3 of the translator flow was bypassed.
 - Target language resolved, and whether any preset overrides the template default
 - Delivery mode used and why
 - How STEPS ordering was applied for each BEHAVIOR block
@@ -425,11 +468,13 @@ Produce a `TRANSLATION_REPORT.md` covering:
   | EXAMPLE | Confidence | Verification method | Unverified claims |
 
   Confidence definitions:
-  - **High** = a named test function in `independent_tests/<llm-name>/`
-    *and*, if present, `independent_tests/<other-role-llm-name>/`, both pass
-    without any live external service
-  - **Medium** = translator tests pass; test-author tests absent, or some
-    paths require live services and are untested
+  - **High** = Tests-First-Compliance is `yes`, *and* a named test function
+    in `independent_tests/<llm-name>/` passes without any live external
+    service, *and*, if present, `independent_tests/<other-role-llm-name>/`,
+    both pass without any live external service
+  - **Medium** = translator tests pass but Tests-First-Compliance is `no`,
+    or test-author tests are absent, or some paths require live services
+    and are untested
   - **Low** = no test function covers this; reasoning or code review only
 
   A claim is verified only if it references a specific named test function
@@ -453,15 +498,22 @@ Produce a `TEST_REPORT.md` covering:
   in the order they were applied (system → user → project)
 - **Hints-Files-Read:** list of hints files in scope, with versions
   where applicable
+- **Test-Compile-Gate:** `pass` or `fail`. Must be `pass` for the run to
+  be considered complete. If `fail`, the report must include the diagnostic
+  output of the failing command; in that case the prompt requires halting
+  before writing this report, so a fail state should not normally appear
+  here — but if it does (e.g. the run was completed manually), translator
+  will refuse to consume the suite.
 - Target language resolved (the same way translator would resolve it)
 - Tests produced: one row per test function, with the EXAMPLE/BEHAVIOR/
   INVARIANT it covers
 - INTERFACE_PLACEHOLDER markers used (library templates only)
 - Specification ambiguities encountered
-- Note: this report does not include a compile gate result, an
-  implementation, or a confidence table — those are translator's deliverables.
+- Note: this report does not include a compile gate result for the
+  implementation, an implementation, or a confidence table — those are
+  translator's deliverables.
 
-The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`, and
-`Hints-Files-Read` fields are mandatory because translator will verify them
-against its own scope before running test-author's tests. Mismatch on any
-of these aborts translator's run.
+The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`,
+`Hints-Files-Read`, and `Test-Compile-Gate` fields are mandatory because
+translator will verify them against its own scope before running test-author's
+tests. Mismatch on any of these aborts translator's run.
