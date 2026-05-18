@@ -19,6 +19,14 @@ in the preset hierarchy (`/etc/pcd/hints/`, `.pcd/hints/`) — these encode
 project or company coding conventions and must be applied to all generated code.
 Read all hints files before generating any code.
 
+The spec may declare `Includes:` directives in its META section (v0.4.0+).
+Each `Includes:` is a relative path to another spec file that contributes
+TYPES, BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES,
+TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, and POSTCONDITIONS to the host spec.
+Before any other processing, resolve all includes recursively and produce
+the merged spec text (see **Spec Composition** below). All subsequent
+processing treats the merged spec as the input.
+
 ---
 
 ## Role
@@ -77,6 +85,71 @@ If `ROLE.md` is absent, assume `mode: translator` and use the placeholder
 `llm-name: unknown-translator` for directory naming. The `llm-name` value must be
 lowercase, hyphen-separated, with no dots or version-decimal suffixes
 (e.g. `claude-sonnet-4-5`, not `Claude-Sonnet-4.5`).
+
+---
+
+## Spec Composition (v0.4.0+)
+
+If the host spec's META declares one or more `Includes:` directives,
+resolve them before processing the spec for translation. Each `Includes:`
+value is a relative path from the host spec's location to another spec
+file.
+
+### Resolution
+
+1. Read the host spec.
+2. For each `Includes:` directive in declaration order:
+   a. Resolve the path relative to the host spec file's location.
+   b. Read the referenced spec file.
+   c. If that file declares its own `Includes:` directives, recurse.
+      Detect cycles; halt with diagnostic on any cycle.
+3. After all included specs are read, merge into a canonical merged spec:
+   - **META**: the host's META is authoritative. Record each included
+     spec's identity (filename, version, SHA256) for the audit trail,
+     but do not apply its values. Included specs' Author lines are
+     preserved as additional Author entries.
+   - **TYPES, BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES,
+     TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, POSTCONDITIONS**: append in
+     order — included specs in declaration order first, then the host's
+     own content.
+   - **MILESTONE**, **DEPLOYMENT section**: host only. An included spec
+     containing these is a spec-author error; halt with diagnostic.
+4. Detect name collisions across the merged set. Duplicate TYPE,
+   BEHAVIOR, INTERFACE, or EXAMPLE names are spec-author errors; halt
+   with diagnostic identifying which spec each definition came from.
+
+### Hash computation
+
+The `Spec-SHA256` to embed in all generated artefacts is the SHA256 of
+the merged spec text — not the host spec file on disk. This means that
+editing an included spec invalidates the hash of every host that includes
+it, propagating change detection through the inclusion graph as it must.
+
+The merged-spec text is canonical: same host + same included specs
+always produces the same bytes. The canonical form is host META first,
+then all merged sections in their defined order with included
+contributions listed before the host's own.
+
+### Reporting
+
+The TRANSLATION_REPORT must include two hashes and an inclusions table:
+
+- `Spec-SHA256` (merged): the hash actually embedded in artefacts.
+- `Spec-SHA256 (host)`: the hash of the host spec file as read.
+- `Included-Specs:` table: one row per included spec, with its path
+  and SHA256.
+
+If the host spec has no `Includes:` directives, the merged hash equals
+the host hash and the Included-Specs table is empty. This case is the
+v0.3.x behaviour, fully compatible.
+
+### Forward compatibility
+
+If the host spec's META declares `Spec-Schema: 0.4.0` or higher and you
+do not implement the merge described above, halt with diagnostic. Do
+not silently ignore `Includes:` directives. A spec consumer that
+silently drops included content produces a translation that does not
+match the spec author's intent and breaks the spec-is-truth invariant.
 
 ---
 
@@ -432,7 +505,17 @@ incomplete, regardless of whether all other deliverables are present.
 
 Produce a `TRANSLATION_REPORT.md` covering:
 
-- **Spec-SHA256:** `<hash>` — SHA256 of `<specname>.md` as provided
+- **Spec-SHA256:** `<hash>` — SHA256 of the merged spec text (host + all
+  recursively-resolved includes). This is the hash embedded in all
+  generated artefacts. If the host spec has no `Includes:` directives,
+  this equals the host hash and the Included-Specs table below is empty.
+- **Spec-SHA256 (host):** `<hash>` — SHA256 of the host spec file as read.
+- **Included-Specs:** table of included specs (empty if none):
+
+  | Path | SHA256 |
+  |------|--------|
+  | `<relative-path>` | `<hash>` |
+
 - **LLM-Name:** `<llm-name>` — from `ROLE.md` or placeholder
 - **Mode:** `translator`
 - **Tests-First-Compliance:** `yes` or `no` (with explanation). `yes`
@@ -489,7 +572,16 @@ documented as not executed — see template EXECUTION section).
 
 Produce a `TEST_REPORT.md` covering:
 
-- **Spec-SHA256:** `<hash>`
+- **Spec-SHA256:** `<hash>` — SHA256 of the merged spec text (host + all
+  recursively-resolved includes). This is the hash translator will
+  verify against.
+- **Spec-SHA256 (host):** `<hash>` — SHA256 of the host spec file as read.
+- **Included-Specs:** table of included specs (empty if none):
+
+  | Path | SHA256 |
+  |------|--------|
+  | `<relative-path>` | `<hash>` |
+
 - **LLM-Name:** `<llm-name>`
 - **Mode:** `test-author` (or `test-author-rebind`)
 - **Deployment-Template:** template filename and version (e.g.

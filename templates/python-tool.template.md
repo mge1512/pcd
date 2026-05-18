@@ -158,7 +158,7 @@ STEPS:
 
 ## EXAMPLES
 
-EXAMPLE: default_resolution
+### EXAMPLE: default_resolution
 GIVEN:
   spec META declares:
     Deployment: python-tool
@@ -173,7 +173,7 @@ THEN:
   resolved["BUILD-TOOL"] = "uv"
   errors = []
 
-EXAMPLE: non_qm_safety_rejected
+### EXAMPLE: non_qm_safety_rejected
 GIVEN:
   spec META declares:
     Deployment: python-tool
@@ -185,7 +185,7 @@ THEN:
   errors contains: "python-tool requires Safety-Level: QM"
   resolved is not produced
 
-EXAMPLE: forbidden_curl_rejected
+### EXAMPLE: forbidden_curl_rejected
 GIVEN:
   spec META declares Deployment: python-tool
   preset declares INSTALL-METHOD = curl

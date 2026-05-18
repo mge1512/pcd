@@ -6,8 +6,8 @@
 
 ## META
 Deployment:  cli-tool
-Version:     0.3.22
-Spec-Schema: 0.3.22
+Version:     0.4.0
+Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     GPL-2.0-only
 Verification: none
@@ -443,8 +443,14 @@ if V not in KNOWN_VERIFICATION_VALUES:
 
 The ## EXAMPLES section must contain at least one example block.
 
+An example block begins with a heading line matching:
+  `### EXAMPLE: <name>`
+at column 0. The heading marker is exactly three pound signs, one
+space, the literal text `EXAMPLE:`, one space, and the example name.
+
 An example block consists of:
-  - a line matching "^EXAMPLE:" (example name declaration)
+  - a heading line matching "^### EXAMPLE: " (example name declaration)
+  - a GIVEN: marker
   - at least one WHEN:/THEN: pair appearing after GIVEN:
   - WHEN: and THEN: must alternate: each WHEN: must be followed by
     its matching THEN: before the next WHEN: or end of block
@@ -453,7 +459,8 @@ An example block consists of:
 if no example block found:
   emit Error, section="EXAMPLES",
     message="EXAMPLES section contains no example blocks. \
-             Each example requires EXAMPLE:, GIVEN:, WHEN:, THEN: markers."
+             Each example requires ### EXAMPLE: heading and \
+             GIVEN:, WHEN:, THEN: markers."
 
 For each example block E:
   if E missing "GIVEN:":
@@ -466,9 +473,23 @@ For each example block E:
     emit Error, section="EXAMPLES",
       message="Example '{n}' missing THEN: marker"
   for each WHEN: marker W in E (in order):
-    if W is not immediately followed (before next WHEN: or end of block) by a THEN: marker:
+    if W is not immediately followed (before next WHEN: or end of block)
+       by a THEN: marker:
       emit Error, section="EXAMPLES",
         message="Example '{n}' has WHEN: without a matching THEN:"
+
+Header form errors:
+
+if a line matching "^EXAMPLE: " (flat form) appears inside the ## EXAMPLES section:
+  emit Error, section="EXAMPLES",
+    message="Example header must be '### EXAMPLE: <name>'. \
+             Flat 'EXAMPLE: <name>' is no longer accepted (changed in v0.4.0). \
+             See: doc/spec-composition.md or RULE-06."
+
+if a line matching "^## EXAMPLE: " or "^#### EXAMPLE: " appears inside the ## EXAMPLES section:
+  emit Error, section="EXAMPLES",
+    message="Example header must be at heading level 3 (three pound signs). \
+             Found heading level {n} for '{name}'."
 
 ### RULE-07: EXAMPLES minimum content
 
@@ -477,8 +498,8 @@ Block boundaries are defined as follows:
   WHEN block   := lines strictly between a WHEN: marker and its matching THEN: marker
   THEN block   := lines after a THEN: marker until one of:
                     - next WHEN: marker at start of line (multi-pass)
-                    - next EXAMPLE: marker at start of line
-                    - next ## heading at start of line
+                    - next "### EXAMPLE: " heading at start of line
+                    - next ## or ### heading at start of line (non-EXAMPLE)
                     - end of file
   A block is empty if it contains zero non-whitespace lines.
   A marker line itself (GIVEN:, WHEN:, THEN:) is not content.
@@ -763,6 +784,91 @@ RULE-18 is only evaluated when
 
 ---
 
+### RULE-19: Includes path resolves
+
+Constraint: required (when host spec declares Includes)
+
+For every `Includes:` directive in the host spec's META section, the
+referenced path must resolve to a readable file relative to the host
+spec's location.
+
+INPUTS:
+- HOST_PATH: absolute path of the spec being linted
+- INCLUDES_VALUES: list of `Includes:` values from META
+
+STEPS:
+1. For each value in INCLUDES_VALUES:
+   a. Compute the absolute path by resolving the value relative to
+      directory of HOST_PATH.
+   b. If the file does not exist or is not readable, emit:
+      ERROR  {file}:{line}  [META]  Includes path does not resolve: {value}
+
+MECHANISM: path resolution uses standard filesystem semantics. Symbolic
+links are followed. The check is on existence and readability, not on
+spec validity of the included file.
+
+---
+
+### RULE-20: Merged spec has no name collisions
+
+Constraint: required (when host spec declares Includes)
+
+After resolving all `Includes:` directives recursively and merging the
+included specs into the host, the resulting merged spec must contain no
+duplicate names within any of: TYPES, BEHAVIORs, INTERFACES, EXAMPLES.
+
+INPUTS:
+- HOST_SPEC: the host spec content (parsed)
+- INCLUDED_SPECS: the recursively-resolved included specs (parsed)
+
+STEPS:
+1. Construct the merged TYPE set: collect all TYPE definitions from
+   each included spec in declaration order, then from the host.
+2. For each TYPE name that appears more than once, emit:
+   ERROR  {host-file}  [META]  Name collision after merge: TYPE {name}
+   appears in both {first-origin} and {second-origin}
+3. Repeat for BEHAVIORs, INTERFACES, EXAMPLES.
+
+MECHANISM: there is no implicit precedence. Collisions are spec-author
+errors and must be resolved by renaming or restructuring.
+
+---
+
+### RULE-21: Inclusion graph is acyclic and well-formed
+
+Constraint: required (when host spec declares Includes)
+
+The transitive closure of `Includes:` references from a host spec must
+form a directed acyclic graph. Additionally, included specs must not
+declare orchestration-only sections that belong to host components.
+
+INPUTS:
+- HOST_PATH
+- INCLUDED_SPECS: full transitive closure with provenance
+
+STEPS:
+1. Detect cycles. Construct the directed graph where each node is a spec
+   file and an edge A → B exists when A's `Includes:` references B.
+   Perform a DFS from HOST_PATH. If any back-edge is found, emit:
+   ERROR  {file}  [META]  Inclusion cycle: {cycle-path}
+   where {cycle-path} is the cycle in form A → B → C → A.
+
+2. For each included spec, verify it does not contain a `## MILESTONE:`
+   section. If found, emit:
+   ERROR  {included-file}  [structure]  Included spec must not declare
+   MILESTONE section: {included-file}
+
+3. For each included spec, verify it does not contain a `## DEPLOYMENT`
+   section. If found, emit:
+   ERROR  {included-file}  [structure]  Included spec must not declare
+   DEPLOYMENT section: {included-file}
+
+MECHANISM: cycles are detected by standard DFS with a visited set. There
+is no depth cap; practical specs are expected to have inclusion depth of
+1 or 2.
+
+---
+
 ## PRECONDITIONS
 
 - For lint: file argument must be provided
@@ -813,7 +919,7 @@ RULE-18 is only evaluated when
 
 ## EXAMPLES
 
-EXAMPLE: valid_minimal_spec
+### EXAMPLE: valid_minimal_spec
 GIVEN:
   file contains all required sections: META, TYPES, BEHAVIOR,
     PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES
@@ -834,7 +940,7 @@ THEN:
   stdout = "✓ spec.md: valid"
   exit_code = 0
 
-EXAMPLE: multiple_authors_valid
+### EXAMPLE: multiple_authors_valid
 GIVEN:
   META contains:
     Deployment:   cli-tool
@@ -854,7 +960,7 @@ THEN:
   stdout = "✓ spec.md: valid"
   exit_code = 0
 
-EXAMPLE: invalid_spdx_license
+### EXAMPLE: invalid_spdx_license
 GIVEN:
   META contains:
     License: MIT License
@@ -869,7 +975,7 @@ THEN:
     message contains "https://spdx.org/licenses/"
   exit_code = 1
 
-EXAMPLE: invalid_version_format
+### EXAMPLE: invalid_version_format
 GIVEN:
   META contains:
     Version: 1.0
@@ -883,7 +989,7 @@ THEN:
     message contains "Version '1.0' is not valid semantic versioning"
   exit_code = 1
 
-EXAMPLE: missing_author
+### EXAMPLE: missing_author
 GIVEN:
   META contains all required fields except no Author: line present
   invocation: pcd-lint spec.md
@@ -895,7 +1001,7 @@ THEN:
     message = "Missing required META field: Author (at least one Author: line required)"
   exit_code = 1
 
-EXAMPLE: missing_section
+### EXAMPLE: missing_section
 GIVEN:
   file is missing the ## INVARIANTS section
   all other required sections present and valid
@@ -908,7 +1014,7 @@ THEN:
   stdout = "✗ spec.md: 1 error(s), 0 warning(s)"
   exit_code = 1
 
-EXAMPLE: unknown_deployment_template
+### EXAMPLE: unknown_deployment_template
 GIVEN:
   file is valid except META contains: Deployment: serverless
   invocation: pcd-lint spec.md
@@ -920,7 +1026,7 @@ THEN:
     message contains "Unknown deployment template: 'serverless'"
   exit_code = 1
 
-EXAMPLE: deprecated_target_field_permissive
+### EXAMPLE: deprecated_target_field_permissive
 GIVEN:
   file is valid with META containing:
     Deployment: backend-service
@@ -937,7 +1043,7 @@ THEN:
   stdout = "✓ spec.md: valid (1 warning(s))"
   exit_code = 0
 
-EXAMPLE: deprecated_target_field_strict
+### EXAMPLE: deprecated_target_field_strict
 GIVEN:
   same file as deprecated_target_field_permissive
   invocation: pcd-lint strict=true spec.md
@@ -950,7 +1056,7 @@ THEN:
   stdout = "✗ spec.md: 0 error(s), 1 warning(s) [strict mode]"
   exit_code = 1
 
-EXAMPLE: enhance_existing_missing_language
+### EXAMPLE: enhance_existing_missing_language
 GIVEN:
   file META contains:
     Deployment: enhance-existing
@@ -966,7 +1072,7 @@ THEN:
     message = "Deployment 'enhance-existing' requires META field 'Language'"
   exit_code = 1
 
-EXAMPLE: empty_given_block_permissive
+### EXAMPLE: empty_given_block_permissive
 GIVEN:
   file is structurally valid, but EXAMPLES contains a block with an empty GIVEN section:
   ```markdown
@@ -988,7 +1094,7 @@ THEN:
   stdout = "✓ spec.md: valid (1 warning(s))"
   exit_code = 0
 
-EXAMPLE: multiple_errors
+### EXAMPLE: multiple_errors
 GIVEN:
   file is missing ## INVARIANTS and ## EXAMPLES sections
   META is present but Deployment field is absent
@@ -1003,7 +1109,7 @@ THEN:
   stdout = "✗ spec.md: 3 error(s), 0 warning(s)"
   exit_code = 1
 
-EXAMPLE: file_not_found
+### EXAMPLE: file_not_found
 GIVEN:
   invocation: pcd-lint missing.md
   missing.md does not exist
@@ -1014,7 +1120,7 @@ THEN:
   stdout = (empty)
   exit_code = 2
 
-EXAMPLE: unrecognised_option
+### EXAMPLE: unrecognised_option
 GIVEN:
   invocation: pcd-lint verbose=yes spec.md
 WHEN:
@@ -1024,7 +1130,7 @@ THEN:
   stdout = (empty)
   exit_code = 2
 
-EXAMPLE: behavior_internal_recognised
+### EXAMPLE: behavior_internal_recognised
 GIVEN:
   file contains all required sections, including these BEHAVIOR variants:
   ```markdown
@@ -1042,7 +1148,7 @@ THEN:
   // BEHAVIOR/INTERNAL is treated as satisfying the BEHAVIOR requirement
   // and is not flagged as an unknown section
 
-EXAMPLE: behavior_internal_unknown_variant
+### EXAMPLE: behavior_internal_unknown_variant
 GIVEN:
   file contains:
     ## BEHAVIOR/PRIVATE: foo
@@ -1058,7 +1164,7 @@ THEN:
   // BEHAVIOR/PRIVATE is not a recognised variant; does not satisfy
   // the BEHAVIOR requirement
 
-EXAMPLE: list_templates
+### EXAMPLE: list_templates
 GIVEN:
   invocation: pcd-lint list-templates
 WHEN:
@@ -1071,7 +1177,7 @@ THEN:
   stderr = (empty)
   exit_code = 0
 
-EXAMPLE: non_md_extension
+### EXAMPLE: non_md_extension
 GIVEN:
   invocation: pcd-lint myspec.txt
   myspec.txt exists and is readable
@@ -1082,7 +1188,7 @@ THEN:
   stdout = (empty)
   exit_code = 2
 
-EXAMPLE: multi_pass_example_valid
+### EXAMPLE: multi_pass_example_valid
 GIVEN:
   file contains a BEHAVIOR: reconcile section with STEPS including "on failure →"
   EXAMPLES contains:
@@ -1109,7 +1215,7 @@ THEN:
   exit_code = 0
   // multi-pass WHEN/THEN is valid under RULE-06
 
-EXAMPLE: behavior_missing_steps
+### EXAMPLE: behavior_missing_steps
 GIVEN:
   file contains all required sections including:
   ```
@@ -1130,7 +1236,7 @@ THEN:
     message contains "missing required STEPS: block"
   exit_code = 1
 
-EXAMPLE: invariant_missing_tag_warning
+### EXAMPLE: invariant_missing_tag_warning
 GIVEN:
   file is otherwise valid with INVARIANTS section:
   ```
@@ -1148,7 +1254,7 @@ THEN:
   stdout = "✓ spec.md: valid (2 warning(s))"
   exit_code = 0
 
-EXAMPLE: invariant_missing_tag_strict
+### EXAMPLE: invariant_missing_tag_strict
 GIVEN:
   same file as invariant_missing_tag_warning
   invocation: pcd-lint strict=true spec.md
@@ -1158,7 +1264,7 @@ THEN:
   exit_code = 1
   stdout contains "[strict mode]"
 
-EXAMPLE: behavior_error_exits_no_negative_example
+### EXAMPLE: behavior_error_exits_no_negative_example
 GIVEN:
   file contains BEHAVIOR: transfer with STEPS:
     "1. Validate inputs; on failure → return Err(INVALID)"
@@ -1178,7 +1284,7 @@ THEN:
     message contains "has error exits in STEPS but no negative-path EXAMPLE"
   exit_code = 1
 
-EXAMPLE: behavior_error_exits_with_negative_example
+### EXAMPLE: behavior_error_exits_with_negative_example
 GIVEN:
   same BEHAVIOR: transfer as above
   EXAMPLES now contains an additional block:
@@ -1195,7 +1301,7 @@ THEN:
   stderr = (empty)
   exit_code = 0
 
-EXAMPLE: behavior_constraint_invalid_value
+### EXAMPLE: behavior_constraint_invalid_value
 GIVEN:
   file contains:
   ```
@@ -1212,7 +1318,7 @@ THEN:
     message contains "Valid values: required, supported, forbidden"
   exit_code = 1
 
-EXAMPLE: behavior_constraint_forbidden_no_reason
+### EXAMPLE: behavior_constraint_forbidden_no_reason
 GIVEN:
   file contains:
   ```
@@ -1229,7 +1335,7 @@ THEN:
     message contains "Constraint: forbidden but has no reason: annotation"
   exit_code = 0
 
-EXAMPLE: behavior_constraint_absent_defaults_required
+### EXAMPLE: behavior_constraint_absent_defaults_required
 GIVEN:
   file is fully valid; BEHAVIOR: transfer has no Constraint: line
   invocation: pcd-lint spec.md
@@ -1240,7 +1346,7 @@ THEN:
   exit_code = 0
   // Absent Constraint: defaults to required; no diagnostic emitted
 
-EXAMPLE: fenced_block_markers_ignored
+### EXAMPLE: fenced_block_markers_ignored
 GIVEN:
   file contains all required sections and is structurally valid
   the EXAMPLES section contains a block with fenced content:
@@ -1266,7 +1372,7 @@ THEN:
   exit_code = 0
   // markers inside fenced blocks are not parsed as real structure
 
-EXAMPLE: milestone_valid_scaffold_first
+### EXAMPLE: milestone_valid_scaffold_first
 GIVEN:
   spec contains:
     ## MILESTONE: 0.0.0
@@ -1289,7 +1395,7 @@ THEN:
   stderr = (empty)
   exit_code = 0
 
-EXAMPLE: milestone_scaffold_not_first
+### EXAMPLE: milestone_scaffold_not_first
 GIVEN:
   spec contains:
     ## MILESTONE: 0.1.0
@@ -1309,7 +1415,7 @@ THEN:
     message contains "Scaffold milestone '0.2.0' must appear first"
   exit_code = 1
 
-EXAMPLE: milestone_two_scaffold_rejected
+### EXAMPLE: milestone_two_scaffold_rejected
 GIVEN:
   spec contains two MILESTONE sections both with Scaffold: true
   invocation: pcd-lint spec.md
@@ -1321,7 +1427,7 @@ THEN:
     message contains "More than one MILESTONE has Scaffold: true"
   exit_code = 1
 
-EXAMPLE: milestone_two_active_rejected
+### EXAMPLE: milestone_two_active_rejected
 GIVEN:
   spec contains two MILESTONE sections both with Status: active
   invocation: pcd-lint spec.md
@@ -1333,7 +1439,7 @@ THEN:
     message contains "More than one MILESTONE has Status: active"
   exit_code = 1
 
-EXAMPLE: milestone_unknown_behavior_name
+### EXAMPLE: milestone_unknown_behavior_name
 GIVEN:
   spec contains:
     ## MILESTONE: 0.1.0
@@ -1350,6 +1456,101 @@ THEN:
     message contains "lists BEHAVIOR 'nonexistent-behavior' under Included BEHAVIORs
                       but no such BEHAVIOR exists in the spec"
   exit_code = 1
+
+### EXAMPLE: includes_path_resolves
+
+GIVEN: a spec file `host.md` with META containing
+`Includes: shared/rules.md`, and the file `shared/rules.md` exists and is
+readable relative to host.md's location.
+WHEN: `pcd-lint host.md` is run.
+THEN: no RULE-19 diagnostic is emitted.
+
+### EXAMPLE: includes_path_unresolvable
+
+GIVEN: a spec file `host.md` with META containing
+`Includes: missing/rules.md`, where no such file exists.
+WHEN: `pcd-lint host.md` is run.
+THEN: an error is emitted:
+`ERROR  host.md:{line}  [META]  Includes path does not resolve:
+missing/rules.md`
+
+### EXAMPLE: merged_spec_no_collisions
+
+GIVEN: a host spec declaring TYPE `RuleId` and `Includes: shared.md`,
+where `shared.md` declares only TYPEs `Severity` and `Diagnostic` (no
+overlap).
+WHEN: `pcd-lint host.md` is run.
+THEN: no RULE-20 diagnostic is emitted.
+
+### EXAMPLE: merged_spec_type_collision
+
+GIVEN: a host spec declaring TYPE `Diagnostic` and `Includes: shared.md`,
+where `shared.md` also declares TYPE `Diagnostic`.
+WHEN: `pcd-lint host.md` is run.
+THEN: an error is emitted:
+`ERROR  host.md  [META]  Name collision after merge: TYPE Diagnostic
+appears in both shared.md and host.md`
+
+### EXAMPLE: inclusion_acyclic
+
+GIVEN: `a.md` includes `b.md`, `b.md` includes `c.md`, `c.md` includes
+nothing.
+WHEN: `pcd-lint a.md` is run.
+THEN: no RULE-21 cycle diagnostic is emitted.
+
+### EXAMPLE: inclusion_cycle
+
+GIVEN: `a.md` includes `b.md`, `b.md` includes `a.md`.
+WHEN: `pcd-lint a.md` is run.
+THEN: an error is emitted:
+`ERROR  a.md  [META]  Inclusion cycle: a.md → b.md → a.md`
+
+### EXAMPLE: included_spec_with_milestone_rejected
+
+GIVEN: `host.md` includes `shared.md`, where `shared.md` contains a
+`## MILESTONE: 0.1.0` section.
+WHEN: `pcd-lint host.md` is run.
+THEN: an error is emitted:
+`ERROR  shared.md  [structure]  Included spec must not declare MILESTONE
+section: shared.md`
+
+### EXAMPLE: included_spec_with_deployment_rejected
+
+GIVEN: `host.md` includes `shared.md`, where `shared.md` contains a
+`## DEPLOYMENT` section.
+WHEN: `pcd-lint host.md` is run.
+THEN: an error is emitted:
+`ERROR  shared.md  [structure]  Included spec must not declare DEPLOYMENT
+section: shared.md`
+
+### EXAMPLE: example_header_heading_form_accepted
+
+GIVEN:
+  EXAMPLES section contains: "### EXAMPLE: foo\nGIVEN:\n...\nWHEN:\n...\nTHEN:\n..."
+WHEN:
+  pcd-lint spec.md
+THEN:
+  no RULE-06 diagnostic about heading form
+
+### EXAMPLE: example_header_flat_form_rejected
+
+GIVEN:
+  EXAMPLES section contains: "EXAMPLE: foo\nGIVEN:\n..."
+  (flat form, no heading)
+WHEN:
+  pcd-lint spec.md
+THEN:
+  error emitted: "Example header must be '### EXAMPLE: <name>'. Flat 'EXAMPLE: <name>' is no longer accepted (changed in v0.4.0)."
+
+### EXAMPLE: example_header_wrong_heading_level_rejected
+
+GIVEN:
+  EXAMPLES section contains: "#### EXAMPLE: foo\nGIVEN:\n..."
+  (heading level 4 instead of 3)
+WHEN:
+  pcd-lint spec.md
+THEN:
+  error emitted: "Example header must be at heading level 3 (three pound signs). Found heading level 4 for 'foo'."
 
 ---
 

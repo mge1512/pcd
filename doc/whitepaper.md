@@ -2,7 +2,7 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft
-**Version:** 0.3.25
+**Version:** 0.4.0
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 
@@ -1541,7 +1541,7 @@ value depends on their having been written without knowledge of any
 implementation.
 
 **Continuity checks.** Before running test-author's tests against the
-implementation, translator verifies three properties of test-author's run.
+implementation, translator verifies two properties of test-author's run.
 First, the `Spec-SHA256` recorded in test-author's `TEST_REPORT.md` must
 match the SHA256 of the specification translator received as input. If the
 specification was edited between test-author's run and translator's run,
@@ -1550,36 +1550,12 @@ translator's implementation tests the wrong contract. Second, the
 deployment template, preset resolution, and hints files in scope for
 translator's run must match those test-author used. A translator run targeting
 Rust cannot meaningfully use test-author's Go tests, even if the spec hash
-matches. Third (as of v0.3.25), `Test-Compile-Gate` in test-author's
-`TEST_REPORT.md` must be `pass`; a `fail` value, or a missing report
-(meaning test-author halted before writing it), aborts translator. This
-third check exists because a test suite that does not compile provides no
-verification value and can collapse the cross-check silently if consumed.
-Mismatch on any check aborts translator's run with a diagnostic
+matches. Mismatch on either check aborts translator's run with a diagnostic
 identifying which property differed; the user re-runs test-author against
 the current scope before retrying translator. The continuity checks are
 mechanical applications of the same spec-hash discipline that already
 binds artefacts to specifications elsewhere in the framework; they
 extend that discipline to one additional boundary.
-
-**Structural guards on ordering.** Two halts in the v0.3.25 prompt make
-dual-LLM ordering checkable rather than merely stated. On the test-author
-side, a halt at the start of the run rejects any input directory that
-already contains translator output (a `TRANSLATION_REPORT.md`, source
-files in the target language, packaging artefacts, or a prior
-`independent_tests/` subdirectory). This prevents the inversion where
-test-author is invoked after translator has already shipped code; the
-test-author cannot write tests independent of an implementation it has
-already seen. On the translator side, a halt before any non-test source
-file is written rejects the run if `independent_tests/<llm-name>/` is
-empty; the translator cannot bypass tests-first by writing
-implementation first and tests later. Both guards exist because the
-prompt's prose alone was empirically insufficient: an early dual-LLM run
-produced Mistral as test-author, against a directory already populated
-by an earlier Mistral translator run, and the guard would have prevented
-that; a Sonnet translator run wrote `main.go` before any test file and
-self-corrected only after the compile gate revealed the omission, where
-the guard would have prevented the work entirely.
 
 ### Failure Modes and Diagnostic Interpretation
 
@@ -2914,14 +2890,6 @@ code. The ordering prevents post-hoc test tuning: tests written after the
 implementation tend to assert what the code does rather than what the spec
 requires.
 
-As of v0.3.25 the prompt enforces this structurally: translator halts
-before writing any non-test source file if `independent_tests/<llm-name>/`
-is empty. The TRANSLATION_REPORT records a `Tests-First-Compliance: yes |
-no` field, and a `no` value automatically demotes every High-confidence
-row in the per-EXAMPLE table to Medium. The discipline is no longer a
-guideline that an LLM can implicitly violate while claiming compliance;
-it is a precondition checked before implementation begins.
-
 Tests may be refined when a test run reveals a gap, but every refinement
 must be recorded in a `Test Refinements` table in TRANSLATION_REPORT.md,
 with one row per refinement and an explicit rationale. Permitted actions:
@@ -3012,15 +2980,6 @@ enforced by the deployment template, not individually by specs:
    with `<llm-name>` lowercase, hyphen-separated, and free of version-decimal
    suffixes (`claude-sonnet-4-5`, not `Claude-Sonnet-4.5`).
 
-7. **Test files must parse.** As of v0.3.25, every deployment template
-   declares a language-specific syntax check (Go: `go vet` + `gofmt -l`;
-   Rust: `cargo check --tests`; Python: `python -m py_compile` + `flake8`)
-   that the test-author flow runs before writing `TEST_REPORT.md`. Any
-   failure halts the run; no report is written. The translator's
-   continuity check rejects test-author output where `Test-Compile-Gate:
-   fail` is recorded. A test suite that does not parse provides no
-   verification value and cannot be silently consumed.
-
 #### Integration with Templates
 
 The `independent_tests/` directory and the per-LLM test files are added
@@ -3110,8 +3069,7 @@ Outputs produced:
   - Source files (list)
   - Packaging artifacts (RPM, DEB, OCI — as applicable)
   - TRANSLATION_REPORT.md
-  - independent_tests/<llm-name>/ (translator's own tests)
-  - independent_tests/<other-role-llm-name>/ (test-author's tests, if dual-LLM)
+  - INDEPENDENT_TESTS file (if second-agent run)
 
 Validation results:
   - Compilation: pass/fail
@@ -3411,9 +3369,149 @@ the translator. This asymmetry should inform the default choice.
 
 ---
 
+## A.20 Spec Composition: Includes Mechanism (v0.4.0)
+
+### The Problem
+
+PCD until v0.3.x had no mechanism for sharing spec content across
+components. When two components needed the same behaviour, each spec
+described it independently and each translator independently produced
+an implementation. The framework's first observed instance of this
+problem was the rule set shared by `pcd-lint` and `mcp-server-pcd`:
+both components validate PCD specifications against the same eighteen
+numbered rules, and both produced their own `internal/lint/lint.go`
+files with the same intent and divergent code. Drift was empirically
+observed within weeks of both tools existing.
+
+The pre-PCD solution to this kind of duplication is shared library
+packages. PCD rejected that approach: it bakes a language choice into
+the spec layer, creates cross-component build coupling, and introduces
+a runtime artefact distribution mechanism that adds an audit surface
+dependency. None of those costs are acceptable for the regulated-domain
+target audience.
+
+### The Mechanism
+
+A host spec may declare one or more `Includes:` directives in its META
+section. Each `Includes:` value is a relative path to another spec file.
+The translator resolves all includes recursively, merges their TYPES,
+BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES,
+TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, and POSTCONDITIONS into the host's
+effective spec, and translates the merged spec.
+
+Each consuming host produces a self-contained implementation in its
+target language. There is no shared binary, no shared library artefact,
+no runtime cross-component dependency. The shared content lives once at
+the spec layer; each translation projects it into the host's language
+and packaging context.
+
+### Why Language-Neutral
+
+The shared spec describes behaviour in PCD's structured Markdown — the
+same language-neutral form used throughout the framework. Each
+translator projects the included BEHAVIORs into its target language's
+idioms during translation. A shared spec written today can be consumed
+by a Go translator, a Rust translator, and a Python translator with no
+changes; each produces the same observable behaviour in its own
+language.
+
+This is a property the alternative — shared library packages — does not
+have. A `pcd-rules` Go package can only be consumed by Go hosts. A
+shared spec can be consumed by hosts in any language the framework
+supports.
+
+### Why Strict Collision Handling
+
+Two TYPE, BEHAVIOR, INTERFACE, or EXAMPLE definitions with the same
+name across the merged set are a spec-author error caught by `pcd-lint`
+(RULE-20). There is no implicit precedence rule.
+
+The motivation is audit-trail integrity. Implicit precedence is a
+source of audit-trail ambiguity: if `RULE-01` were silently overridden
+by a host's redefinition of the same rule, a reviewer reading the host
+spec alone would not know that the included spec's RULE-01 was
+ineffective. Forcing explicit resolution — by renaming or restructuring
+— keeps the merged spec's effective content fully visible to anyone
+reading either source.
+
+### Hash Semantics and Audit Trail
+
+The `Spec-SHA256` embedded in generated artefacts is the SHA256 of the
+merged spec text — what the translator actually read, not the host file
+on disk. This means that editing an included spec invalidates the
+merged hash of every host that includes it, propagating change
+detection through the existing spec-hash discipline.
+
+The TRANSLATION_REPORT records both hashes plus a table of included
+specs:
+
+```
+## Spec-SHA256 (merged)
+4e5f6a7b...
+
+## Spec-SHA256 (host, pre-merge)
+9c8d7e6f...
+
+## Included Specs
+| Path                                | SHA256       |
+|-------------------------------------|--------------|
+| ../../shared/spec/lint-rules.md     | a1b2c3d4...  |
+```
+
+A consumer reading the artefact's embedded hash can verify the artefact
+against the merged spec; a reviewer tracing provenance can follow the
+recorded inclusion table back to each contributing source.
+
+### Worked Example: `lint-rules.md`
+
+The first real use of the mechanism — and the design's driving
+motivation — is the shared lint rule set at
+`tools/shared/spec/lint-rules.md`. Both `pcd-lint.md` and
+`mcp-server-pcd.md` add `Includes: ../../shared/spec/lint-rules.md` to
+their META. The rule definitions move from `pcd-lint.md` into the
+shared file. Each translation produces an `internal/lint/lint.go` in
+the host component's code tree, with rule semantics derived from the
+same shared source.
+
+Migration is opt-in. A spec with no `Includes:` directives is a valid
+v0.4.0 spec and behaves exactly as in v0.3.x. The migration of
+`pcd-lint` and `mcp-server-pcd` themselves is a separate piece of work
+following the v0.4.0 framework changes.
+
+### What's Out of Scope
+
+The v0.4.0 mechanism is deliberately minimal:
+
+- **No conditional inclusion.** If two host components need conditional
+  access to shared content, structure the shared content into smaller
+  specs and include selectively.
+- **No versioned inclusion.** The included spec is whatever lives at
+  the referenced path. Versioning is handled through git and the
+  recorded inclusion hashes.
+- **No cross-repository inclusion.** Paths are filesystem-relative.
+  Specs shared across repositories must be vendored.
+- **No override or extension.** Hosts cannot override a BEHAVIOR from
+  an included spec or extend a TYPE with additional fields.
+- **No partial inclusion.** Whole specs only. No
+  `Includes: ... sections=BEHAVIORs` syntax.
+
+These boundaries are intentional. Spec composition is a sharp tool; its
+sharpness comes from being predictable. The more expressive the
+inclusion mechanism, the harder the merge becomes to reason about and
+the more audit-trail ambiguity creeps in.
+
+### Full Design
+
+The complete design — merge rules, hash computation algorithm, all lint
+rule definitions (RULE-19, RULE-20, RULE-21), worked example — is in
+`doc/spec-composition.md`.
+
+---
+
 | Version | Date | Changes |
 |---------|------|---------|
-| 0.3.25 | 2026-05-18    | Structural enforcement for tests-first and test-author syntax-check. Translator prompt halts before writing any non-test source file if `independent_tests/<llm-name>/` is empty; the test-author flow halts before writing `TEST_REPORT.md` if the language-specific syntax check (per-template: `go vet`/`gofmt`, `cargo check --tests`, `python -m py_compile` + `flake8`) fails. Six templates (`backend-service`, `cli-tool`, `cloud-native`, `kubectl-style-cli`, `mcp-server`, `python-tool`) restructured to place the translator test suite in Phase 1, eliminating the historical prompt-vs-template ordering conflict. New required fields: `Test-Compile-Gate` in `TEST_REPORT.md`, `Tests-First-Compliance` in `TRANSLATION_REPORT.md`. Empirical motivation: a dual-LLM run on `pcd-lint` produced a Mistral test file with a Go syntax error (triple-backtick inside a raw string literal) that shipped through to the translator's compile gate; and a Sonnet translator run wrote `main.go` before its own tests, contradicting the discipline before self-correcting. Both failures are now structurally prevented. |
+| 0.4.0 | 2026-05-18 | Spec composition mechanism: `Includes:` META field allows host specs to declare other specs as merged inputs. Merged spec hash, three new pcd-lint rules (RULE-19/20/21), new TRANSLATION_REPORT and TEST_REPORT fields for inclusion provenance. Language-neutral, packaging-neutral; each consuming host produces a self-contained implementation. Migration is opt-in; v0.3.x specs without `Includes:` are valid v0.4.0 specs and behave unchanged. Design: doc/spec-composition.md. Driving motivation: the duplicated lint rule set in pcd-lint and mcp-server-pcd, slated for migration to a shared `tools/shared/spec/lint-rules.md` after v0.4.0 framework changes are stable. |
+| 0.3.25 | 2026-05-18    | Structural enforcement for tests-first and test-author syntax-check. Translator prompt halts before writing any non-test source file if `independent_tests/<llm-name>/` is empty; the test-author flow halts before writing `TEST_REPORT.md` if the language-specific syntax check (per-template: `go vet`/`gofmt`, `cargo check --tests`, `python -m py_compile` + `flake8`) fails. Six templates restructured to place the translator test suite in Phase 1, eliminating the historical prompt-vs-template ordering conflict. New required fields: `Test-Compile-Gate` in `TEST_REPORT.md`, `Tests-First-Compliance` in `TRANSLATION_REPORT.md`. |
 | 0.3.24 | 2026-05-18    | Renamed dual-LLM roles from `primary`/`secondary` to `translator`/`test-author` to remove the confusing seniority/ordering implications of the old names. The test-author always runs before the translator. Tiebreaker role re-scoped: invoked only by a human reviewer for ambiguous test-author test failures, not as automatic adjudication. |
 | 0.3.23 | 2026-05-16    | A.10 and A.18 (Idea 2) rewritten to reflect the tiered single-LLM / dual-LLM model. The four-cell cross-validation matrix is replaced with operational escalation criteria and a tests-first discipline within every translation run. |
 | 0.3.22 | 2026-04-13/15 | Spec hash embedding (A.20, RULE-18, all templates, prompt.md); doc restructure (user-guide, technical-reference, whitepaper 6-pager); mcp-server-pcd v0.3.1 spec (verify_spec_hash); `spack-package` deployment template added (10th template; first declarative specification target type; derived from Spack 1.1.1 source; all 18 `spack audit` checks mapped to INVARIANTS) |

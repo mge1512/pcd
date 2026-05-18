@@ -179,7 +179,7 @@ STEPS:
 
 ## EXAMPLES
 
-EXAMPLE: minimal_service_resolution
+### EXAMPLE: minimal_service_resolution
 GIVEN:
   spec META contains:
     Deployment: backend-service
@@ -196,7 +196,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_curl_rejected
+### EXAMPLE: forbidden_curl_rejected
 GIVEN:
   spec META contains:
     Deployment: backend-service
@@ -208,7 +208,7 @@ THEN:
     "Key INSTALL-METHOD=curl is forbidden for Deployment: backend-service"
   resolved is not produced
 
-EXAMPLE: csharp_requires_windows
+### EXAMPLE: csharp_requires_windows
 GIVEN:
   spec META contains:
     Deployment: backend-service

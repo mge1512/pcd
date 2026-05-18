@@ -383,7 +383,7 @@ Resolution order (last writer wins):
 
 ## EXAMPLES
 
-EXAMPLE: minimal_spec_resolution
+### EXAMPLE: minimal_spec_resolution
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -403,7 +403,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: org_preset_overrides_language_to_rust
+### EXAMPLE: org_preset_overrides_language_to_rust
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -419,7 +419,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_key_value_style_rejected
+### EXAMPLE: forbidden_key_value_style_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -431,7 +431,7 @@ THEN:
     "Key CLI-ARG-STYLE=key=value is forbidden for Deployment: kubectl-style-cli. Use Deployment: cli-tool for key=value CLIs."
   resolved is not produced (errors non-empty → reject)
 
-EXAMPLE: forbidden_curl_install_rejected
+### EXAMPLE: forbidden_curl_install_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -443,7 +443,7 @@ THEN:
     "Key INSTALL-METHOD=curl is forbidden for Deployment: kubectl-style-cli. Supply chain security requirement."
   resolved is not produced
 
-EXAMPLE: forbidden_tls_skip_rejected
+### EXAMPLE: forbidden_tls_skip_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -455,7 +455,7 @@ THEN:
     "Key TLS-SKIP-VERIFY-FLAG=--insecure-skip-tls-verify is forbidden by default. If your tool genuinely requires this capability, declare it explicitly in spec META with a rationale."
   resolved is not produced
 
-EXAMPLE: macos_platform_requires_pkg_or_binary
+### EXAMPLE: macos_platform_requires_pkg_or_binary
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -470,7 +470,7 @@ THEN:
     "PLATFORM macOS requires PACKAGE-FORMAT: PKG or PACKAGE-FORMAT: binary"
   resolved is not produced
 
-EXAMPLE: unqualified_base_image_rejected
+### EXAMPLE: unqualified_base_image_rejected
 GIVEN:
   OCI build configured with:
     OCI-BASE-IMAGE: docker.io/library/alpine:latest
@@ -480,7 +480,7 @@ THEN:
   errors contains:
     "OCI-BASE-IMAGE must originate from registry.suse.com/* (BCI) or dp.apps.rancher.io/* (AppCo). Unqualified Docker Hub names are forbidden."
 
-EXAMPLE: subcommand_depth_exceeds_max
+### EXAMPLE: subcommand_depth_exceeds_max
 GIVEN:
   spec declares a BEHAVIOR: `<bin> config context credentials rotate key`
   (four levels of subcommand nesting beyond the root binary)

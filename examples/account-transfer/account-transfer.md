@@ -111,7 +111,7 @@ ERRORS:
 
 ## EXAMPLES
 
-EXAMPLE: successful_transfer
+### EXAMPLE: successful_transfer
 GIVEN:
   from = Account { id: 1, balance: 100 }
   to   = Account { id: 2, balance: 50 }
@@ -124,7 +124,7 @@ THEN:
   to.balance = 80
   Σ(balances) = 150  // conservation holds
 
-EXAMPLE: insufficient_funds
+### EXAMPLE: insufficient_funds
 GIVEN:
   from = Account { id: 1, balance: 20 }
   to   = Account { id: 2, balance: 50 }
@@ -136,7 +136,7 @@ THEN:
   from.balance = 20  // unchanged
   to.balance = 50    // unchanged
 
-EXAMPLE: same_account_rejection
+### EXAMPLE: same_account_rejection
 GIVEN:
   from = Account { id: 1, balance: 100 }
   to   = Account { id: 1, balance: 100 }  // same account
@@ -147,7 +147,7 @@ THEN:
   result = Err(SAME_ACCOUNT)
   from.balance = 100  // unchanged
 
-EXAMPLE: zero_amount_rejection
+### EXAMPLE: zero_amount_rejection
 GIVEN:
   from = Account { id: 1, balance: 100 }
   to   = Account { id: 2, balance: 50 }
@@ -159,7 +159,7 @@ THEN:
   from.balance = 100  // unchanged
   to.balance = 50     // unchanged
 
-EXAMPLE: exact_balance_transfer
+### EXAMPLE: exact_balance_transfer
 GIVEN:
   from = Account { id: 1, balance: 50 }
   to   = Account { id: 2, balance: 0 }

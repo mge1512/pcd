@@ -148,7 +148,7 @@ ERRORS:
 
 ## EXAMPLES
 
-EXAMPLE: default_c_static_library
+### EXAMPLE: default_c_static_library
 GIVEN:
   spec META declares Deployment: library-c-abi
   no preset overrides
@@ -160,7 +160,7 @@ THEN:
   resolved["ABI-STABILITY"] = "stable"
   errors = []
 
-EXAMPLE: forbidden_curl_rejected
+### EXAMPLE: forbidden_curl_rejected
 GIVEN:
   spec META declares Deployment: library-c-abi
   preset declares INSTALL-METHOD = curl

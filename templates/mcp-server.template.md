@@ -333,7 +333,7 @@ POSTCONDITIONS:
 
 ## EXAMPLES
 
-EXAMPLE: minimal_tool_server_stdio
+### EXAMPLE: minimal_tool_server_stdio
 GIVEN:
   spec declares one BEHAVIOR: tool named "greet"
   invocation: mcp-server-{n} stdio
@@ -345,7 +345,7 @@ THEN:
   response written to stdout
   exit_code = 0 on EOF
 
-EXAMPLE: minimal_tool_server_http
+### EXAMPLE: minimal_tool_server_http
 GIVEN:
   spec declares one BEHAVIOR: tool named "greet"
   invocation: mcp-server-{n} http listen=127.0.0.1:9000
@@ -355,7 +355,7 @@ THEN:
   server returns 200 with JSON-RPC result body
   server remains running, accepts further requests
 
-EXAMPLE: unknown_transport_argument
+### EXAMPLE: unknown_transport_argument
 GIVEN:
   invocation: mcp-server-{n} websocket
 WHEN:
@@ -364,7 +364,7 @@ THEN:
   stderr = "error: unknown transport 'websocket'. Valid: stdio, http"
   exit_code = 2
 
-EXAMPLE: tool_error_handling
+### EXAMPLE: tool_error_handling
 GIVEN:
   invocation: mcp-server-{n} stdio
   MCP host calls a tool that encounters an internal error
@@ -375,7 +375,7 @@ THEN:
   stderr contains error log entry with timestamp
   server continues running and accepts further requests
 
-EXAMPLE: graceful_shutdown_http
+### EXAMPLE: graceful_shutdown_http
 GIVEN:
   server running in http mode with active connection
   SIGTERM signal received
@@ -386,7 +386,7 @@ THEN:
   in-flight requests complete (up to 30 second drain timeout)
   server exits 0
 
-EXAMPLE: framework_mcp_go_default
+### EXAMPLE: framework_mcp_go_default
 GIVEN:
   no preset override for GO-FRAMEWORK
   translator reads TEMPLATE-TABLE
@@ -397,7 +397,7 @@ THEN:
   TRANSLATION_REPORT.md documents: "GO-FRAMEWORK: mcp-go (template default)"
   both stdio and http transports implemented using mcp-go API
 
-EXAMPLE: framework_go_sdk_override
+### EXAMPLE: framework_go_sdk_override
 GIVEN:
   preset declares: GO-FRAMEWORK = go-sdk
   translator reads resolved preset

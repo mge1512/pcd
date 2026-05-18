@@ -267,7 +267,7 @@ EXAMPLES in such specs may use multiple WHEN/THEN pairs to express multi-pass
 reconciliation behaviour. Each WHEN/THEN pair represents one reconciler invocation.
 Single-pass EXAMPLES remain valid for non-reconciler operations.*
 
-EXAMPLE: minimal_cloud_native_spec
+### EXAMPLE: minimal_cloud_native_spec
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -286,7 +286,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: rust_with_distroless_override
+### EXAMPLE: rust_with_distroless_override
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -304,7 +304,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_file_config_rejected
+### EXAMPLE: forbidden_file_config_rejected
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -316,7 +316,7 @@ THEN:
     "Key CONFIG-METHOD=files is forbidden for Deployment: cloud-native"
   resolved is not produced (errors non-empty → reject)
 
-EXAMPLE: scratch_base_requires_static_language
+### EXAMPLE: scratch_base_requires_static_language
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -330,7 +330,7 @@ THEN:
     "BASE-IMAGE Scratch requires LANGUAGE ∈ {Go, Rust} for static linking"
   resolved is not produced
 
-EXAMPLE: operator_format_requires_crds
+### EXAMPLE: operator_format_requires_crds
 GIVEN:
   spec META contains:
     Deployment: cloud-native

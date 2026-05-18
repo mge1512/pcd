@@ -649,7 +649,7 @@ ERRORS:
 
 ## EXAMPLES
 
-EXAMPLE: list_templates_returns_names
+### EXAMPLE: list_templates_returns_names
 GIVEN:
   AssetStore contains cli-tool@0.3.21 and mcp-server@0.3.21
 WHEN:
@@ -659,7 +659,7 @@ THEN:
   each entry has name, version, language
   content field is absent from each entry
 
-EXAMPLE: get_template_cli_tool
+### EXAMPLE: get_template_cli_tool
 GIVEN:
   AssetStore contains cli-tool@0.3.21
 WHEN:
@@ -668,7 +668,7 @@ THEN:
   response contains name="cli-tool" version="0.3.21"
   response contains full template Markdown in content field
 
-EXAMPLE: get_template_unknown
+### EXAMPLE: get_template_unknown
 GIVEN:
   AssetStore does not contain "serverless"
 WHEN:
@@ -677,7 +677,7 @@ THEN:
   MCP error -32602 returned
   message contains "unknown template: serverless"
 
-EXAMPLE: read_resource_interview_prompt
+### EXAMPLE: read_resource_interview_prompt
 GIVEN:
   AssetStore contains prompt named "interview"
 WHEN:
@@ -686,7 +686,7 @@ THEN:
   response contains uri="pcd://prompts/interview"
   response contains full interview prompt Markdown in content field
 
-EXAMPLE: read_resource_reverse_prompt
+### EXAMPLE: read_resource_reverse_prompt
 GIVEN:
   AssetStore contains prompt named "reverse"
 WHEN:
@@ -695,7 +695,7 @@ THEN:
   response contains uri="pcd://prompts/reverse"
   response contains full reverse prompt Markdown in content field
 
-EXAMPLE: read_resource_milestones_hints
+### EXAMPLE: read_resource_milestones_hints
 GIVEN:
   AssetStore contains hints file with key "cli-tool.go.milestones"
 WHEN:
@@ -704,7 +704,7 @@ THEN:
   response contains uri="pcd://hints/cli-tool.go.milestones"
   response contains full hints file Markdown in content field
 
-EXAMPLE: read_resource_invalid_uri
+### EXAMPLE: read_resource_invalid_uri
 GIVEN:
   any server state
 WHEN:
@@ -713,7 +713,7 @@ THEN:
   MCP error -32602 returned
   message contains "invalid resource URI"
 
-EXAMPLE: lint_content_valid_spec
+### EXAMPLE: lint_content_valid_spec
 GIVEN:
   content is a valid PCD spec with all required sections
 WHEN:
@@ -723,7 +723,7 @@ THEN:
   result.errors = 0
   result.diagnostics is empty
 
-EXAMPLE: lint_content_missing_invariants
+### EXAMPLE: lint_content_missing_invariants
 GIVEN:
   content is a PCD spec missing the INVARIANTS section
 WHEN:
@@ -734,7 +734,7 @@ THEN:
   one diagnostic has rule="RULE-01" severity="error"
   diagnostic message contains "INVARIANTS"
 
-EXAMPLE: lint_content_milestone_scaffold_not_first
+### EXAMPLE: lint_content_milestone_scaffold_not_first
 GIVEN:
   content is a PCD spec with two MILESTONE sections:
     ## MILESTONE: 0.1.0  (no Scaffold field)
@@ -748,7 +748,7 @@ THEN:
   one diagnostic has rule="RULE-17"
   diagnostic message contains "must appear first"
 
-EXAMPLE: lint_content_two_scaffold_milestones
+### EXAMPLE: lint_content_two_scaffold_milestones
 GIVEN:
   content is a PCD spec with two MILESTONE sections both having Scaffold: true
 WHEN:
@@ -759,7 +759,7 @@ THEN:
   one diagnostic has rule="RULE-17"
   diagnostic message contains "more than one MILESTONE has Scaffold: true"
 
-EXAMPLE: lint_content_bad_extension
+### EXAMPLE: lint_content_bad_extension
 GIVEN:
   any valid spec content
 WHEN:
@@ -768,7 +768,7 @@ THEN:
   MCP error -32602 returned
   message contains ".md extension"
 
-EXAMPLE: lint_file_not_found
+### EXAMPLE: lint_file_not_found
 GIVEN:
   path "/tmp/missing.md" does not exist
 WHEN:
@@ -777,7 +777,7 @@ THEN:
   MCP error -32602 returned
   message contains "cannot open file"
 
-EXAMPLE: lint_content_matches_cli
+### EXAMPLE: lint_content_matches_cli
 GIVEN:
   content is any PCD spec
   the same content is saved to disk as "test.md"
@@ -789,7 +789,7 @@ THEN:
   result.diagnostics matches CLI diagnostic output
   MECHANISM: [observable] invariant — validated by TestLintMatchesCLI
 
-EXAMPLE: stdio_startup
+### EXAMPLE: stdio_startup
 GIVEN:
   server started with bare word "stdio"
 WHEN:
@@ -798,7 +798,7 @@ THEN:
   valid MCP initialize response written to stdout
   server capabilities include tools and resources
 
-EXAMPLE: http_startup
+### EXAMPLE: http_startup
 GIVEN:
   server started with bare word "http"
 WHEN:
@@ -807,7 +807,7 @@ THEN:
   valid MCP initialize response returned
   HTTP status 200
 
-EXAMPLE: http_bind_failure
+### EXAMPLE: http_bind_failure
 GIVEN:
   port 8080 is already in use
 WHEN:
@@ -816,7 +816,7 @@ THEN:
   error message written to stderr
   server exits with code 1
 
-EXAMPLE: standalone_no_pcd_templates
+### EXAMPLE: standalone_no_pcd_templates
 GIVEN:
   pcd-templates package is not installed
   no overlay directories exist on the system
@@ -826,7 +826,7 @@ THEN:
   response contains all templates shipped with the binary
   server does not error or exit
 
-EXAMPLE: verify_spec_hash_stale
+### EXAMPLE: verify_spec_hash_stale
 GIVEN:
   spec_path = "tools/calc-interest/spec/calc-interest.md"
   SHA256 of spec file = "abc123...def456"
@@ -839,7 +839,7 @@ THEN:
   result.match = false
   result.status = "stale"
 
-EXAMPLE: verify_spec_hash_current
+### EXAMPLE: verify_spec_hash_current
 GIVEN:
   spec_path = "tools/pcd-lint/spec/pcd-lint.md"
   SHA256 of spec file = "aabbcc...ddeeff"
@@ -850,7 +850,7 @@ THEN:
   result.match = true
   result.status = "current"
 
-EXAMPLE: assess_change_type_modification
+### EXAMPLE: assess_change_type_modification
 GIVEN:
   change_description = "Changed Money type: added currency field (string, ISO 4217)"
   old_spec contains:
@@ -869,7 +869,7 @@ THEN:
   result.primary_factor contains "TYPES"
   result.reasoning explains that Money is used across multiple BEHAVIORs
 
-EXAMPLE: assess_change_steps_isolated
+### EXAMPLE: assess_change_steps_isolated
 GIVEN:
   change_description = "BEHAVIOR: compute-interest STEPS: added rounding
     to nearest cent in step 1"
@@ -882,7 +882,7 @@ THEN:
   result.blast_radius contains "1"
   result.if_incremental identifies compute-interest implementation function
 
-EXAMPLE: assess_change_scaffold
+### EXAMPLE: assess_change_scaffold
 GIVEN:
   change_description = "Added new package internal/cache to M0 scaffold milestone"
 WHEN:
@@ -892,7 +892,7 @@ THEN:
   result.scaffold_affected = true
   result.primary_factor contains "scaffold"
 
-EXAMPLE: set_milestone_active
+### EXAMPLE: set_milestone_active
 GIVEN:
   spec file "/tmp/sitar.md" contains:
     ## MILESTONE: 0.1.0
@@ -909,7 +909,7 @@ THEN:
   result.new_status = "active"
   no other content in the file is changed
 
-EXAMPLE: set_milestone_active_conflict
+### EXAMPLE: set_milestone_active_conflict
 GIVEN:
   spec file "/tmp/sitar.md" contains:
     ## MILESTONE: 0.1.0
@@ -924,7 +924,7 @@ THEN:
   message contains "MILESTONE '0.1.0' is already active"
   file "/tmp/sitar.md" is not modified
 
-EXAMPLE: set_milestone_released
+### EXAMPLE: set_milestone_released
 GIVEN:
   spec file "/tmp/sitar.md" contains:
     ## MILESTONE: 0.1.0
@@ -937,7 +937,7 @@ THEN:
   result.previous_status = "active"
   result.new_status = "released"
 
-EXAMPLE: list_resources_includes_workflow_prompts
+### EXAMPLE: list_resources_includes_workflow_prompts
 GIVEN:
   AssetStore is initialised from the embedded build
 WHEN:
@@ -950,7 +950,7 @@ THEN:
   response contains pcd://prompts/reviewer
   response contains pcd://prompts/tiebreaker
 
-EXAMPLE: read_resource_change_impact_prompt
+### EXAMPLE: read_resource_change_impact_prompt
 GIVEN:
   AssetStore contains the change-impact prompt
 WHEN:
@@ -959,7 +959,7 @@ THEN:
   response.content begins with "# PCD Change Impact Assessment Prompt"
   response.mime_type = "text/markdown"
 
-EXAMPLE: read_resource_reviewer_prompt
+### EXAMPLE: read_resource_reviewer_prompt
 GIVEN:
   AssetStore contains the reviewer prompt
 WHEN:
@@ -968,7 +968,7 @@ THEN:
   response.content begins with "# PCD Translation Review Prompt"
   response.mime_type = "text/markdown"
 
-EXAMPLE: read_resource_tiebreaker_prompt
+### EXAMPLE: read_resource_tiebreaker_prompt
 GIVEN:
   AssetStore contains the tiebreaker prompt
 WHEN:

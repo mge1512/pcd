@@ -1,7 +1,7 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.3.25
+**Version:** 0.4.0
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 **License:** CC-BY-4.0
@@ -465,29 +465,6 @@ POSTCONDITIONS, and INVARIANTS without the bias of an existing implementation.
 The same discipline that has made TDD valuable in human engineering for two
 decades is what makes tests-first valuable for LLM-driven translation.
 
-As of v0.3.25, tests-first is enforced **structurally**, not by prose alone.
-The translator prompt halts before writing any non-test source file if
-`independent_tests/<llm-name>/` does not yet exist and contain at least one
-test file. This is the same shape as the dual-LLM ordering guard described
-in section 15: a stated invariant becomes a checkable precondition.
-
-When a deployment template declares a `## EXECUTION` section that orders
-implementation phases before the test infrastructure phase, the prompt rule
-takes precedence — but as of v0.3.25 the canonical templates have been
-restructured so that the test-writing phase is Phase 1. The conflict that
-prompted the explicit precedence rule is now mostly historical, but the
-rule remains in force for any third-party or downstream-modified template
-that retains the older phase ordering.
-
-**Tests-First-Compliance in the TRANSLATION_REPORT.** Every translation
-report records a `Tests-First-Compliance: yes | no` field. The translator
-fills this in based on whether tests were written before any non-test
-source file. A `no` value automatically demotes every High-confidence row
-in the per-EXAMPLE table to Medium, on the grounds that the post-hoc
-test-tuning risk was not controlled. This makes the discipline visible to
-an auditor at a glance: a `Tests-First-Compliance: yes` is an empirical
-claim that the per-EXAMPLE confidence ratings can be trusted at face value.
-
 **Test refinement discipline.** Tests may be refined after a test run reveals
 a gap, but every refinement must be recorded in a `Test Refinements` table in
 the TRANSLATION_REPORT.md, with one row per refinement and an explicit
@@ -506,7 +483,7 @@ generate a test suite. This test suite is then run against the translator's code
 specification ambiguity (the two LLMs read the spec differently) or
 translation error (the translator pass produced code that does not satisfy the spec's
 semantics). The second agent has no access to the translation; its
-tests are truly independent. Section 15 covers the operational workflow and
+tests are truly independent. Section 16 covers the operational workflow and
 when this escalation is appropriate.
 
 Second-LLM tests consistently find edge cases and boundary conditions that
@@ -514,28 +491,6 @@ the spec author did not think to include in the EXAMPLES section. The tests
 serve two purposes: as a validation mechanism for the current translation,
 and as a candidate addition to the spec's EXAMPLES section for future
 translations.
-
-**Test-author syntax check.** A test suite that does not compile provides
-no verification value; worse, it can be silently mistaken for coverage. As
-of v0.3.25 the test-author flow includes a structural syntax-check gate
-before `TEST_REPORT.md` is written. Each deployment template declares the
-exact commands for its target language (`go vet` + `gofmt -l` for Go;
-`cargo check --tests` for Rust; `python -m py_compile` + `flake8` for
-Python). Any failure halts the test-author run; `TEST_REPORT.md` is not
-written. The translator pass, in turn, refuses to consume a test-author
-output whose `TEST_REPORT.md` records `Test-Compile-Gate: fail`. The two
-guards together — syntax check on the test-author side, continuity check
-on the translator side — ensure that the dual-LLM cross-check is either
-properly run or visibly absent. There is no third state where it is
-silently degraded.
-
-This guard was added in response to an early dual-LLM run where Mistral
-produced a 989-line Go test file containing a triple-backtick character
-inside a raw string literal — a Go syntax error. Without the gate, the
-test file shipped, was consumed by the translator, and failed to compile
-during the compile gate; the dual-LLM cross-check evaporated because
-neither test in the file ever ran. The gate makes this failure visible at
-the source rather than at the consumer.
 
 **Why the same language for tests and code.** Tests and the implementation
 are written in the same language. This is a production constraint, not a
@@ -727,7 +682,87 @@ the first scaffold. `pcd-lint` RULE-17 enforces uniqueness.
 
 ---
 
-## 14. Formal Verification: When and Why
+## 14. Spec Composition: Sharing Behaviours Across Components
+
+Two PCD components occasionally need to share substantial structured
+behaviour. The driving example: `pcd-lint` validates PCD specifications
+against the framework's numbered RULES, and `mcp-server-pcd` exposes an
+MCP tool that performs the same validation for LLM clients. Both
+components need the same eighteen-plus rule implementations, derived
+from the same definitions, with no drift over time.
+
+Until v0.4.0, PCD had no spec-layer mechanism for this. Each component's
+spec independently described every rule it needed, and each translator
+independently produced an implementation. Two `internal/lint/lint.go`
+files resulted, with the same intent and divergent code — drift was
+empirically observed within weeks of both tools existing.
+
+v0.4.0 introduces **spec composition**. A host spec's META declares
+`Includes:` directives pointing to other spec files. Each included spec
+contributes its TYPES, BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES,
+DEPENDENCIES, TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, and POSTCONDITIONS
+to the host. The translator consumes the merged spec as if it had been
+written inline, producing a self-contained implementation of all the
+included content alongside the host's own code.
+
+The mechanism is language-neutral. The shared spec describes behaviours
+in PCD's structured Markdown; each translator projects those behaviours
+into its target language's idioms. The same `lint-rules.md` produces a
+Go package when consumed by a Go-targeting host and a Rust module when
+consumed by a Rust-targeting host. No shared library artefact exists at
+the binary level; every host is self-sufficient.
+
+**Hash semantics.** The `Spec-SHA256` embedded in generated artefacts
+is the SHA256 of the merged spec text — what the translator actually
+read, not the host file on disk. Editing an included spec invalidates
+the merged hash of every host that includes it, which propagates change
+detection through the existing spec-hash discipline. No new mechanism is
+required; the existing chain-of-custody invariant simply extends to one
+more boundary.
+
+**Strict collision handling.** Two TYPE, BEHAVIOR, INTERFACE, or EXAMPLE
+definitions with the same name across the merged set are a spec-author
+error caught by `pcd-lint` (RULE-20). There is no implicit precedence
+rule. The motivation: implicit precedence is a source of audit-trail
+ambiguity. A reviewer reading the host spec alone should not have to
+mentally simulate the merge to know what's actually implemented; the
+spec must be explicit.
+
+**Acyclicity and depth.** The inclusion graph must be acyclic
+(RULE-21). Practical depth is expected to be one or two levels; no cap
+is imposed. Included specs may not declare orchestration sections —
+MILESTONE, DEPLOYMENT — that belong to host components.
+
+**Audit trail.** The TRANSLATION_REPORT records both the merged hash
+and the host hash, plus a table of included specs with their individual
+hashes. A reviewer reading an artefact's embedded hash can verify the
+artefact against the merged spec; a reviewer tracing provenance can
+follow the recorded inclusion table back to each contributing source.
+
+**Migration is opt-in.** A spec without `Includes:` directives is a
+valid v0.4.0 spec and behaves exactly as in v0.3.x. The merged hash
+equals the host hash; the inclusions table is empty. Existing components
+do not need to change unless they want to share content with another
+component.
+
+**Why not shared Go packages?** The pre-PCD codebase resolved this kind
+of duplication by factoring out shared Go packages. PCD rejects that
+solution for several reasons. It would mean baking a language choice
+into the spec layer — a `pcd-rules` Go package can't be consumed by a
+Rust host. It would mean cross-component build coupling, where building
+one tool requires another tool's package to be present. It would
+require a runtime artefact distribution mechanism for the shared
+library that adds an audit-surface dependency. Spec composition avoids
+all three: the sharing happens at the spec layer, before translation,
+and each host produces a self-contained implementation in its own
+package and binary.
+
+The full design — merge rules, hash computation, lint rules, worked
+example — is in `doc/spec-composition.md`.
+
+---
+
+## 15. Formal Verification: When and Why
 
 PCD supports an optional formal verification path: specification → meta-language
 (Lean 4, F*, Dafny) → target language. This path is not the default and not
@@ -760,7 +795,7 @@ cannot provide.
 
 ---
 
-## 15. Dual-LLM Verification
+## 16. Dual-LLM Verification
 
 PCD distinguishes two operational modes for translation. The default is
 **single-LLM mode**: one LLM acting as translator writes tests under
@@ -871,7 +906,7 @@ carried across to translator's run without persistent storage.
 
 ---
 
-## 16. License Compliance and Software Composition Analysis
+## 17. License Compliance and Software Composition Analysis
 
 No LLM can provide a legal guarantee that generated code is free of patterns
 derived from differently-licensed training data. This is an unsolved problem
@@ -900,7 +935,7 @@ made Linux's platform layer vendor-neutral.
 
 ---
 
-## 17. Related Work and What Is Genuinely Novel
+## 18. Related Work and What Is Genuinely Novel
 
 PCD combines several established ideas in a novel way. Each ingredient has
 precedent; the combination does not exist as a productised, accessible,
@@ -936,7 +971,7 @@ design goal from the start; and self-hosting from the first artifact.
 
 ---
 
-## 18. Empirical Testing Record
+## 19. Empirical Testing Record
 
 The paradigm has been validated empirically across multiple models, environments,
 and specification sizes. This section records the key findings. The full test

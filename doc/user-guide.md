@@ -1,6 +1,6 @@
 # PCD User Guide
 
-**Version:** 0.3.25
+**Version:** 0.4.0
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 **License:** CC-BY-4.0
@@ -865,7 +865,113 @@ your spec via the DEPENDENCIES section.
 
 ---
 
-## 8. Language Neutrality
+## 8. Spec Composition: Sharing Behaviour Between Components
+
+If two components in your codebase need to implement the same set of
+behaviours — same TYPES, same BEHAVIORs, same EXAMPLES — you can factor
+the shared content into a separate spec and have both components include
+it.
+
+The canonical example: `pcd-lint` (a CLI) and `mcp-server-pcd` (an MCP
+server) both need to validate PCD specs against the same set of numbered
+rules. Rather than describing those rules twice, the rules live in a
+shared spec at `tools/shared/spec/lint-rules.md`, and both host specs
+declare an `Includes:` directive pointing to it.
+
+### How to use it
+
+In the host spec's META section, add one or more `Includes:` lines:
+
+```
+## META
+Deployment:   cli-tool
+Version:      0.4.0
+Spec-Schema:  0.4.0
+Author:       Your Name <you@example.org>
+License:      GPL-2.0-only
+Verification: none
+Safety-Level: QM
+Includes:     ../../shared/spec/lint-rules.md
+```
+
+The path is relative to the host spec file's location. Multiple
+`Includes:` lines are permitted; they resolve in declaration order.
+
+The included spec is itself a complete PCD spec file, but with
+`Deployment: none` in its META — signalling that it is a composition
+target rather than a deployable component. Include-only specs live
+under `tools/shared/spec/` by convention.
+
+When the translator processes the host spec, it reads each included
+spec, recursively resolves any further `Includes:` directives, and
+merges everything into a single effective spec. TYPES, BEHAVIORs,
+INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES, TOOLCHAIN-CONSTRAINTS,
+PRECONDITIONS, and POSTCONDITIONS all merge. META, MILESTONE, and the
+DEPLOYMENT section stay host-only.
+
+### What you get
+
+Each host component produces its own implementation of the shared
+behaviours, in its own target language, using its own deployment
+template. The implementation files differ on disk — different packages,
+different surrounding code — but the behaviours are identical because
+they were generated from the same merged spec text.
+
+If you edit the shared spec, the merged spec hash for every host that
+includes it changes. The next translation regenerates each host's
+implementation. Drift between hosts becomes structurally impossible.
+
+### Constraints
+
+- **No name collisions.** A TYPE, BEHAVIOR, INTERFACE, or EXAMPLE name
+  must be unique across the merged set. `pcd-lint` flags duplicates
+  (RULE-20). If you need the same conceptual entity in both host and
+  included spec, rename one of them.
+- **No cycles.** A spec that includes B cannot be transitively included
+  back into B. `pcd-lint` detects cycles (RULE-21).
+- **Included specs cannot declare MILESTONE or DEPLOYMENT sections.**
+  These are orchestration concerns that belong to host components.
+  `pcd-lint` flags them (RULE-21).
+- **Host META is authoritative.** The host's `Deployment:`,
+  `Verification:`, `Safety-Level:`, `Version:`, `Spec-Schema:`, and
+  `License:` apply to the merged result. The included spec's META is
+  recorded as provenance only.
+
+### Audit trail
+
+The TRANSLATION_REPORT for a composed spec records both the merged hash
+(embedded in artefacts) and the host hash (the file as read), plus a
+table of every included spec with its individual SHA256. Anyone
+reviewing the artefact later can trace every contributing source.
+
+If your host spec has no `Includes:` directives, none of this affects
+you. Your spec behaves as a v0.3.x spec — the merged hash equals the
+host hash, the inclusions table is empty.
+
+### When not to use it
+
+Spec composition adds a layer of indirection. It is worth using when:
+
+- Two or more components need the same substantial behaviour (multiple
+  BEHAVIORs, not just a single utility).
+- Drift between those components is a real risk (the rules change
+  occasionally, or correctness depends on every consumer agreeing).
+- The behaviour is genuinely language-neutral (you would describe it
+  identically in any target language).
+
+It is not worth using when:
+
+- Only one component needs the behaviour today, even if you can imagine
+  a second one later. Add the second `Includes:` when the second
+  component actually exists.
+- The "shared" behaviour is small (one BEHAVIOR with one EXAMPLE).
+  Repetition costs less than indirection.
+- Different consumers would want different variants. Spec composition
+  has no override or extension mechanism by design.
+
+---
+
+## 9. Language Neutrality
 
 A spec that may be translated to more than one language must contain no
 language-specific constructs in TYPES, BEHAVIOR, INTERFACES, INVARIANTS,
@@ -905,7 +1011,7 @@ content has leaked into the spec.
 
 # Part 3: Translating to Code
 
-## 9. Translating to Code
+## 10. Translating to Code
 
 Once your spec passes `pcd-lint` with zero errors:
 
@@ -938,18 +1044,12 @@ The translator follows this order, enforced by the prompt:
    the same language as the implementation will use, with the language's
    standard testing framework (`go test`, `cargo test`, `pytest`, JUnit,
    etc.).
-3. Verify that the test directory exists and contains at least one test
-   file before writing any non-test source. This is a structural guard:
-   translator halts if no test file is present. The prompt cannot be
-   satisfied by acknowledging tests-first in prose.
-4. Write the implementation code, the packaging deliverables, and any
+3. Write the implementation code, the packaging deliverables, and any
    other files declared in the template's DELIVERABLES table.
-5. Run the test suite against the implementation. If any test fails,
+4. Run the test suite against the implementation. If any test fails,
    either fix the code or refine the test with documented rationale.
-6. Write `TRANSLATION_REPORT.md`, including the Test Refinements table
-   if any tests were edited after a test run, and recording
-   `Tests-First-Compliance: yes` (or `no` with explanation if for any
-   reason tests were written after implementation source).
+5. Write `TRANSLATION_REPORT.md`, including the Test Refinements table
+   if any tests were edited after a test run.
 
 **If a milestone is active:** the translator reads the active milestone,
 implements only its Included BEHAVIORs, generates stubs for Deferred
@@ -979,15 +1079,8 @@ llm-name: mistral-large-2
 
 Invoke the same `prompts/prompt.md` with a different LLM. Test-author writes
 only tests under `independent_tests/mistral-large-2/` in the language the
-deployment template will resolve to. Before writing `TEST_REPORT.md`,
-test-author runs the syntax check declared by the deployment template
-(for Go: `go vet` and `gofmt -l` over the test directory; for Rust:
-`cargo check --tests`; for Python: `python -m py_compile` and `flake8`).
-If any of these checks fail, test-author halts and does not write the
-report. A failing test-author run leaves no `TEST_REPORT.md`, which means
-the translator pass will refuse to proceed in dual-LLM mode — re-run
-test-author after fixing the test file. On success, `TEST_REPORT.md` is
-written with `Test-Compile-Gate: pass` and test-author stops.
+deployment template will resolve to. Test-author produces a `TEST_REPORT.md`
+and stops — no implementation, no packaging.
 
 **Step 2: Run translator.** Replace `ROLE.md` with the translator version:
 
@@ -1006,18 +1099,11 @@ spec hash and template continuity are intact:
   re-run test-author against the current spec.
 - The deployment template, preset resolution, and hints files in scope
   must be the same as those test-author used.
-- `Test-Compile-Gate` in test-author's `TEST_REPORT.md` must be `pass`.
-  A `fail` value (or a missing report — meaning test-author halted before
-  writing it) aborts translator. Re-run test-author after fixing the test
-  file.
 
-With all checks passed, translator writes its own tests under
-`independent_tests/claude-sonnet-4-5/` *before* reading test-author's. The
-prompt enforces this structurally: translator halts if it attempts to
-write any non-test source file while `independent_tests/<llm-name>/` is
-empty. Once translator's tests exist, translator writes the implementation,
-then runs **both** test suites. The TRANSLATION_REPORT.md reports results
-for both suites separately, and records `Tests-First-Compliance: yes`.
+With both checks passed, translator writes its own tests under
+`independent_tests/claude-sonnet-4-5/` *before* reading test-author's, then
+writes the implementation, then runs **both** test suites. The
+TRANSLATION_REPORT.md reports results for both suites separately.
 
 **On `llm-name` values.** Include enough of the model identifier to
 reproduce the run later. `claude-sonnet-4-5` is precise enough when only
@@ -1064,18 +1150,18 @@ For `mcp-server-pcd` style components with many embedded assets, full
 input (all templates, hints, prompts) is required for correct embedding
 — partial input produces placeholder assets.
 
-For dual-LLM mode, pair a translator and a test-author from independent
-model families. The reference pairing for non-SUSE PCD work is Claude
-Sonnet (translator), Mistral Large 2 via La Plateforme (test-author,
-independent EU jurisdiction). A third model — GPT-5 in the current
-reference pairing — is invoked only when a human reviewer needs a second
-opinion on whether a failed test-author test reflects a translator defect,
-a test-author misreading, or genuine spec ambiguity. It is not run
+For dual-LLM mode, pair a translator and a test-author test author
+from independent model families. The reference pairing for non-SUSE PCD
+work is Claude Sonnet (translator), Mistral Large 2 via La Plateforme
+(test-author, independent EU jurisdiction). A third model — GPT-5 in the
+current reference pairing — is invoked only when a human reviewer needs
+a second opinion on whether a failed test-author test reflects a translator
+defect, a test-author misreading, or genuine spec ambiguity. It is not run
 automatically.
 
 ---
 
-## 10. Reverse-Engineering Existing Code
+## 11. Reverse-Engineering Existing Code
 
 Use `prompts/reverse-prompt.md` to produce a PCD spec from existing source:
 
@@ -1095,7 +1181,7 @@ infallible — the spec is your responsibility, not the model's.
 
 ---
 
-## 11. Prompts Reference
+## 12. Prompts Reference
 
 
 | Prompt                        | Purpose                                          | MCP resource                  |
@@ -1111,7 +1197,7 @@ infallible — the spec is your responsibility, not the model's.
 
 # Part 4: The Specification Lifecycle
 
-## 12. When the Specification Changes
+## 13. When the Specification Changes
 
 Specifications evolve. When a specification changes, two questions must be
 answered: is the change valid (does the updated spec pass `pcd-lint`?) and
@@ -1169,7 +1255,7 @@ implementation consistent with the prior decisions. The file is:
 
 ---
 
-## 13. Verifying Artifact Provenance
+## 14. Verifying Artifact Provenance
 
 Every artifact generated by a PCD translation run embeds the SHA256 hash of
 the specification it was produced from: in source file comments, in binary
@@ -1207,7 +1293,7 @@ change impact assessment and translate again.
 
 # Part 5: Reference
 
-## 14. Validating Your Specification
+## 15. Validating Your Specification
 
 ```bash
 # Basic validation
@@ -1249,7 +1335,7 @@ WARNING myspec.md:6   [META]       META field 'Target' is deprecated since v0.3.
 
 ---
 
-## 15. Quick Reference — Spec Schema
+## 16. Quick Reference — Spec Schema
 
 ```
 Required sections:   META, TYPES, BEHAVIOR, PRECONDITIONS,

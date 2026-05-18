@@ -164,7 +164,7 @@ ERRORS:
 
 ## EXAMPLES
 
-EXAMPLE: valid_asil_b_lean4
+### EXAMPLE: valid_asil_b_lean4
 GIVEN:
   spec META declares:
     Deployment: verified-library
@@ -178,7 +178,7 @@ THEN:
   resolved["VERIFICATION"] = "lean4"
   errors = []
 
-EXAMPLE: qm_safety_level_rejected
+### EXAMPLE: qm_safety_level_rejected
 GIVEN:
   spec META declares:
     Deployment: verified-library
@@ -190,7 +190,7 @@ THEN:
   errors contains: "Safety-Level: QM is forbidden for Deployment: verified-library"
   resolved is not produced
 
-EXAMPLE: no_verification_rejected
+### EXAMPLE: no_verification_rejected
 GIVEN:
   spec META declares:
     Deployment: verified-library

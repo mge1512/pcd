@@ -209,7 +209,7 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 
 ## EXAMPLES
 
-EXAMPLE: minimal_spec_resolution
+### EXAMPLE: minimal_spec_resolution
 GIVEN:
   spec META contains:
     Deployment: cli-tool
@@ -227,7 +227,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: org_preset_overrides_language
+### EXAMPLE: org_preset_overrides_language
 GIVEN:
   spec META contains:
     Deployment: cli-tool
@@ -243,7 +243,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_curl_rejected
+### EXAMPLE: forbidden_curl_rejected
 GIVEN:
   spec META contains:
     Deployment: cli-tool
@@ -255,7 +255,7 @@ THEN:
     "Key INSTALL-METHOD=curl is forbidden for Deployment: cli-tool"
   resolved is not produced (errors non-empty → reject)
 
-EXAMPLE: macos_platform_requires_pkg
+### EXAMPLE: macos_platform_requires_pkg
 GIVEN:
   spec META contains:
     Deployment: cli-tool
@@ -270,7 +270,7 @@ THEN:
     "PLATFORM macOS requires OUTPUT-FORMAT: PKG"
   resolved is not produced
 
-EXAMPLE: env_var_control_rejected
+### EXAMPLE: env_var_control_rejected
 GIVEN:
   spec DEPLOYMENT section describes behaviour controlled via
   environment variable SPEC_LINT_STRICT
