@@ -788,10 +788,19 @@ Produce a `TRANSLATION_REPORT.md` covering:
 - Target language resolved, and whether any preset overrides the template default
 - **Module identity resolved** (if `MODULE-IDENTITY` constraint applies):
   the resolved module identity (e.g. Go module name, Rust package name)
-  and the authoritative source it came from (spec META, hints file,
-  prior manifest). If multiple sources agreed, list all of them. If
-  the constraint did not apply (template does not declare it), say so
-  explicitly.
+  and the authoritative source it came from. The four authoritative
+  sources, in priority order: (1) spec META `Module:` field, (2)
+  language-specific hints file, (3) existing manifest from a prior
+  translation in the output directory, (4) spec-title-derived fallback
+  (the spec's first `#` heading, converted to the target language's
+  naming convention). If multiple sources agreed, list all of them. If
+  source 4 (spec-title fallback) was used, the report must record
+  this explicitly with the exact text: "No authoritative source 1–3
+  was present; identity derived from spec title `<title>` via
+  convention `<convention>`. To override, add a `Module:` field to
+  spec META or a language-specific hints file." This documents the
+  action for the spec author. If the constraint did not apply
+  (template does not declare it), say so explicitly.
 - Delivery mode used and why
 - How STEPS ordering was applied for each BEHAVIOR block
 - Which INTERFACES test doubles were produced (if INTERFACES section present)

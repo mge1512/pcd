@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.28
+Version:     0.3.29
 Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -149,7 +149,8 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | SOURCE-PARTITIONING | modular | required | Implementation source must be partitioned into multiple modules. A single monolithic source file containing all logic is not permitted. The partitioning unit follows the target language's package/module/namespace convention (Go: packages under `internal/`; Rust: modules under `src/`; C: separate header and source files per logical unit; C#: namespaces with one type per file). |
 | SOURCE-PARTITIONING | one-entry-one-implementation | required | At minimum: one entry-point module containing only CLI dispatch (argument parsing, top-level error reporting, calling into the implementation), and at least one implementation module containing the spec's behaviours. The entry-point module does not implement behaviours directly. |
 | SOURCE-PARTITIONING | by-behaviour-domain | supported | Implementation may be further partitioned by behavioural domain when the spec defines multiple distinct BEHAVIORs. Example: a linter may partition into parsing, rule-application, and formatting modules. The partitioning is the translator's choice, constrained only by the minimum above. |
-| MODULE-IDENTITY | host-specified | required | The implementation declares its module identity (Go: `go.mod` module line; Rust: `Cargo.toml` package.name; C: pkg-config name; C#: AssemblyName) using a value supplied by an authoritative source. The translator MUST NOT invent or substitute the identity. Authoritative sources, in priority order: (1) spec META `Module:` field, (2) language-specific hints file, (3) existing manifest from a prior translation in the output directory. If no source provides an identity, the translator halts with a diagnostic and requests one. The translator never infers identity from project name, repository URL guesswork, or heuristic from spec content. |
+| MODULE-IDENTITY | host-specified | required | The implementation declares its module identity (Go: `go.mod` module line; Rust: `Cargo.toml` package.name; C: pkg-config name; C#: AssemblyName) using a value supplied by an authoritative source. Authoritative sources, in priority order: (1) spec META `Module:` field, (2) language-specific hints file, (3) existing manifest from a prior translation in the output directory, (4) spec-title-derived fallback (see `MODULE-IDENTITY: spec-title-fallback` below). The translator never infers identity from repository URL guesswork, heuristic phrases inside the spec body, or general knowledge of "what such a project is typically called." |
+| MODULE-IDENTITY | spec-title-fallback | supported | If none of sources 1–3 provides an identity, the translator may derive the identity from the spec's title (the first `#` heading), converted to the target language's naming convention (lowercase-hyphenated for Go modules and Cargo package names; PascalCase for Lean 4 library namespaces and C# assemblies; reverse-DNS lowercase for Java; etc.). This is permitted because the spec title is structural (every PCD spec has one), unambiguous (defined as the first `#` heading), and version-controlled. It is not a guess. The translator records the fallback explicitly in `TRANSLATION_REPORT.md` under "Module identity resolution" with the exact text: "No authoritative source 1–3 was present; identity derived from spec title `<title>` via convention `<convention>`. To override, add a `Module:` field to spec META or a language-specific hints file." This documents the action for the spec author. |
 | MODULE-IDENTITY | propagated | required | The module identity, once chosen, must appear consistently across all packaging artefacts: source manifests, package metadata (RPM `Source:` URL, DEB `Source:` field, `DH_GOPKG` in `debian/rules`), documentation (man page Homepage line, README install commands), and any internal package import paths. A reviewer must be able to grep the identity once and find all consumers. |
 | MODULE-IDENTITY | conflict-halts | required | If multiple authoritative sources provide module identity and they disagree, the translator halts with a diagnostic identifying all conflicting sources and their values. The translator does not silently choose one. |
 | PUBLIC-API-SURFACE | stable-across-translations | required | The names and signatures of functions and types exposed by implementation modules to other components (entry-point, tests, other tools that import the module) form a public API surface. This surface must remain stable across translations of the same spec at the same Version. A translation may add to the surface; it may not remove or rename existing entries without a spec Version increment. |
@@ -309,19 +310,25 @@ THEN:
      partitioned into entry-point module and at least one implementation \
      module. Found: 1 file in package main."
 
-### EXAMPLE: module_identity_must_come_from_authoritative_source
+### EXAMPLE: module_identity_falls_back_to_spec_title
 GIVEN:
+  spec title is `# calc-interest`
   spec META does not declare a Module: field
   no hints file provides module identity
   no existing manifest in output directory
+  target language is Go
 WHEN:
   translator phase 1 setup runs
 THEN:
-  translator halts with diagnostic:
-    "MODULE-IDENTITY required but no authoritative source provides it. \
-     Supply via spec META 'Module:' field, language-specific hints file, \
-     or pre-existing manifest in output directory."
-  translator does not infer identity from spec content or repository URL
+  translator derives identity from spec title using the Go convention
+  (lowercase, hyphen-separated, no domain prefix assumed):
+  module name becomes `calc-interest`
+  TRANSLATION_REPORT.md records under "Module identity resolution":
+    "No authoritative source 1–3 was present; identity derived from
+     spec title `calc-interest` via convention `lowercase-hyphenated`.
+     To override, add a `Module:` field to spec META or a
+     language-specific hints file."
+  translator proceeds without halting
 
 ### EXAMPLE: module_identity_conflict_halts
 GIVEN:
@@ -381,6 +388,36 @@ THEN:
      the deployment template's BINARY-LOCATION constraint (../../<binary-name>).
      Re-run test-author with the correct path."
 
+### EXAMPLE: test_target_must_be_executable
+GIVEN:
+  translator produces a Makefile whose `test:` target body is:
+    @echo "Run tests manually: lake env lean --run independent_tests/<llm-name>/Tests.lean"
+WHEN:
+  translator phase 6 compile-gate runs `make test`
+THEN:
+  the compile gate detects that the `test:` target does not actually
+  invoke the test runner; the target exits 0 without executing any
+  test, which is not a valid test pass
+  translator halts with diagnostic:
+    "`test:` target is informational, not executable. Per the cli-tool
+     template's `build` deliverable row, `make test` must run the suite.
+     Wire up the build-system target the language requires (Lean 4:
+     `lean_exe` declaration in `lakefile.lean` or `lake env … lean --run`
+     invocation in the Makefile body) and re-run."
+
+### EXAMPLE: test_target_wired_via_lake
+GIVEN:
+  target language is Lean 4
+  test file at independent_tests/claude-opus-4-7/Tests.lean exists
+WHEN:
+  translator writes the Makefile
+THEN:
+  the Makefile's `test:` target body invokes:
+    cd independent_tests/claude-opus-4-7 && \
+    lake env --dir=$(CURDIR) lean --run Tests.lean
+  `make test` from a clean checkout (after `make build`) exercises
+  the suite and exits 0 on pass, non-zero on any failure
+
 ---
 
 ## DELIVERABLES
@@ -408,7 +445,7 @@ Deliverables must be produced in the following order:
 |---|---|---|---|
 | source | required | An entry-point file + at least one implementation file in a separate module/package + the language's module/dependency manifest. See per-language details under "Per-language source layout" below. | Per `SOURCE-PARTITIONING: modular` and `one-entry-one-implementation`, a single-file implementation is not permitted. The entry-point file contains only CLI dispatch; behaviour implementation lives in a separate package or namespace. Translator documents the chosen partitioning in the translation report. |
 | public-api | required | `TRANSLATION_REPORT.md` section `## Public API Surface` | Per `PUBLIC-API-SURFACE: recorded-in-report`. One row per exported symbol, with full signature, grouped by module. The next translation reads this section to verify continuity. |
-| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. The `build` target's invocation of the language toolchain is per-language (see "Per-language build invocation" below). `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
+| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. The `build` target's invocation of the language toolchain is per-language (see "Per-language build invocation" below). The `test` target must be **executable** — it actually runs the test suite when invoked, not a documentation placeholder pointing the user at a manual command. If the target language requires build-system wiring before tests can run (e.g. a Lean 4 `lean_exe` declaration in `lakefile.lean`, a Java `surefire-plugin` configuration in `pom.xml`, a Rust `[[test]]` section in `Cargo.toml`), the translator must produce that wiring so that `make test` succeeds against the produced artefact. `make test` invoked from a clean checkout (after `make build`) must exercise the suite and exit non-zero on any test failure. `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
 | docs | required | `README.md` | Must document: installation via OBS (zypper, apt, dnf), usage, flags, exit codes. Must not document curl-based installation. |
 | man | required | `<n>.1.md`, `<n>.1` | Markdown source converted to troff via `pandoc`. Section 1 (user commands). Install to `%{_mandir}/man1/` (RPM) and `debian/<n>/usr/share/man/man1/` (DEB). |
 | license | required | `LICENSE` | SPDX identifier from spec META + authoritative URL to the full license text. Never reproduce the full license text. |
@@ -585,16 +622,31 @@ authoritative sources in this order:
    declaring a module name.
 3. The pre-existing manifest in the output directory from a prior
    translation (Go: `go.mod`; Rust: `Cargo.toml`).
+4. The spec-title-derived fallback (per `MODULE-IDENTITY:
+   spec-title-fallback`): the spec's first `#` heading, converted to
+   the target language's naming convention.
 
 If exactly one source provides an identity, use it. If two or more
 sources provide identities and they agree, use the agreed value. If
 they disagree, halt with a diagnostic identifying every source and its
-value. If no source provides an identity, halt with a diagnostic
-requesting one.
+value. (The spec-title fallback never *disagrees* with another source —
+it only applies when sources 1–3 are all absent.)
 
-Identity is never inferred from project name, repository URL guesswork,
-or heuristic from spec content. This is the same discipline applied to
-the spec hash — derived values must come from a deterministic source.
+The translator halts in only one case: sources 1–3 produce
+*conflicting* values. Absence of sources 1–3 is not a halt condition;
+the spec-title fallback covers it. This is a deliberate softening of
+earlier framework versions, based on empirical observation that
+capable translators chose this fallback path naturally and reported
+it honestly. The fallback is structural (every PCD spec has a title),
+not heuristic, and the translator records the fallback explicitly in
+`TRANSLATION_REPORT.md` so the spec author sees the action and can
+override via a future `Module:` field if the title-derived identity
+is wrong for their ecosystem.
+
+The translator never infers identity from repository URL guesswork,
+heuristic phrases inside the spec body, or general knowledge of "what
+such a project is typically called." Only the four sources above
+qualify.
 
 Once resolved, the identity propagates to all artefacts where it
 appears (per `MODULE-IDENTITY: propagated`).
@@ -727,14 +779,21 @@ or all reasonable fixes are exhausted.
 
 **Step 3 — Translator test run**
 
-| LANGUAGE | Command |
-|---|---|
-| Go | `go test ./independent_tests/<llm-name>/...` |
-| Rust | `cargo test --test '*' --manifest-path independent_tests/<llm-name>/Cargo.toml` (or the test directory's idiomatic invocation) |
-| C / C++ | Per the test harness chosen; document in TRANSLATION_REPORT.md |
-| C# | `dotnet test independent_tests/<llm-name>/` |
-| Java | `mvn -B test -pl independent_tests/<llm-name>` (Maven) |
-| Lean 4 | `lake test` or `lake exe <test-target>` |
+The `Makefile`'s `test:` target must be the single entry point: `make test`
+runs the suite. For languages whose toolchain discovers tests
+automatically, the target body wraps the toolchain invocation. For
+languages whose toolchain requires explicit wiring, the translator
+produces both the wiring (in `lakefile.lean`, `pom.xml`, etc.) and the
+Makefile target that invokes the wired-up runner.
+
+| LANGUAGE | `make test` invokes | Build-system wiring the translator produces |
+|---|---|---|
+| Go | `go test ./independent_tests/<llm-name>/...` | None additional — Go discovers `*_test.go` automatically. |
+| Rust | `cargo test --test '*' --manifest-path independent_tests/<llm-name>/Cargo.toml` | A `[[test]]` section in the test directory's `Cargo.toml` if integration tests live outside the default `tests/` directory. |
+| C / C++ | The test harness's runner invocation, per the harness chosen (CTest, Catch2's `ctest`, hand-written shell harness) | A `tests/CMakeLists.txt` or `meson.build` test() block if not using a hand-written harness. The harness must produce a non-zero exit code on any failure. |
+| C# | `dotnet test independent_tests/<llm-name>/` | A test project file (`*.Tests.csproj`) referencing the implementation project. Test discovery is automatic via the `Microsoft.NET.Test.Sdk` package; the translator adds it to the project. |
+| Java | `mvn -B test -pl independent_tests/<llm-name>` (Maven) or `gradle test` | A `pom.xml` (or `build.gradle`) in the test directory declaring the surefire/failsafe plugin with the implementation jar as a dependency. Tests in `src/test/java/` are discovered automatically once the plugin is configured. |
+| Lean 4 | `cd independent_tests/<llm-name> && lake env --dir=$(CURDIR) lean --run Tests.lean` (or `lake exe <test-target>` if a `lean_exe` is declared for tests) | Either a `lean_exe <test-target>` declaration in `lakefile.lean` pointing at `independent_tests/<llm-name>/Tests.lean` as root, or — if the test file is a standalone script — a `test:` target body that uses `lake env … lean --run`. The "run manually" placeholder pattern is forbidden. |
 
 If tests fail, either fix the implementation (logged in Test Refinements
 as `code fixed`) or refine the test with documented rationale referencing
