@@ -162,7 +162,7 @@ POSTCONDITIONS:
 
 ## EXAMPLES
 
-EXAMPLE: minimal_two_component_project
+### EXAMPLE: minimal_two_component_project
 GIVEN:
   pcd-project.md declares:
     Components:
@@ -189,7 +189,7 @@ THEN:
   system invariant references valid exported type (Account from account-service interface)
   exit_code = 0
 
-EXAMPLE: circular_dependency_rejected
+### EXAMPLE: circular_dependency_rejected
 GIVEN:
   pcd-project.md Dependencies contains:
     - from: service-a, to: service-b
@@ -200,7 +200,7 @@ THEN:
   stderr contains: "Circular dependency: service-a → service-b → service-a"
   exit_code = 1
 
-EXAMPLE: build_order_inconsistent
+### EXAMPLE: build_order_inconsistent
 GIVEN:
   Dependencies declare service-a depends on service-b
   BuildOrder declares service-a before service-b

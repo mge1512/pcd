@@ -158,7 +158,7 @@ STEPS:
 
 ## EXAMPLES
 
-EXAMPLE: default_resolution
+### EXAMPLE: default_resolution
 GIVEN:
   spec META declares:
     Deployment: python-tool
@@ -173,7 +173,7 @@ THEN:
   resolved["BUILD-TOOL"] = "uv"
   errors = []
 
-EXAMPLE: non_qm_safety_rejected
+### EXAMPLE: non_qm_safety_rejected
 GIVEN:
   spec META declares:
     Deployment: python-tool
@@ -185,7 +185,7 @@ THEN:
   errors contains: "python-tool requires Safety-Level: QM"
   resolved is not produced
 
-EXAMPLE: forbidden_curl_rejected
+### EXAMPLE: forbidden_curl_rejected
 GIVEN:
   spec META declares Deployment: python-tool
   preset declares INSTALL-METHOD = curl
@@ -214,10 +214,11 @@ The translator must produce a src/ layout with the following structure:
 │       ├── __main__.py          ← enables: python -m {PACKAGE_NAME}
 │       ├── cli.py               ← argparse only; no business logic
 │       └── {CORE_MODULE}.py     ← business logic; no CLI concerns
-├── tests/
-│   ├── __init__.py
-│   ├── test_{CORE_MODULE}.py    ← pytest + hypothesis
-│   └── test_cli.py
+├── independent_tests/
+│   └── <llm-name>/              ← named after translator LLM per ROLE.md
+│       ├── __init__.py
+│       ├── test_{CORE_MODULE}.py    ← pytest + hypothesis
+│       └── test_cli.py
 ├── packaging/
 │   ├── {TOOL_NAME}.spec         ← RPM spec for OBS
 │   └── debian/
@@ -306,17 +307,24 @@ Report which files were found and which are being produced.
 
 ### Delivery phases
 
-**Phase 1 — Core source**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/__init__.py`
+- `independent_tests/<llm-name>/test_{CORE_MODULE}.py`
+- `independent_tests/<llm-name>/test_cli.py`
+
+The directory is named after the translator LLM per `ROLE.md` (e.g.
+`independent_tests/claude-sonnet-4-5/`). Tests use `pytest` and must
+cover every EXAMPLE, every declared error path, every `[observable]`
+INVARIANT, and the boundary conditions implied by TYPE refinement
+predicates. This phase MUST complete before any non-test source file
+is written.
+
+**Phase 2 — Core source**
 - `src/{PACKAGE_NAME}/__init__.py`
 - `src/{PACKAGE_NAME}/__main__.py`
 - `src/{PACKAGE_NAME}/cli.py`
 - `src/{PACKAGE_NAME}/{CORE_MODULE}.py`
 - `pyproject.toml`
-
-**Phase 2 — Tests**
-- `tests/__init__.py`
-- `tests/test_{CORE_MODULE}.py`
-- `tests/test_cli.py`
 
 **Phase 3 — Build and packaging**
 - `Makefile`
@@ -335,14 +343,43 @@ explicitly in TRANSLATION_REPORT.md.
 
 ```
 uv sync
-uv run flake8 src/ tests/
+uv run flake8 src/ independent_tests/<llm-name>/
 uv run mypy src/
-uv run pytest tests/ -v
+uv run pytest independent_tests/<llm-name>/ -v
+```
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and the
+prompt's continuity checks passed (dual-LLM mode), additionally run:
+
+```
+uv run pytest independent_tests/<other-role-llm-name>/ -v
+```
+
+Then build the distribution:
+
+```
 uv build
 ```
 
 Record pass/fail for each command. Proceed to Phase 6 only after all pass
 or after explicitly documenting why a step could not be executed.
+Do not edit test-author's tests under any circumstances.
 
 **Phase 6 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of:
+
+```
+$ python -m py_compile independent_tests/<llm-name>/*.py
+$ uv run flake8 independent_tests/<llm-name>/
+```
+
+Both must succeed (exit 0) before `TEST_REPORT.md` is written. If `uv` is
+not available in the test-author environment, `python -m flake8` is an
+acceptable substitute. A test file that does not parse provides no
+verification value.
+

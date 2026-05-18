@@ -383,7 +383,7 @@ Resolution order (last writer wins):
 
 ## EXAMPLES
 
-EXAMPLE: minimal_spec_resolution
+### EXAMPLE: minimal_spec_resolution
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -403,7 +403,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: org_preset_overrides_language_to_rust
+### EXAMPLE: org_preset_overrides_language_to_rust
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -419,7 +419,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_key_value_style_rejected
+### EXAMPLE: forbidden_key_value_style_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -431,7 +431,7 @@ THEN:
     "Key CLI-ARG-STYLE=key=value is forbidden for Deployment: kubectl-style-cli. Use Deployment: cli-tool for key=value CLIs."
   resolved is not produced (errors non-empty → reject)
 
-EXAMPLE: forbidden_curl_install_rejected
+### EXAMPLE: forbidden_curl_install_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -443,7 +443,7 @@ THEN:
     "Key INSTALL-METHOD=curl is forbidden for Deployment: kubectl-style-cli. Supply chain security requirement."
   resolved is not produced
 
-EXAMPLE: forbidden_tls_skip_rejected
+### EXAMPLE: forbidden_tls_skip_rejected
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -455,7 +455,7 @@ THEN:
     "Key TLS-SKIP-VERIFY-FLAG=--insecure-skip-tls-verify is forbidden by default. If your tool genuinely requires this capability, declare it explicitly in spec META with a rationale."
   resolved is not produced
 
-EXAMPLE: macos_platform_requires_pkg_or_binary
+### EXAMPLE: macos_platform_requires_pkg_or_binary
 GIVEN:
   spec META contains:
     Deployment: kubectl-style-cli
@@ -470,7 +470,7 @@ THEN:
     "PLATFORM macOS requires PACKAGE-FORMAT: PKG or PACKAGE-FORMAT: binary"
   resolved is not produced
 
-EXAMPLE: unqualified_base_image_rejected
+### EXAMPLE: unqualified_base_image_rejected
 GIVEN:
   OCI build configured with:
     OCI-BASE-IMAGE: docker.io/library/alpine:latest
@@ -480,7 +480,7 @@ THEN:
   errors contains:
     "OCI-BASE-IMAGE must originate from registry.suse.com/* (BCI) or dp.apps.rancher.io/* (AppCo). Unqualified Docker Hub names are forbidden."
 
-EXAMPLE: subcommand_depth_exceeds_max
+### EXAMPLE: subcommand_depth_exceeds_max
 GIVEN:
   spec declares a BEHAVIOR: `<bin> config context credentials rotate key`
   (four levels of subcommand nesting beyond the root binary)
@@ -591,9 +591,21 @@ found and which are being produced.
 ### Delivery phases
 
 Produce files in this exact order. Complete each phase before starting
-the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 8 is done.
 
-**Phase 1 — Core implementation**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/<spec-name>_test.go` (Go) or
+  `independent_tests/<llm-name>/tests.rs` (Rust). The directory is named
+  after the translator LLM per `ROLE.md`.
+- Tests must cover every EXAMPLE, every declared error path, every
+  `[observable]` INVARIANT, and the boundary conditions implied by TYPE
+  refinement predicates. Tests must exercise the subcommand tree:
+  positive paths, error paths, help output, and exit codes.
+- Tests use the language's standard testing framework (`go test` or
+  `cargo test`); no custom in-tree harness.
+- This phase MUST complete before any non-test source file is written.
+
+**Phase 2 — Core implementation**
 - Source files implementing the subcommand tree. Recommended layout for Go:
   - `main.go` — entry point, root command definition
   - `cmd/<subcommand>/` — one package per top-level subcommand
@@ -602,17 +614,17 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 - Each subcommand must implement: INPUTS parsing, PRECONDITIONS validation,
   STEPS execution, ERRORS mapping to non-zero exit codes
 
-**Phase 2 — Help, completions, shared infrastructure**
+**Phase 3 — Help, completions, shared infrastructure**
 - Root help text validated: `<bin>` with no args, `<bin> --help`, `<bin> -h` all exit 0 and print the command tree
 - Completion commands implemented: `<bin> completion bash`, `<bin> completion zsh`, `<bin> completion fish`
 - Each subcommand help text includes at least one usage example
 
-**Phase 3 — Man pages**
+**Phase 4 — Man pages**
 - `<n>.1.md` — root man page
 - For every top-level subcommand declared in a BEHAVIOR block: `<n>-<verb>.1.md`
 - All `.1.md` files converted to troff `.1` files via `pandoc` in the Makefile
 
-**Phase 4 — Build and packaging**
+**Phase 5 — Build and packaging**
 - `Makefile` with all targets
 - `<n>.spec` (RPM spec)
 - `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright`
@@ -621,23 +633,42 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 - `<n>.wxs` (if MSI is active)
 - `LICENSE`
 
-**Phase 5 — Test infrastructure**
-- `independent_tests/INDEPENDENT_TESTS.go` (or equivalent for Rust)
+**Phase 6 — Auxiliary artefacts**
 - `translation_report/translation-workflow.pikchr`
 
-**Phase 6 — Documentation**
+**Phase 7 — Documentation**
 - `README.md`
 
-**Phase 7 — Compile gate and binary verification** (see below)
+**Phase 8 — Compile gate and binary verification** (see below)
 
-**Phase 8 — Report (last)**
+**Phase 9 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of the commands
+for the resolved language:
+
+For Go:
+```
+$ go vet ./independent_tests/<llm-name>/...
+$ gofmt -l ./independent_tests/<llm-name>/
+```
+
+For Rust:
+```
+$ cargo check --tests --manifest-path independent_tests/<llm-name>/Cargo.toml
+```
+
+All commands must succeed (exit 0; for `gofmt -l`, empty output) before
+`TEST_REPORT.md` is written.
 
 ### Compile gate
 
-Execute after Phase 6 and before Phase 8. If your environment cannot
+Execute after Phase 7 and before Phase 9. If your environment cannot
 execute shell commands, document this explicitly under the heading
-"Phase 7 — Compile gate not executed" in TRANSLATION_REPORT.md and
+"Phase 8 — Compile gate not executed" in TRANSLATION_REPORT.md and
 state why. Do not silently omit this phase.
 
 **Step 1 — Dependency resolution**
@@ -653,7 +684,21 @@ For Rust: `cargo build --release`
 If compilation fails, fix only the identified errors and re-run.
 Repeat until compilation succeeds or all reasonable fixes are exhausted.
 
-**Step 3 — Binary verification**
+**Step 3 — Translator test run**
+
+For Go: `go test ./independent_tests/<llm-name>/...`
+For Rust: `cargo test --manifest-path independent_tests/<llm-name>/Cargo.toml`
+
+If tests fail, either fix the implementation or refine the test with
+documented rationale (logged in Test Refinements).
+
+**Step 4 — Test-author test run** (dual-LLM mode only)
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and
+the prompt's continuity checks passed, run the test command for the
+target language against that directory. Do not edit test-author's tests.
+
+**Step 5 — Binary verification**
 
 With the compiled binary available:
 - `./<n>` (no args) exits 0 and prints help
@@ -668,10 +713,10 @@ With the compiled binary available:
 
 Record pass/fail for each verification in TRANSLATION_REPORT.md.
 
-**Step 4 — Record result**
+**Step 6 — Record result**
 
 Once all steps pass, do not modify any source files further.
-Proceed immediately to Phase 8.
+Proceed immediately to Phase 9.
 
 ### go.mod / Cargo.toml rules
 

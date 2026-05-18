@@ -267,7 +267,7 @@ EXAMPLES in such specs may use multiple WHEN/THEN pairs to express multi-pass
 reconciliation behaviour. Each WHEN/THEN pair represents one reconciler invocation.
 Single-pass EXAMPLES remain valid for non-reconciler operations.*
 
-EXAMPLE: minimal_cloud_native_spec
+### EXAMPLE: minimal_cloud_native_spec
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -286,7 +286,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: rust_with_distroless_override
+### EXAMPLE: rust_with_distroless_override
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -304,7 +304,7 @@ THEN:
   errors = []
   warnings = []
 
-EXAMPLE: forbidden_file_config_rejected
+### EXAMPLE: forbidden_file_config_rejected
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -316,7 +316,7 @@ THEN:
     "Key CONFIG-METHOD=files is forbidden for Deployment: cloud-native"
   resolved is not produced (errors non-empty → reject)
 
-EXAMPLE: scratch_base_requires_static_language
+### EXAMPLE: scratch_base_requires_static_language
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -330,7 +330,7 @@ THEN:
     "BASE-IMAGE Scratch requires LANGUAGE ∈ {Go, Rust} for static linking"
   resolved is not produced
 
-EXAMPLE: operator_format_requires_crds
+### EXAMPLE: operator_format_requires_crds
 GIVEN:
   spec META contains:
     Deployment: cloud-native
@@ -381,7 +381,7 @@ Deliverables must be produced in the following order:
 | HELM | supported | `helm/Chart.yaml`, `helm/values.yaml`, `helm/templates/` | Helm chart structure. templates/ must contain templated versions of Kubernetes manifests. |
 | KUSTOMIZE | supported | `kustomize/kustomization.yaml`, `kustomize/base/`, `kustomize/overlays/` | Kustomization structure for GitOps. Base contains common resources, overlays for environments. |
 | OPERATOR | supported | `deploy/crd.yaml`, `controllers/` | Kubernetes operator with Custom Resource Definitions. Controllers directory contains operator logic. The operator's own deployment manifest is `deploy/deployment.yaml` (already produced by the MANIFEST row); no separate `deploy/operator.yaml` is required. |
-| independent-tests | required | `independent_tests/INDEPENDENT_TESTS.go` | Specification verification tests using declared INTERFACES test doubles. For LANGUAGE=Go: test functions must reside in a companion `independent_tests/independent_tests_test.go` file (Go requires `_test.go` suffix for test execution); `INDEPENDENT_TESTS.go` serves as the package documentation file. |
+| independent-tests | required | `independent_tests/<llm-name>/<spec-name>_test.go` | Specification verification tests using declared INTERFACES test doubles. The directory is named after the translator LLM per `ROLE.md` (e.g. `independent_tests/claude-sonnet-4-5/`). Test files must use Go's `_test.go` suffix. |
 | workflow-diagram | required | `translation_report/translation-workflow.pikchr` | Pikchr diagram documenting the translation process and decisions. |
 | report | required | `TRANSLATION_REPORT.md` | AI translator self-evaluation with cloud-native specific considerations.  Must include `Spec-SHA256:` header field. |
 | spec-hash | required | embedded in all artifacts | SHA256 of the spec file embedded in: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
@@ -474,17 +474,27 @@ found and which are being produced.
 ### Delivery phases
 
 Produce files in this exact order. Complete each phase before starting
-the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
+the next. Do not produce `TRANSLATION_REPORT.md` until Phase 7 is done.
 
-**Phase 1 — Core implementation**
+**Phase 1 — Translator test suite (Tests First)**
+- `independent_tests/<llm-name>/<spec-name>_test.go` (and additional
+  files as needed). The directory is named after the translator LLM
+  per `ROLE.md`.
+- Tests must cover every EXAMPLE, every declared error path, every
+  `[observable]` INVARIANT, and the boundary conditions implied by TYPE
+  refinement predicates.
+- Tests use Go's standard testing package; no custom in-tree harness.
+- This phase MUST complete before any non-test source file is written.
+
+**Phase 2 — Core implementation**
 - All source files for the resolved LANGUAGE (e.g. `main.go` + helpers for Go)
 - `go.mod` — direct dependencies only; see Compile gate below
 
-**Phase 2 — Build and packaging**
+**Phase 3 — Build and packaging**
 - `Containerfile`
 - `LICENSE`
 
-**Phase 3 — Kubernetes manifests**
+**Phase 4 — Kubernetes manifests**
 - `deploy/deployment.yaml`
 - `deploy/service.yaml`
 - `deploy/configmap.yaml`
@@ -495,23 +505,35 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 5 is done.
 - Helm chart under `helm/` (if HELM format is active)
 - Kustomize under `kustomize/` (if KUSTOMIZE format is active)
 
-**Phase 4 — Test infrastructure**
-- `independent_tests/INDEPENDENT_TESTS.go`
+**Phase 5 — Auxiliary artefacts**
 - `translation_report/translation-workflow.pikchr`
 
-**Phase 5 — Documentation**
+**Phase 6 — Documentation**
 - `README.md`
 
-**Phase 6 — Compile gate and build gate** (see below)
+**Phase 7 — Compile gate and build gate** (see below)
 
-**Phase 7 — Report (last)**
+**Phase 8 — Report (last)**
 - `TRANSLATION_REPORT.md`
+
+### Test-author syntax check
+
+When this template is consumed in `mode: test-author`, the test-author's
+syntax check (mandated by the universal prompt) consists of:
+
+```
+$ go vet ./independent_tests/<llm-name>/...
+$ gofmt -l ./independent_tests/<llm-name>/
+```
+
+Both must succeed (exit 0 for `go vet`, empty output for `gofmt -l`)
+before `TEST_REPORT.md` is written.
 
 ### Compile gate
 
-Execute after Phase 5 and before Phase 7. If your environment cannot
+Execute after Phase 6 and before Phase 8. If your environment cannot
 execute shell commands, document this explicitly under the heading
-"Phase 6 — Compile gate not executed" in TRANSLATION_REPORT.md and
+"Phase 7 — Compile gate not executed" in TRANSLATION_REPORT.md and
 state why. Do not silently omit this phase.
 
 **Step 1 — Dependency resolution**
@@ -532,16 +554,30 @@ If compilation fails, fix only the identified errors and re-run.
 Do not rewrite unaffected files. Repeat until compilation succeeds
 or all reasonable fixes are exhausted.
 
-**Step 3 — Build gate (OCI)**
+**Step 3 — Translator test run**
 
-After compilation succeeds, consult the `## BUILD-GATE` section of this
+Run: `go test ./independent_tests/<llm-name>/...`
+
+If tests fail, either fix the implementation or refine the test with
+documented rationale (logged in Test Refinements).
+
+**Step 4 — Test-author test run** (dual-LLM mode only)
+
+If a `independent_tests/<other-role-llm-name>/` directory exists and
+the prompt's continuity checks passed, run:
+`go test ./independent_tests/<other-role-llm-name>/...`. Do not edit
+test-author's tests.
+
+**Step 5 — Build gate (OCI)**
+
+After tests pass, consult the `## BUILD-GATE` section of this
 template for container image build verification. Execute the steps there.
 
-**Step 4 — Record result**
+**Step 6 — Record result**
 
 Record pass/fail for each step in TRANSLATION_REPORT.md.
 Once all steps pass, do not modify any source files further.
-Proceed immediately to Phase 7.
+Proceed immediately to Phase 8.
 
 ### go.mod rules
 

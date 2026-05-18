@@ -259,7 +259,7 @@ STEPS:
 
 ## EXAMPLES
 
-EXAMPLE: linux-desktop-default
+### EXAMPLE: linux-desktop-default
 GIVEN:
   spec declares Deployment: gui-tool
   no PLATFORM or FRAMEWORK in preset
@@ -270,7 +270,7 @@ THEN:
   LANGUAGE  = CPP
   OUTPUT-FORMAT includes RPM, DEB
 
-EXAMPLE: mobile-mandates-flutter
+### EXAMPLE: mobile-mandates-flutter
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [Linux, Android, iOS]
@@ -281,7 +281,7 @@ THEN:
   LANGUAGE  = Dart
   OUTPUT-FORMAT includes RPM, DEB, APK, AAB, IPA
 
-EXAMPLE: embedded-linux-mandates-qt6
+### EXAMPLE: embedded-linux-mandates-qt6
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [embedded-linux]
@@ -294,7 +294,7 @@ THEN:
   OUTPUT-FORMAT includes binary
   RPM and DEB not required (no desktop Linux)
 
-EXAMPLE: tauri-via-preset-desktop-only
+### EXAMPLE: tauri-via-preset-desktop-only
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [Linux, macOS, Windows]
@@ -306,7 +306,7 @@ THEN:
   LANGUAGE  = Rust
   OUTPUT-FORMAT includes RPM, DEB, PKG, MSI
 
-EXAMPLE: tauri-incompatible-with-mobile
+### EXAMPLE: tauri-incompatible-with-mobile
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [Linux, Android]
@@ -318,7 +318,7 @@ THEN:
   FRAMEWORK = unresolved
   translation does not proceed
 
-EXAMPLE: tauri-incompatible-with-embedded
+### EXAMPLE: tauri-incompatible-with-embedded
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [embedded-linux]
@@ -330,7 +330,7 @@ THEN:
   FRAMEWORK = unresolved
   translation does not proceed
 
-EXAMPLE: flutter-warning-on-embedded
+### EXAMPLE: flutter-warning-on-embedded
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [embedded-linux]
@@ -342,7 +342,7 @@ THEN:
   FRAMEWORK = Flutter (override accepted with warning)
   LANGUAGE  = Dart
 
-EXAMPLE: resolve-framework-invalid-override-rejected
+### EXAMPLE: resolve-framework-invalid-override-rejected
 GIVEN:
   spec declares Deployment: gui-tool
   PLATFORM = [Android]
