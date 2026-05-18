@@ -19,6 +19,14 @@ in the preset hierarchy (`/etc/pcd/hints/`, `.pcd/hints/`) — these encode
 project or company coding conventions and must be applied to all generated code.
 Read all hints files before generating any code.
 
+The spec may declare `Includes:` directives in its META section (v0.4.0+).
+Each `Includes:` is a relative path to another spec file that contributes
+TYPES, BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES,
+TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, and POSTCONDITIONS to the host spec.
+Before any other processing, resolve all includes recursively and produce
+the merged spec text (see **Spec Composition** below). All subsequent
+processing treats the merged spec as the input.
+
 ---
 
 ## Role
@@ -80,6 +88,71 @@ lowercase, hyphen-separated, with no dots or version-decimal suffixes
 
 ---
 
+## Spec Composition (v0.4.0+)
+
+If the host spec's META declares one or more `Includes:` directives,
+resolve them before processing the spec for translation. Each `Includes:`
+value is a relative path from the host spec's location to another spec
+file.
+
+### Resolution
+
+1. Read the host spec.
+2. For each `Includes:` directive in declaration order:
+   a. Resolve the path relative to the host spec file's location.
+   b. Read the referenced spec file.
+   c. If that file declares its own `Includes:` directives, recurse.
+      Detect cycles; halt with diagnostic on any cycle.
+3. After all included specs are read, merge into a canonical merged spec:
+   - **META**: the host's META is authoritative. Record each included
+     spec's identity (filename, version, SHA256) for the audit trail,
+     but do not apply its values. Included specs' Author lines are
+     preserved as additional Author entries.
+   - **TYPES, BEHAVIORs, INVARIANTS, EXAMPLES, INTERFACES, DEPENDENCIES,
+     TOOLCHAIN-CONSTRAINTS, PRECONDITIONS, POSTCONDITIONS**: append in
+     order — included specs in declaration order first, then the host's
+     own content.
+   - **MILESTONE**, **DEPLOYMENT section**: host only. An included spec
+     containing these is a spec-author error; halt with diagnostic.
+4. Detect name collisions across the merged set. Duplicate TYPE,
+   BEHAVIOR, INTERFACE, or EXAMPLE names are spec-author errors; halt
+   with diagnostic identifying which spec each definition came from.
+
+### Hash computation
+
+The `Spec-SHA256` to embed in all generated artefacts is the SHA256 of
+the merged spec text — not the host spec file on disk. This means that
+editing an included spec invalidates the hash of every host that includes
+it, propagating change detection through the inclusion graph as it must.
+
+The merged-spec text is canonical: same host + same included specs
+always produces the same bytes. The canonical form is host META first,
+then all merged sections in their defined order with included
+contributions listed before the host's own.
+
+### Reporting
+
+The TRANSLATION_REPORT must include two hashes and an inclusions table:
+
+- `Spec-SHA256` (merged): the hash actually embedded in artefacts.
+- `Spec-SHA256 (host)`: the hash of the host spec file as read.
+- `Included-Specs:` table: one row per included spec, with its path
+  and SHA256.
+
+If the host spec has no `Includes:` directives, the merged hash equals
+the host hash and the Included-Specs table is empty. This case is the
+v0.3.x behaviour, fully compatible.
+
+### Forward compatibility
+
+If the host spec's META declares `Spec-Schema: 0.4.0` or higher and you
+do not implement the merge described above, halt with diagnostic. Do
+not silently ignore `Includes:` directives. A spec consumer that
+silently drops included content produces a translation that does not
+match the spec author's intent and breaks the spec-is-truth invariant.
+
+---
+
 ## Tests First
 
 Tests are written before implementation code, in every translator run. This
@@ -104,11 +177,19 @@ single-LLM is a fully supported invocation.
    in-tree harness. The tests assert on every EXAMPLE in the spec,
    on declared error paths, on INVARIANTS, and on boundary conditions
    implied by the TYPES refinement predicates.
-3. Write the implementation code, following the rest of this prompt.
-4. Run the test suite against the implementation. Record results.
-5. If any test fails: either fix the implementation, or refine the test
+3. **Verify that `independent_tests/<llm-name>/` exists in the output
+   directory and contains at least one test file.** If not, halt with
+   the diagnostic: "Error: Tests-First discipline requires a test suite
+   in `independent_tests/<llm-name>/` before any implementation file is
+   written. No test file found. Return to step 2." This guard is
+   structural; it cannot be satisfied by acknowledging Tests First in
+   prose. The translator may not begin step 4 (writing implementation
+   source) until this check passes.
+4. Write the implementation code, following the rest of this prompt.
+5. Run the test suite against the implementation. Record results.
+6. If any test fails: either fix the implementation, or refine the test
    *with documented rationale* (see **Test Refinements** below).
-6. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
+7. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
    in the input directory, first verify continuity before running it:
    - Read `TEST_REPORT.md` (produced by test-author). Confirm its
      `Spec-SHA256` matches the SHA256 of the current spec file. If they
@@ -119,7 +200,12 @@ single-LLM is a fully supported invocation.
    - Confirm the deployment template, preset resolution, and hints
      files listed in `TEST_REPORT.md` match those in scope for this
      run. On any mismatch, halt with the same diagnostic pattern.
-   - With both checks passed, run test-author's test suite against the
+   - Confirm that `TEST_REPORT.md` records `Test-Compile-Gate: pass`. If
+     it records `fail`, halt and report: "Error: test-author test suite
+     did not pass its syntax check. Re-run test-author and ensure
+     `Test-Compile-Gate: pass` before running translator." Do not
+     attempt to run the test-author suite.
+   - With all checks passed, run test-author's test suite against the
      implementation and record results separately. **Do not edit
      test-author's tests under any circumstances** — they are the
      independent cross-check.
@@ -152,7 +238,22 @@ For a **test-author** run:
 3. Write the test suite under
    `independent_tests/<llm-name>/`, in the language declared by the
    deployment template (resolve the same way translator would).
-4. If the deployment template targets a **library** (e.g. `library-c-abi`,
+4. **Run the syntax/build check on the test files just produced.** This is
+   a structural gate, not a recommendation. The exact commands are declared
+   in the deployment template's `## EXECUTION` section under the heading
+   `### Test-author syntax check`. Run them in order; each must succeed.
+   For Go targets this is `go vet ./independent_tests/<llm-name>/...` and
+   `gofmt -l ./independent_tests/<llm-name>/`; for Rust `cargo check
+   --tests`; for Python `python -m py_compile <each test file>`; the
+   template provides the canonical list for its target language.
+
+   If any check fails: halt and report the first failure verbatim. Do
+   not write `TEST_REPORT.md`. Do not proceed. A test file that does not
+   parse provides no verification value and must be fixed before the
+   run is complete. The translator pass will refuse to consume this
+   test-author output if the syntax check did not pass.
+
+5. If the deployment template targets a **library** (e.g. `library-c-abi`,
    `verified-library`): tests are written in two phases. Phase A
    (this run): write the test logic with `<INTERFACE_PLACEHOLDER>`
    markers for any function or type names the spec does not pin
@@ -160,7 +261,7 @@ For a **test-author** run:
    re-run this prompt in `mode: test-author-rebind` and bind the
    placeholders to translator's actual names. The rebind is mechanical
    only — assertions, expected values, and test coverage may not change.
-5. Stop. Do not write code. Do not write packaging. Do not write a
+6. Stop. Do not write code. Do not write packaging. Do not write a
    `TRANSLATION_REPORT.md` — write a `TEST_REPORT.md` instead (see
    **Reports** below).
 
@@ -211,10 +312,19 @@ the test language are the same. This is a production constraint: minimal
 runtime environments (Common Criteria images, OBS builders, container
 images) carry the toolchain for one language only.
 
-**Read the template's `## EXECUTION` section and follow it exactly.**
+**Read the template's `## EXECUTION` section and follow it.**
 The EXECUTION section specifies the delivery phases, their order, resume
 logic, and compile/build verification steps for this deployment type.
 Do not invent a different phase order. Do not skip phases.
+
+**Tests-First overrides template phase ordering.** If a template's
+`## EXECUTION` section orders implementation phases before the test
+infrastructure phase, the translator must still write tests first,
+per the **Tests First** rules above. Templates whose phase numbering
+contradicts Tests-First are being progressively updated; in the meantime,
+the prompt rule takes precedence. The structural guard at step 3 of the
+translator flow enforces this — implementation source files cannot be
+written until tests exist.
 
 **Read deliverables from the template, not from this prompt.**
 Produce all deliverables for every OUTPUT-FORMAT marked `required` in the
@@ -395,9 +505,25 @@ incomplete, regardless of whether all other deliverables are present.
 
 Produce a `TRANSLATION_REPORT.md` covering:
 
-- **Spec-SHA256:** `<hash>` — SHA256 of `<specname>.md` as provided
+- **Spec-SHA256:** `<hash>` — SHA256 of the merged spec text (host + all
+  recursively-resolved includes). This is the hash embedded in all
+  generated artefacts. If the host spec has no `Includes:` directives,
+  this equals the host hash and the Included-Specs table below is empty.
+- **Spec-SHA256 (host):** `<hash>` — SHA256 of the host spec file as read.
+- **Included-Specs:** table of included specs (empty if none):
+
+  | Path | SHA256 |
+  |------|--------|
+  | `<relative-path>` | `<hash>` |
+
 - **LLM-Name:** `<llm-name>` — from `ROLE.md` or placeholder
 - **Mode:** `translator`
+- **Tests-First-Compliance:** `yes` or `no` (with explanation). `yes`
+  requires that every file in `independent_tests/<llm-name>/` was written
+  before any implementation source file. If `no`, every test that passed
+  on first run is demoted from High to Medium confidence in the
+  per-EXAMPLE table below — post-hoc test-tuning risk was not controlled,
+  and the structural guard at step 3 of the translator flow was bypassed.
 - Target language resolved, and whether any preset overrides the template default
 - Delivery mode used and why
 - How STEPS ordering was applied for each BEHAVIOR block
@@ -425,11 +551,13 @@ Produce a `TRANSLATION_REPORT.md` covering:
   | EXAMPLE | Confidence | Verification method | Unverified claims |
 
   Confidence definitions:
-  - **High** = a named test function in `independent_tests/<llm-name>/`
-    *and*, if present, `independent_tests/<other-role-llm-name>/`, both pass
-    without any live external service
-  - **Medium** = translator tests pass; test-author tests absent, or some
-    paths require live services and are untested
+  - **High** = Tests-First-Compliance is `yes`, *and* a named test function
+    in `independent_tests/<llm-name>/` passes without any live external
+    service, *and*, if present, `independent_tests/<other-role-llm-name>/`,
+    both pass without any live external service
+  - **Medium** = translator tests pass but Tests-First-Compliance is `no`,
+    or test-author tests are absent, or some paths require live services
+    and are untested
   - **Low** = no test function covers this; reasoning or code review only
 
   A claim is verified only if it references a specific named test function
@@ -444,7 +572,16 @@ documented as not executed — see template EXECUTION section).
 
 Produce a `TEST_REPORT.md` covering:
 
-- **Spec-SHA256:** `<hash>`
+- **Spec-SHA256:** `<hash>` — SHA256 of the merged spec text (host + all
+  recursively-resolved includes). This is the hash translator will
+  verify against.
+- **Spec-SHA256 (host):** `<hash>` — SHA256 of the host spec file as read.
+- **Included-Specs:** table of included specs (empty if none):
+
+  | Path | SHA256 |
+  |------|--------|
+  | `<relative-path>` | `<hash>` |
+
 - **LLM-Name:** `<llm-name>`
 - **Mode:** `test-author` (or `test-author-rebind`)
 - **Deployment-Template:** template filename and version (e.g.
@@ -453,15 +590,22 @@ Produce a `TEST_REPORT.md` covering:
   in the order they were applied (system → user → project)
 - **Hints-Files-Read:** list of hints files in scope, with versions
   where applicable
+- **Test-Compile-Gate:** `pass` or `fail`. Must be `pass` for the run to
+  be considered complete. If `fail`, the report must include the diagnostic
+  output of the failing command; in that case the prompt requires halting
+  before writing this report, so a fail state should not normally appear
+  here — but if it does (e.g. the run was completed manually), translator
+  will refuse to consume the suite.
 - Target language resolved (the same way translator would resolve it)
 - Tests produced: one row per test function, with the EXAMPLE/BEHAVIOR/
   INVARIANT it covers
 - INTERFACE_PLACEHOLDER markers used (library templates only)
 - Specification ambiguities encountered
-- Note: this report does not include a compile gate result, an
-  implementation, or a confidence table — those are translator's deliverables.
+- Note: this report does not include a compile gate result for the
+  implementation, an implementation, or a confidence table — those are
+  translator's deliverables.
 
-The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`, and
-`Hints-Files-Read` fields are mandatory because translator will verify them
-against its own scope before running test-author's tests. Mismatch on any
-of these aborts translator's run.
+The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`,
+`Hints-Files-Read`, and `Test-Compile-Gate` fields are mandatory because
+translator will verify them against its own scope before running test-author's
+tests. Mismatch on any of these aborts translator's run.
