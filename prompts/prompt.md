@@ -31,6 +31,34 @@ This prompt operates in one of two roles, selected at invocation:
 - **`secondary`**: produce only tests, then stop. No implementation code,
   no packaging deliverables, no scaffolding.
 
+### Ordering
+
+Secondary always runs **before** primary. The independence of secondary's
+test suite depends on it having been written without sight of any
+implementation. If primary has already produced output for this
+specification, secondary cannot run meaningfully — its tests would either
+be influenced by primary's choices (destroying independence) or, worse,
+the LLM would interpret the prior output as a signal to do something
+other than what its role demands.
+
+Two operational consequences follow:
+
+- **Secondary's input directory must contain only the specification, the
+  deployment template, applicable hints files, and `ROLE.md`.** It must
+  not contain any prior translation output, any `TRANSLATION_REPORT.md`,
+  any `code/` directory, any packaging files, or any `independent_tests/`
+  subdirectory from a prior run.
+- **Primary's input directory must contain secondary's output if dual-LLM
+  mode is intended.** Specifically: secondary's `independent_tests/<llm-name>/`
+  directory and its `TEST_REPORT.md`. If these are absent, primary runs
+  in single-LLM mode (which is also a valid invocation — secondary is
+  optional).
+
+The clean separation is enforced by guard checks at the start of each
+role's flow (see **Tests First** below).
+
+### `ROLE.md` format
+
 If a file `ROLE.md` is present in the input directory, it selects the
 role and identifies the LLM. Expected format:
 
@@ -62,6 +90,13 @@ not what the spec requires).
 
 For a **primary** run:
 
+Secondary's output is optional. If `independent_tests/<other-llm-name>/`
+and `TEST_REPORT.md` are present in the input directory, this is a
+dual-LLM run; if absent, this is a single-LLM run. Primary's main flow
+is identical in both cases; the only difference is whether step 6
+applies. Do not stall, ask, or warn if secondary's output is absent —
+single-LLM is a fully supported invocation.
+
 1. Read the specification, the deployment template, and all hints files.
 2. Write the test suite under
    `independent_tests/<llm-name>/` in the same language as the
@@ -92,12 +127,33 @@ For a **primary** run:
 
 For a **secondary** run:
 
-1. Read the specification and all hints files. Do not read or assume
+1. **Before reading anything else**, verify that the input directory is
+   clean of prior primary output. Specifically, halt with a diagnostic if
+   any of the following are present in the input directory or in a
+   conventionally-shared output directory (`code/`, `cmd/`, the working
+   directory's source tree, or any sibling directory primary would write
+   to):
+   - a `TRANSLATION_REPORT.md` file
+   - any implementation source files in the target language (`.go`,
+     `.rs`, `.py`, `.c`, `.h`, etc., excluding the spec/template/hints
+     Markdown files)
+   - any packaging artefacts (`Makefile`, `Containerfile`, `*.spec`,
+     `debian/`, `Cargo.toml`, `go.mod`, `pyproject.toml`)
+   - any `independent_tests/` subdirectory from a previous run
+
+   The diagnostic must read: "Error: secondary mode requires a clean
+   input directory. Prior primary output detected: <list of files
+   found>. Secondary always runs before primary. Either (a) clear the
+   prior output and restart the workflow from secondary, or (b) treat
+   this as a single-LLM run and do not invoke secondary." Do not write
+   any output. Stop.
+
+2. Read the specification and all hints files. Do not read or assume
    any implementation.
-2. Write the test suite under
+3. Write the test suite under
    `independent_tests/<llm-name>/`, in the language declared by the
    deployment template (resolve the same way primary would).
-3. If the deployment template targets a **library** (e.g. `library-c-abi`,
+4. If the deployment template targets a **library** (e.g. `library-c-abi`,
    `verified-library`): tests are written in two phases. Phase A
    (this run): write the test logic with `<INTERFACE_PLACEHOLDER>`
    markers for any function or type names the spec does not pin
@@ -105,7 +161,7 @@ For a **secondary** run:
    re-run this prompt in `mode: secondary-rebind` and bind the
    placeholders to primary's actual names. The rebind is mechanical
    only — assertions, expected values, and test coverage may not change.
-4. Stop. Do not write code. Do not write packaging. Do not write a
+5. Stop. Do not write code. Do not write packaging. Do not write a
    `TRANSLATION_REPORT.md` — write a `TEST_REPORT.md` instead (see
    **Reports** below).
 
