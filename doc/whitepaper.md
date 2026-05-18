@@ -2,7 +2,7 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft
-**Version:** 0.3.24
+**Version:** 0.3.25
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 
@@ -1541,7 +1541,7 @@ value depends on their having been written without knowledge of any
 implementation.
 
 **Continuity checks.** Before running test-author's tests against the
-implementation, translator verifies two properties of test-author's run.
+implementation, translator verifies three properties of test-author's run.
 First, the `Spec-SHA256` recorded in test-author's `TEST_REPORT.md` must
 match the SHA256 of the specification translator received as input. If the
 specification was edited between test-author's run and translator's run,
@@ -1550,12 +1550,36 @@ translator's implementation tests the wrong contract. Second, the
 deployment template, preset resolution, and hints files in scope for
 translator's run must match those test-author used. A translator run targeting
 Rust cannot meaningfully use test-author's Go tests, even if the spec hash
-matches. Mismatch on either check aborts translator's run with a diagnostic
+matches. Third (as of v0.3.25), `Test-Compile-Gate` in test-author's
+`TEST_REPORT.md` must be `pass`; a `fail` value, or a missing report
+(meaning test-author halted before writing it), aborts translator. This
+third check exists because a test suite that does not compile provides no
+verification value and can collapse the cross-check silently if consumed.
+Mismatch on any check aborts translator's run with a diagnostic
 identifying which property differed; the user re-runs test-author against
 the current scope before retrying translator. The continuity checks are
 mechanical applications of the same spec-hash discipline that already
 binds artefacts to specifications elsewhere in the framework; they
 extend that discipline to one additional boundary.
+
+**Structural guards on ordering.** Two halts in the v0.3.25 prompt make
+dual-LLM ordering checkable rather than merely stated. On the test-author
+side, a halt at the start of the run rejects any input directory that
+already contains translator output (a `TRANSLATION_REPORT.md`, source
+files in the target language, packaging artefacts, or a prior
+`independent_tests/` subdirectory). This prevents the inversion where
+test-author is invoked after translator has already shipped code; the
+test-author cannot write tests independent of an implementation it has
+already seen. On the translator side, a halt before any non-test source
+file is written rejects the run if `independent_tests/<llm-name>/` is
+empty; the translator cannot bypass tests-first by writing
+implementation first and tests later. Both guards exist because the
+prompt's prose alone was empirically insufficient: an early dual-LLM run
+produced Mistral as test-author, against a directory already populated
+by an earlier Mistral translator run, and the guard would have prevented
+that; a Sonnet translator run wrote `main.go` before any test file and
+self-corrected only after the compile gate revealed the omission, where
+the guard would have prevented the work entirely.
 
 ### Failure Modes and Diagnostic Interpretation
 
@@ -2890,6 +2914,14 @@ code. The ordering prevents post-hoc test tuning: tests written after the
 implementation tend to assert what the code does rather than what the spec
 requires.
 
+As of v0.3.25 the prompt enforces this structurally: translator halts
+before writing any non-test source file if `independent_tests/<llm-name>/`
+is empty. The TRANSLATION_REPORT records a `Tests-First-Compliance: yes |
+no` field, and a `no` value automatically demotes every High-confidence
+row in the per-EXAMPLE table to Medium. The discipline is no longer a
+guideline that an LLM can implicitly violate while claiming compliance;
+it is a precondition checked before implementation begins.
+
 Tests may be refined when a test run reveals a gap, but every refinement
 must be recorded in a `Test Refinements` table in TRANSLATION_REPORT.md,
 with one row per refinement and an explicit rationale. Permitted actions:
@@ -2980,6 +3012,15 @@ enforced by the deployment template, not individually by specs:
    with `<llm-name>` lowercase, hyphen-separated, and free of version-decimal
    suffixes (`claude-sonnet-4-5`, not `Claude-Sonnet-4.5`).
 
+7. **Test files must parse.** As of v0.3.25, every deployment template
+   declares a language-specific syntax check (Go: `go vet` + `gofmt -l`;
+   Rust: `cargo check --tests`; Python: `python -m py_compile` + `flake8`)
+   that the test-author flow runs before writing `TEST_REPORT.md`. Any
+   failure halts the run; no report is written. The translator's
+   continuity check rejects test-author output where `Test-Compile-Gate:
+   fail` is recorded. A test suite that does not parse provides no
+   verification value and cannot be silently consumed.
+
 #### Integration with Templates
 
 The `independent_tests/` directory and the per-LLM test files are added
@@ -3069,7 +3110,8 @@ Outputs produced:
   - Source files (list)
   - Packaging artifacts (RPM, DEB, OCI — as applicable)
   - TRANSLATION_REPORT.md
-  - INDEPENDENT_TESTS file (if second-agent run)
+  - independent_tests/<llm-name>/ (translator's own tests)
+  - independent_tests/<other-role-llm-name>/ (test-author's tests, if dual-LLM)
 
 Validation results:
   - Compilation: pass/fail
@@ -3371,6 +3413,7 @@ the translator. This asymmetry should inform the default choice.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.25 | 2026-05-18    | Structural enforcement for tests-first and test-author syntax-check. Translator prompt halts before writing any non-test source file if `independent_tests/<llm-name>/` is empty; the test-author flow halts before writing `TEST_REPORT.md` if the language-specific syntax check (per-template: `go vet`/`gofmt`, `cargo check --tests`, `python -m py_compile` + `flake8`) fails. Six templates (`backend-service`, `cli-tool`, `cloud-native`, `kubectl-style-cli`, `mcp-server`, `python-tool`) restructured to place the translator test suite in Phase 1, eliminating the historical prompt-vs-template ordering conflict. New required fields: `Test-Compile-Gate` in `TEST_REPORT.md`, `Tests-First-Compliance` in `TRANSLATION_REPORT.md`. Empirical motivation: a dual-LLM run on `pcd-lint` produced a Mistral test file with a Go syntax error (triple-backtick inside a raw string literal) that shipped through to the translator's compile gate; and a Sonnet translator run wrote `main.go` before its own tests, contradicting the discipline before self-correcting. Both failures are now structurally prevented. |
 | 0.3.24 | 2026-05-18    | Renamed dual-LLM roles from `primary`/`secondary` to `translator`/`test-author` to remove the confusing seniority/ordering implications of the old names. The test-author always runs before the translator. Tiebreaker role re-scoped: invoked only by a human reviewer for ambiguous test-author test failures, not as automatic adjudication. |
 | 0.3.23 | 2026-05-16    | A.10 and A.18 (Idea 2) rewritten to reflect the tiered single-LLM / dual-LLM model. The four-cell cross-validation matrix is replaced with operational escalation criteria and a tests-first discipline within every translation run. |
 | 0.3.22 | 2026-04-13/15 | Spec hash embedding (A.20, RULE-18, all templates, prompt.md); doc restructure (user-guide, technical-reference, whitepaper 6-pager); mcp-server-pcd v0.3.1 spec (verify_spec_hash); `spack-package` deployment template added (10th template; first declarative specification target type; derived from Spack 1.1.1 source; all 18 `spack audit` checks mapped to INVARIANTS) |

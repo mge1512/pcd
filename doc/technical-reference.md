@@ -1,7 +1,7 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.3.24
+**Version:** 0.3.25
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 **License:** CC-BY-4.0
@@ -465,6 +465,29 @@ POSTCONDITIONS, and INVARIANTS without the bias of an existing implementation.
 The same discipline that has made TDD valuable in human engineering for two
 decades is what makes tests-first valuable for LLM-driven translation.
 
+As of v0.3.25, tests-first is enforced **structurally**, not by prose alone.
+The translator prompt halts before writing any non-test source file if
+`independent_tests/<llm-name>/` does not yet exist and contain at least one
+test file. This is the same shape as the dual-LLM ordering guard described
+in section 15: a stated invariant becomes a checkable precondition.
+
+When a deployment template declares a `## EXECUTION` section that orders
+implementation phases before the test infrastructure phase, the prompt rule
+takes precedence — but as of v0.3.25 the canonical templates have been
+restructured so that the test-writing phase is Phase 1. The conflict that
+prompted the explicit precedence rule is now mostly historical, but the
+rule remains in force for any third-party or downstream-modified template
+that retains the older phase ordering.
+
+**Tests-First-Compliance in the TRANSLATION_REPORT.** Every translation
+report records a `Tests-First-Compliance: yes | no` field. The translator
+fills this in based on whether tests were written before any non-test
+source file. A `no` value automatically demotes every High-confidence row
+in the per-EXAMPLE table to Medium, on the grounds that the post-hoc
+test-tuning risk was not controlled. This makes the discipline visible to
+an auditor at a glance: a `Tests-First-Compliance: yes` is an empirical
+claim that the per-EXAMPLE confidence ratings can be trusted at face value.
+
 **Test refinement discipline.** Tests may be refined after a test run reveals
 a gap, but every refinement must be recorded in a `Test Refinements` table in
 the TRANSLATION_REPORT.md, with one row per refinement and an explicit
@@ -491,6 +514,28 @@ the spec author did not think to include in the EXAMPLES section. The tests
 serve two purposes: as a validation mechanism for the current translation,
 and as a candidate addition to the spec's EXAMPLES section for future
 translations.
+
+**Test-author syntax check.** A test suite that does not compile provides
+no verification value; worse, it can be silently mistaken for coverage. As
+of v0.3.25 the test-author flow includes a structural syntax-check gate
+before `TEST_REPORT.md` is written. Each deployment template declares the
+exact commands for its target language (`go vet` + `gofmt -l` for Go;
+`cargo check --tests` for Rust; `python -m py_compile` + `flake8` for
+Python). Any failure halts the test-author run; `TEST_REPORT.md` is not
+written. The translator pass, in turn, refuses to consume a test-author
+output whose `TEST_REPORT.md` records `Test-Compile-Gate: fail`. The two
+guards together — syntax check on the test-author side, continuity check
+on the translator side — ensure that the dual-LLM cross-check is either
+properly run or visibly absent. There is no third state where it is
+silently degraded.
+
+This guard was added in response to an early dual-LLM run where Mistral
+produced a 989-line Go test file containing a triple-backtick character
+inside a raw string literal — a Go syntax error. Without the gate, the
+test file shipped, was consumed by the translator, and failed to compile
+during the compile gate; the dual-LLM cross-check evaporated because
+neither test in the file ever ran. The gate makes this failure visible at
+the source rather than at the consumer.
 
 **Why the same language for tests and code.** Tests and the implementation
 are written in the same language. This is a production constraint, not a

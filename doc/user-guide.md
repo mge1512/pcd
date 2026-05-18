@@ -1,6 +1,6 @@
 # PCD User Guide
 
-**Version:** 0.3.24
+**Version:** 0.3.25
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-05-18
 **License:** CC-BY-4.0
@@ -938,12 +938,18 @@ The translator follows this order, enforced by the prompt:
    the same language as the implementation will use, with the language's
    standard testing framework (`go test`, `cargo test`, `pytest`, JUnit,
    etc.).
-3. Write the implementation code, the packaging deliverables, and any
+3. Verify that the test directory exists and contains at least one test
+   file before writing any non-test source. This is a structural guard:
+   translator halts if no test file is present. The prompt cannot be
+   satisfied by acknowledging tests-first in prose.
+4. Write the implementation code, the packaging deliverables, and any
    other files declared in the template's DELIVERABLES table.
-4. Run the test suite against the implementation. If any test fails,
+5. Run the test suite against the implementation. If any test fails,
    either fix the code or refine the test with documented rationale.
-5. Write `TRANSLATION_REPORT.md`, including the Test Refinements table
-   if any tests were edited after a test run.
+6. Write `TRANSLATION_REPORT.md`, including the Test Refinements table
+   if any tests were edited after a test run, and recording
+   `Tests-First-Compliance: yes` (or `no` with explanation if for any
+   reason tests were written after implementation source).
 
 **If a milestone is active:** the translator reads the active milestone,
 implements only its Included BEHAVIORs, generates stubs for Deferred
@@ -973,8 +979,15 @@ llm-name: mistral-large-2
 
 Invoke the same `prompts/prompt.md` with a different LLM. Test-author writes
 only tests under `independent_tests/mistral-large-2/` in the language the
-deployment template will resolve to. Test-author produces a `TEST_REPORT.md`
-and stops — no implementation, no packaging.
+deployment template will resolve to. Before writing `TEST_REPORT.md`,
+test-author runs the syntax check declared by the deployment template
+(for Go: `go vet` and `gofmt -l` over the test directory; for Rust:
+`cargo check --tests`; for Python: `python -m py_compile` and `flake8`).
+If any of these checks fail, test-author halts and does not write the
+report. A failing test-author run leaves no `TEST_REPORT.md`, which means
+the translator pass will refuse to proceed in dual-LLM mode — re-run
+test-author after fixing the test file. On success, `TEST_REPORT.md` is
+written with `Test-Compile-Gate: pass` and test-author stops.
 
 **Step 2: Run translator.** Replace `ROLE.md` with the translator version:
 
@@ -993,11 +1006,18 @@ spec hash and template continuity are intact:
   re-run test-author against the current spec.
 - The deployment template, preset resolution, and hints files in scope
   must be the same as those test-author used.
+- `Test-Compile-Gate` in test-author's `TEST_REPORT.md` must be `pass`.
+  A `fail` value (or a missing report — meaning test-author halted before
+  writing it) aborts translator. Re-run test-author after fixing the test
+  file.
 
-With both checks passed, translator writes its own tests under
-`independent_tests/claude-sonnet-4-5/` *before* reading test-author's, then
-writes the implementation, then runs **both** test suites. The
-TRANSLATION_REPORT.md reports results for both suites separately.
+With all checks passed, translator writes its own tests under
+`independent_tests/claude-sonnet-4-5/` *before* reading test-author's. The
+prompt enforces this structurally: translator halts if it attempts to
+write any non-test source file while `independent_tests/<llm-name>/` is
+empty. Once translator's tests exist, translator writes the implementation,
+then runs **both** test suites. The TRANSLATION_REPORT.md reports results
+for both suites separately, and records `Tests-First-Compliance: yes`.
 
 **On `llm-name` values.** Include enough of the model identifier to
 reproduce the run later. `claude-sonnet-4-5` is precise enough when only
@@ -1044,13 +1064,13 @@ For `mcp-server-pcd` style components with many embedded assets, full
 input (all templates, hints, prompts) is required for correct embedding
 — partial input produces placeholder assets.
 
-For dual-LLM mode, pair a translator and a test-author test author
-from independent model families. The reference pairing for non-SUSE PCD
-work is Claude Sonnet (translator), Mistral Large 2 via La Plateforme
-(test-author, independent EU jurisdiction). A third model — GPT-5 in the
-current reference pairing — is invoked only when a human reviewer needs
-a second opinion on whether a failed test-author test reflects a translator
-defect, a test-author misreading, or genuine spec ambiguity. It is not run
+For dual-LLM mode, pair a translator and a test-author from independent
+model families. The reference pairing for non-SUSE PCD work is Claude
+Sonnet (translator), Mistral Large 2 via La Plateforme (test-author,
+independent EU jurisdiction). A third model — GPT-5 in the current
+reference pairing — is invoked only when a human reviewer needs a second
+opinion on whether a failed test-author test reflects a translator defect,
+a test-author misreading, or genuine spec ambiguity. It is not run
 automatically.
 
 ---
