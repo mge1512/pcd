@@ -271,6 +271,9 @@ STEPS:
 16. Apply RULE-16 (MILESTONE BEHAVIOR names exist in spec, if present).
 17. Apply RULE-17 (scaffold milestone ordering and uniqueness, if present).
 18. Apply RULE-18 (spec hash presence in TRANSLATION_REPORT, if check-report=true).
+19. Apply RULE-19 (Includes path resolves, if Includes present).
+20. Apply RULE-20 (merged spec has no name collisions, if Includes present).
+21. Apply RULE-21 (inclusion graph is acyclic and well-formed, if Includes present).
     MECHANISM: rules are independent; a failure in one rule does not prevent
     subsequent rules from running. All diagnostics are collected before output.
 
