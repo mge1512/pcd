@@ -9,9 +9,8 @@ input directory alongside this prompt:
 
 2. `<spec-name>.md` — the specification for the component to implement.
 
-3. *(optional)* `ROLE.md` — a small directive file selecting the
-   translator role for this run. See **Role** below. If absent, the role
-   is `translator`.
+3. *(optional)* `ROLE.md` — a small directive file selecting the role for this run.
+   See **Role** below. If absent, the role is `translator`.
 
 Additional files may be present if listed in the spec's DEPENDENCIES section
 or in the active MILESTONE's `Hints-file:` field (hints files, interface
