@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.26
+Version:     0.3.27
 Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -149,6 +149,8 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | PUBLIC-API-SURFACE | stable-across-translations | required | The names and signatures of functions and types exposed by implementation modules to other components (entry-point, tests, other tools that import the module) form a public API surface. This surface must remain stable across translations of the same spec at the same Version. A translation may add to the surface; it may not remove or rename existing entries without a spec Version increment. |
 | PUBLIC-API-SURFACE | recorded-in-report | required | The translator records the public API surface in `TRANSLATION_REPORT.md` under a `## Public API Surface` section, listing each exported symbol with its full signature, grouped by module. The next translation reads this section as input and verifies that the new implementation preserves it. |
 | BINARY-COUNT | 1 | required | Exactly one binary per spec. Multi-binary tools require separate specs. |
+| BINARY-LOCATION | project-root | required | The translator builds the binary at the project root (the directory containing `go.mod` / `Cargo.toml` / the equivalent root manifest). Relative to test files at `independent_tests/<llm-name>/`, this is `../../<binary-name>`. This is the single canonical location both the translator's tests and the test-author's tests use to invoke the binary. The translator does not build the binary at any other location, and test-author tests do not search for the binary at any other path. |
+| BINARY-LOCATION | source-path-coordination | required | The test-author's `TestMain` (or equivalent setup) may build the binary from a source path expected to exist after translation. If TEST_REPORT.md declares such a path (e.g. `cmd/<name>/main.go`), the translator must place the entry point at exactly that path. The translator's continuity check verifies the path exists in its planned layout before proceeding. |
 | RUNTIME-DEPS | none | required | No runtime dependencies permitted. All dependencies linked statically. |
 | CLI-ARG-STYLE | key=value | required | Argument parsing uses key=value pairs. POSIX --flag style is forbidden for new options. v2 note: relax to default= and add supported alternatives (POSIX, subcommand) when real use cases require it. |
 | CLI-ARG-STYLE | bare-words | supported | Bare word commands (e.g. list-templates) are permitted alongside key=value. |
@@ -348,6 +350,30 @@ THEN:
   report contains "## Public API Surface" section
   section lists every exported symbol with full signature
   symbols grouped by module/package
+
+### EXAMPLE: binary_location_canonical_path
+GIVEN:
+  test-author writes tests at independent_tests/<llm-name>/
+  test invokes binary via "../../<binary-name>"
+WHEN:
+  translator phase 6 compile-gate builds the implementation
+THEN:
+  translator places the binary at the project root (where go.mod lives)
+  binary is at exactly the path "../../<binary-name>" relative to the test directory
+  translator does not build duplicate binaries at other locations to satisfy
+  divergent test path assumptions
+
+### EXAMPLE: binary_location_mismatch_halts
+GIVEN:
+  test-author TEST_REPORT.md declares Binary-Discovery-Path: ../<binary-name>
+  cli-tool template specifies BINARY-LOCATION: project-root (../../<binary-name>)
+WHEN:
+  translator phase 1 continuity check runs
+THEN:
+  translator halts with diagnostic:
+    "Binary-Discovery-Path in TEST_REPORT.md (../<binary-name>) does not match
+     the deployment template's BINARY-LOCATION constraint (../../<binary-name>).
+     Re-run test-author with the correct path."
 
 ---
 
