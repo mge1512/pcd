@@ -221,6 +221,14 @@ single-LLM is a fully supported invocation.
      test-author test suite did not pass its syntax check. Re-run
      test-author and ensure `Test-Compile-Gate: pass` before running
      translator." Do not attempt to run the test-author suite.
+   - **Binary-Discovery-Path** (CLI deployments only): TEST_REPORT.md's
+     `Binary-Discovery-Path` field must equal the value specified by
+     the deployment template's `BINARY-LOCATION` constraint, expressed
+     relative to the test directory. If they differ, halt with a
+     diagnostic identifying both values. The translator does not work
+     around the mismatch by building binaries at multiple locations;
+     the path is part of the template contract and divergence is a
+     test-author error to be fixed before translation proceeds.
 
    On any continuity failure, halt with a diagnostic that names both
    the value found in TEST_REPORT.md and the value the translator
@@ -285,6 +293,32 @@ For a **test-author** run:
    externally-observable behaviour is correct; it cannot verify
    implementation internals, and must not try.
 
+   **Binary discovery.** Tests for CLI deployments must locate the
+   binary under test using the path the deployment template's
+   `BINARY-LOCATION` constraint specifies, expressed relative to the
+   test directory. For `cli-tool`, this is `../../<binary-name>`
+   (two directories up from `independent_tests/<llm-name>/` to the
+   project root, where the translator builds the binary).
+
+   Tests must use exactly this path. Do not use `../<binary-name>`
+   (one level up), bare `<binary-name>` (relying on `$PATH`),
+   absolute paths, or other variants. Coordination between test-author
+   and translator on where the binary lives is part of the deployment
+   template's contract; departing from that contract causes the
+   translator's compile gate to either fail or work around the
+   mismatch by building duplicate binaries, both of which are
+   degraded states.
+
+   If the binary may not yet exist when the test runs (typical for
+   test-author runs, where the translator hasn't run yet), tests may
+   include a setup step (Go: `TestMain`, Rust: `#[ctor]`, etc.) that
+   builds the binary at the canonical location from a known source
+   path. The translator must honour that source path: if your
+   `TestMain` writes `go build -o ../../<binary-name>
+   ../../cmd/<name>/main.go`, the translator must place the entry
+   point at `cmd/<name>/main.go`. Record this expectation in
+   TEST_REPORT.md so the translator's continuity check can verify it.
+
    **Test fixture completeness.** A test fixture (the spec content the
    test passes to the binary, or the request body the test sends to
    the server, etc.) must be a structurally complete input unless the
@@ -315,12 +349,43 @@ For a **test-author** run:
    1. Start from the spec's own EXAMPLE GIVEN block, which describes
       the full fixture state the EXAMPLE assumes.
    2. Translate that GIVEN narrative into a literal input text.
-   3. Include every section the spec under test requires (for
-      `pcd-lint`, that means: META with all required fields, TYPES,
-      BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES —
-      even when the test only asserts on one of them).
+   3. Include every section the spec under test requires, with content
+      sufficient to pass all other structural rules in the spec.
+      Section presence alone is not sufficient — an empty section
+      header is incomplete, and the spec's other rules will fire on
+      it.
+
+      For `pcd-lint` specifically:
+      - META with all required fields (Deployment, Version,
+        Spec-Schema, Author, License, Verification, Safety-Level)
+      - TYPES (may be empty body)
+      - BEHAVIOR sections with non-empty STEPS lists. A `## BEHAVIOR: foo`
+        header with nothing under it fires RULE-08; if your test
+        expects a specific warning and the binary instead emits the
+        warning *plus* a RULE-08 error, the test fails for the wrong
+        reason.
+      - PRECONDITIONS (may be empty body)
+      - POSTCONDITIONS (may be empty body)
+      - INVARIANTS with at least one entry carrying an
+        `[observable]` or `[implementation]` tag (RULE-09 warns
+        otherwise)
+      - EXAMPLES with at least one negative-path EXAMPLE if any
+        BEHAVIOR in the fixture has error exits in its STEPS list
+        (RULE-10)
+
+      Before writing the test, mentally run the binary against your
+      fixture and predict which rules fire. The expected diagnostic
+      set is what the test asserts on. If your fixture would trigger
+      structural rules you don't intend to test, complete the
+      structure first.
    4. Add the specific feature under test (deprecated field, empty
       block, etc.) to the otherwise-complete fixture.
+
+   The general principle: the binary's behaviour on a structurally
+   complete fixture is what the test asserts. The binary's behaviour
+   on a structurally incomplete fixture is the union of all errors
+   the binary reports for everything wrong with the fixture, which is
+   rarely what the test name implies.
 
    If you cannot construct a complete fixture for a test, do not
    write the test as if you had one. Document the limitation in
@@ -645,6 +710,29 @@ Produce a `TRANSLATION_REPORT.md` covering:
   on first run is demoted from High to Medium confidence in the
   per-EXAMPLE table below — post-hoc test-tuning risk was not controlled,
   and the structural guard at step 3 of the translator flow was bypassed.
+- **Continuity-Check:** (only if a test-author run exists at
+  `independent_tests/<other-role-llm-name>/`; otherwise write
+  `not applicable — no test-author input`). A table with one row per
+  check, showing the observed truth on disk, the value claimed in
+  TEST_REPORT.md, and the verdict. The table covers exactly the five
+  checks from step 7 of the translator flow:
+
+  | Check | Value on disk | Value in TEST_REPORT.md | Verdict |
+  |-------|---------------|-------------------------|---------|
+  | Spec-SHA256 (merged) | `<computed>` | `<from-report>` | `match` / `mismatch` |
+  | Spec-SHA256 (host) | `<computed>` | `<from-report>` | `match` / `mismatch` |
+  | Deployment-Template | `<template-file>.template.md v<version-from-file>` | `<from-report>` | `match` / `mismatch` |
+  | Hints-Files-Read | `<sorted-list-of-files-found>` | `<from-report>` | `match` / `mismatch` |
+  | Test-Compile-Gate | `pass` / `fail` (recompute against test-author files) | `<from-report>` | `match` / `mismatch` |
+  | Binary-Discovery-Path (CLI only) | `<path-from-template-constraint>` | `<from-report>` | `match` / `mismatch` |
+
+  If every verdict is `match`, write **Result: all checks passed,
+  proceeded to test-author suite execution**. If any verdict is
+  `mismatch`, the translator halted before this point per step 7; in
+  that case the report exists only to document the halt and the
+  remaining sections may be absent. Two reports that agree on a
+  fabricated value still fail the check; this table records what was
+  on disk, not what the reports claimed in mutual agreement.
 - Target language resolved, and whether any preset overrides the template default
 - **Module identity resolved** (if `MODULE-IDENTITY` constraint applies):
   the resolved module identity (e.g. Go module name, Rust package name)
@@ -728,6 +816,13 @@ Produce a `TEST_REPORT.md` covering:
   before writing this report, so a fail state should not normally appear
   here — but if it does (e.g. the run was completed manually), translator
   will refuse to consume the suite.
+- **Binary-Discovery-Path:** (CLI deployments only) the canonical
+  relative path the tests use to invoke the binary, per the deployment
+  template's `BINARY-LOCATION` constraint. For `cli-tool` this is
+  `../../<binary-name>`. If the test suite's setup step builds the
+  binary from source, also record the source path expected to exist
+  after translation (e.g. `../../cmd/<name>/main.go`). The translator
+  verifies that both paths are consistent with the layout it produces.
 - Target language resolved (the same way translator would resolve it)
 - Tests produced: one row per test function, with the EXAMPLE/BEHAVIOR/
   INVARIANT it covers
