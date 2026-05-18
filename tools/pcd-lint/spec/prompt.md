@@ -190,25 +190,46 @@ single-LLM is a fully supported invocation.
 6. If any test fails: either fix the implementation, or refine the test
    *with documented rationale* (see **Test Refinements** below).
 7. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
-   in the input directory, first verify continuity before running it:
-   - Read `TEST_REPORT.md` (produced by test-author). Confirm its
-     `Spec-SHA256` matches the SHA256 of the current spec file. If they
-     differ, halt and report: "Error: test-author test suite was produced
-     from a different specification (hash mismatch). Re-run test-author
-     against the current spec." Do not run test-author's tests against
-     the implementation.
-   - Confirm the deployment template, preset resolution, and hints
-     files listed in `TEST_REPORT.md` match those in scope for this
-     run. On any mismatch, halt with the same diagnostic pattern.
-   - Confirm that `TEST_REPORT.md` records `Test-Compile-Gate: pass`. If
-     it records `fail`, halt and report: "Error: test-author test suite
-     did not pass its syntax check. Re-run test-author and ensure
-     `Test-Compile-Gate: pass` before running translator." Do not
-     attempt to run the test-author suite.
-   - With all checks passed, run test-author's test suite against the
-     implementation and record results separately. **Do not edit
-     test-author's tests under any circumstances** — they are the
-     independent cross-check.
+   in the input directory, first verify continuity before running it.
+   The continuity check is against *observed truth on disk*, not
+   against internal agreement of TEST_REPORT.md fields. Two reports
+   that agree on a fabricated value still fail the check; the source
+   files are authoritative.
+
+   - **Spec-SHA256 (merged):** compute the SHA256 of the merged spec
+     text yourself (host + all recursively-resolved includes); the
+     value in TEST_REPORT.md must equal that. If they differ, halt and
+     report: "Error: test-author test suite was produced from a
+     different specification (merged-hash mismatch). Re-run test-author
+     against the current spec."
+   - **Spec-SHA256 (host):** compute the SHA256 of the host spec file
+     as read from input; the value in TEST_REPORT.md must equal that.
+   - **Deployment-Template:** read the `Version:` field from the
+     deployment template file in the input directory. The value in
+     TEST_REPORT.md must equal that. It is not sufficient that the
+     value in TEST_REPORT.md is internally consistent — the test is
+     against the template file on disk. If TEST_REPORT.md reports
+     `cli-tool.template.md v0.3.20` but the actual file declares
+     `Version: 0.3.26`, the check fails.
+   - **Hints-Files-Read:** the set of hints files TEST_REPORT.md
+     reports having read must equal the set of hints files the
+     translator reads from the input directory at its preset
+     resolution stage. Missing or extra files in either direction is
+     a failure.
+   - **Test-Compile-Gate:** TEST_REPORT.md must record
+     `Test-Compile-Gate: pass`. If `fail`, halt with: "Error:
+     test-author test suite did not pass its syntax check. Re-run
+     test-author and ensure `Test-Compile-Gate: pass` before running
+     translator." Do not attempt to run the test-author suite.
+
+   On any continuity failure, halt with a diagnostic that names both
+   the value found in TEST_REPORT.md and the value the translator
+   observed. Do not proceed to running test-author's tests.
+
+   With all checks passed, run test-author's test suite against the
+   implementation and record results separately. **Do not edit
+   test-author's tests under any circumstances** — they are the
+   independent cross-check.
 
 For a **test-author** run:
 
@@ -238,6 +259,74 @@ For a **test-author** run:
 3. Write the test suite under
    `independent_tests/<llm-name>/`, in the language declared by the
    deployment template (resolve the same way translator would).
+
+   **Test methodology.** The test suite is a black-box test of the
+   implementation through the interface the spec declares.
+
+   - For a `cli-tool` or `kubectl-style-cli` deployment, the interface
+     is a CLI binary. Tests invoke it via the language's standard
+     subprocess mechanism (Go: `exec.Command`; Rust:
+     `std::process::Command`; Python: `subprocess.run`) and assert on
+     stdout, stderr, and exit code.
+   - For an `mcp-server` deployment, the interface is the MCP tool
+     surface. Tests invoke MCP tools through a real client and assert
+     on responses.
+   - For a `backend-service` deployment, the interface is the HTTP API
+     declared in the spec's INTERFACES section. Tests invoke HTTP
+     endpoints and assert on status codes and response bodies.
+   - For a `library-c-abi` deployment, the interface is the exported
+     C ABI. Tests link against the built shared library and call
+     exported functions.
+
+   Tests must NOT import the implementation's source packages, call
+   internal functions of the implementation, simulate the spec'd
+   interface through wrapper code, or mock the binary, server, or
+   library under test. The test suite verifies that the spec's
+   externally-observable behaviour is correct; it cannot verify
+   implementation internals, and must not try.
+
+   **Test fixture completeness.** A test fixture (the spec content the
+   test passes to the binary, or the request body the test sends to
+   the server, etc.) must be a structurally complete input unless the
+   test's purpose is *specifically* to verify the binary's handling of
+   structural incompleteness.
+
+   A "structurally complete" fixture means it contains every section
+   or field the spec under test requires for the test's intent:
+
+   - For a test that verifies a WARNING about a deprecated field: the
+     fixture is a complete, otherwise-valid input with the deprecated
+     field added. The test asserts that the warning is emitted AND
+     that the input is otherwise accepted (exit 0 in permissive mode).
+   - For a test that verifies a WARNING about an empty sub-block: the
+     fixture is a complete, otherwise-valid input with one empty
+     sub-block. The test asserts the warning and accepts exit 0.
+   - For a test that verifies missing-section errors: the fixture is
+     *deliberately* incomplete in the way the test names.
+
+   The test name and the test fixture must agree on intent. A test
+   named `TestDeprecatedFieldPermissive` whose fixture is missing
+   half its required sections is incorrectly written: the binary will
+   correctly report multiple structural errors, not just the
+   deprecation warning, and the test that expects exit 0 fails.
+
+   When writing fixtures, the easiest correct pattern is:
+
+   1. Start from the spec's own EXAMPLE GIVEN block, which describes
+      the full fixture state the EXAMPLE assumes.
+   2. Translate that GIVEN narrative into a literal input text.
+   3. Include every section the spec under test requires (for
+      `pcd-lint`, that means: META with all required fields, TYPES,
+      BEHAVIOR, PRECONDITIONS, POSTCONDITIONS, INVARIANTS, EXAMPLES —
+      even when the test only asserts on one of them).
+   4. Add the specific feature under test (deprecated field, empty
+      block, etc.) to the otherwise-complete fixture.
+
+   If you cannot construct a complete fixture for a test, do not
+   write the test as if you had one. Document the limitation in
+   TEST_REPORT.md as a spec ambiguity and mark the affected EXAMPLE
+   with reduced confidence.
+
 4. **Run the syntax/build check on the test files just produced.** This is
    a structural gate, not a recommendation. The exact commands are declared
    in the deployment template's `## EXECUTION` section under the heading
@@ -497,6 +586,38 @@ making the version boundary cryptographically verifiable.
 This is an invariant: any artifact that does not embed the spec hash is
 incomplete, regardless of whether all other deliverables are present.
 
+### No placeholder values in generated artefacts
+
+Whenever a generated artefact must contain a computed value — a SHA256
+hash, a timestamp, a derived path, a checksum, a module identity — the
+value must be computed and written as the actual result. Never write a
+literal placeholder string (`<placeholder>`, `<hash>`, `<TODO>`,
+`xxxxx`, `placeholder`) and proceed.
+
+If you cannot compute the value because you lack the inputs (the file
+isn't yet on disk, the dependency hasn't been resolved, the source
+identity hasn't been supplied), halt and report the missing inputs.
+A halted run is recoverable; a run that proceeds with placeholder
+values produces artefacts that pass surface inspection but fail when
+consumed.
+
+This applies in particular to:
+
+- The `Spec-SHA256` in source file header comments, in TEST_REPORT.md,
+  in TRANSLATION_REPORT.md, in binary version output, and in every
+  packaging artefact listed above.
+- The module identity (`module` in `go.mod`, `package.name` in
+  `Cargo.toml`, etc.) — resolve from authoritative sources per the
+  deployment template's `MODULE-IDENTITY` constraints; never write a
+  guessed or placeholder identity.
+- Version strings, timestamps, build dates — compute from the
+  available source-of-truth, do not write `<TBD>` or `0.0.0`.
+
+A reviewer encountering `<placeholder>` in a committed artefact has
+reasonable grounds to reject the entire deliverable: it indicates the
+generation process did not complete and the artefact's relationships
+to its sources are unverifiable.
+
 ---
 
 ## Reports
@@ -525,6 +646,12 @@ Produce a `TRANSLATION_REPORT.md` covering:
   per-EXAMPLE table below — post-hoc test-tuning risk was not controlled,
   and the structural guard at step 3 of the translator flow was bypassed.
 - Target language resolved, and whether any preset overrides the template default
+- **Module identity resolved** (if `MODULE-IDENTITY` constraint applies):
+  the resolved module identity (e.g. Go module name, Rust package name)
+  and the authoritative source it came from (spec META, hints file,
+  prior manifest). If multiple sources agreed, list all of them. If
+  the constraint did not apply (template does not declare it), say so
+  explicitly.
 - Delivery mode used and why
 - How STEPS ordering was applied for each BEHAVIOR block
 - Which INTERFACES test doubles were produced (if INTERFACES section present)
@@ -533,6 +660,11 @@ Produce a `TRANSLATION_REPORT.md` covering:
 - Which BEHAVIOR blocks had Constraint: supported or forbidden, and how
   that affected code generation
 - Which COMPONENT entries from spec DELIVERABLES mapped to which filenames
+- **Public API Surface** (if `PUBLIC-API-SURFACE` constraint applies):
+  a `## Public API Surface` section listing every exported symbol of
+  every implementation module, with full signature, grouped by module.
+  Format: one symbol per line under a module heading. The next
+  translation reads this section as input and verifies continuity.
 - Specification ambiguities encountered
 - Rules that could not be implemented exactly as written, and why
 - Active MILESTONE (if any): name, `Scaffold:` value, hints files read,

@@ -12,6 +12,7 @@ Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     GPL-2.0-only
 Verification: none
 Safety-Level: QM
+Module:       github.com/mge1512/pcd/tools/pcd-lint
 
 ---
 

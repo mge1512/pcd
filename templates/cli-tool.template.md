@@ -5,8 +5,8 @@
 
 ## META
 Deployment:  template
-Version:     0.3.20
-Spec-Schema: 0.3.20
+Version:     0.3.26
+Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
 Verification: none
@@ -140,6 +140,14 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | LANGUAGE-ALTERNATIVES | C# | supported | Primary use case: Windows platform. Requires .NET runtime. |
 | BINARY-TYPE | static | default | Default: single static binary. No shared library dependencies at runtime. |
 | BINARY-TYPE | dynamic | supported | Permitted for C, C++, and C# only. Dynamic linking may be preferable when system libraries are large, versioned independently, or required by platform conventions. Not permitted for Go or Rust (use static). |
+| SOURCE-PARTITIONING | modular | required | Implementation source must be partitioned into multiple modules. A single monolithic source file containing all logic is not permitted. The partitioning unit follows the target language's package/module/namespace convention (Go: packages under `internal/`; Rust: modules under `src/`; C: separate header and source files per logical unit; C#: namespaces with one type per file). |
+| SOURCE-PARTITIONING | one-entry-one-implementation | required | At minimum: one entry-point module containing only CLI dispatch (argument parsing, top-level error reporting, calling into the implementation), and at least one implementation module containing the spec's behaviours. The entry-point module does not implement behaviours directly. |
+| SOURCE-PARTITIONING | by-behaviour-domain | supported | Implementation may be further partitioned by behavioural domain when the spec defines multiple distinct BEHAVIORs. Example: a linter may partition into parsing, rule-application, and formatting modules. The partitioning is the translator's choice, constrained only by the minimum above. |
+| MODULE-IDENTITY | host-specified | required | The implementation declares its module identity (Go: `go.mod` module line; Rust: `Cargo.toml` package.name; C: pkg-config name; C#: AssemblyName) using a value supplied by an authoritative source. The translator MUST NOT invent or substitute the identity. Authoritative sources, in priority order: (1) spec META `Module:` field, (2) language-specific hints file, (3) existing manifest from a prior translation in the output directory. If no source provides an identity, the translator halts with a diagnostic and requests one. The translator never infers identity from project name, repository URL guesswork, or heuristic from spec content. |
+| MODULE-IDENTITY | propagated | required | The module identity, once chosen, must appear consistently across all packaging artefacts: source manifests, package metadata (RPM `Source:` URL, DEB `Source:` field, `DH_GOPKG` in `debian/rules`), documentation (man page Homepage line, README install commands), and any internal package import paths. A reviewer must be able to grep the identity once and find all consumers. |
+| MODULE-IDENTITY | conflict-halts | required | If multiple authoritative sources provide module identity and they disagree, the translator halts with a diagnostic identifying all conflicting sources and their values. The translator does not silently choose one. |
+| PUBLIC-API-SURFACE | stable-across-translations | required | The names and signatures of functions and types exposed by implementation modules to other components (entry-point, tests, other tools that import the module) form a public API surface. This surface must remain stable across translations of the same spec at the same Version. A translation may add to the surface; it may not remove or rename existing entries without a spec Version increment. |
+| PUBLIC-API-SURFACE | recorded-in-report | required | The translator records the public API surface in `TRANSLATION_REPORT.md` under a `## Public API Surface` section, listing each exported symbol with its full signature, grouped by module. The next translation reads this section as input and verifies that the new implementation preserves it. |
 | BINARY-COUNT | 1 | required | Exactly one binary per spec. Multi-binary tools require separate specs. |
 | RUNTIME-DEPS | none | required | No runtime dependencies permitted. All dependencies linked statically. |
 | CLI-ARG-STYLE | key=value | required | Argument parsing uses key=value pairs. POSIX --flag style is forbidden for new options. v2 note: relax to default= and add supported alternatives (POSIX, subcommand) when real use cases require it. |
@@ -281,6 +289,66 @@ THEN:
     "CONFIG-ENV-VARS is forbidden for Deployment: cli-tool. \
      Use key=value arguments or preset files instead."
 
+### EXAMPLE: source_partitioning_modular_required
+GIVEN:
+  spec declares multiple BEHAVIORs (lint, list-templates, code-fence-tracking)
+  translator produces a single source file containing all logic in package main
+WHEN:
+  translator phase 6 compile-gate runs
+THEN:
+  translator halts with diagnostic:
+    "SOURCE-PARTITIONING constraint violated: implementation must be \
+     partitioned into entry-point module and at least one implementation \
+     module. Found: 1 file in package main."
+
+### EXAMPLE: module_identity_must_come_from_authoritative_source
+GIVEN:
+  spec META does not declare a Module: field
+  no hints file provides module identity
+  no existing manifest in output directory
+WHEN:
+  translator phase 1 setup runs
+THEN:
+  translator halts with diagnostic:
+    "MODULE-IDENTITY required but no authoritative source provides it. \
+     Supply via spec META 'Module:' field, language-specific hints file, \
+     or pre-existing manifest in output directory."
+  translator does not infer identity from spec content or repository URL
+
+### EXAMPLE: module_identity_conflict_halts
+GIVEN:
+  existing go.mod in output directory declares module github.com/foo/bar
+  hints file declares module identity github.com/foo/baz
+WHEN:
+  translator phase 1 setup runs
+THEN:
+  translator halts with diagnostic identifying both conflicting sources
+  and their values
+  translator does not silently choose one source over the other
+
+### EXAMPLE: public_api_surface_preserved_across_translation
+GIVEN:
+  prior TRANSLATION_REPORT.md exists with "## Public API Surface" section
+  listing N exported symbols with signatures
+WHEN:
+  current translation produces new implementation
+THEN:
+  every symbol from the prior surface appears in the new implementation
+  with compatible signature
+  new symbols may be added
+  if any prior symbol is missing or has a renamed/incompatible signature,
+  translator halts with diagnostic identifying the affected symbols
+
+### EXAMPLE: public_api_surface_recorded
+GIVEN:
+  successful translation produces internal/<n>/ package with exported symbols
+WHEN:
+  TRANSLATION_REPORT.md is written
+THEN:
+  report contains "## Public API Surface" section
+  section lists every exported symbol with full signature
+  symbols grouped by module/package
+
 ---
 
 ## DELIVERABLES
@@ -306,7 +374,8 @@ Deliverables must be produced in the following order:
 
 | OUTPUT-FORMAT | Constraint | Required Deliverable Files | Notes |
 |---|---|---|---|
-| source | required | `main.go` or `cmd/<n>/main.go`, `go.mod` | Single file preferred for tools under 1000 lines. Multi-package layout for larger tools. Translator documents choice in translation report. |
+| source | required | `main.go` (or `cmd/<n>/main.go`) + at least one implementation file in `internal/<n>/` or equivalent, `go.mod` | Per `SOURCE-PARTITIONING: modular` and `one-entry-one-implementation`, a single-file implementation is not permitted. The entry-point file contains only CLI dispatch; behaviour implementation lives in a separate package or namespace. Translator documents the chosen partitioning in the translation report. |
+| public-api | required | `TRANSLATION_REPORT.md` section `## Public API Surface` | Per `PUBLIC-API-SURFACE: recorded-in-report`. One row per exported symbol, with full signature, grouped by module. The next translation reads this section to verify continuity. |
 | build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. `build` target must set `CGO_ENABLED=0` for Go, `-static` for C/C++. `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
 | docs | required | `README.md` | Must document: installation via OBS (zypper, apt, dnf), usage, flags, exit codes. Must not document curl-based installation. |
 | man | required | `<n>.1.md`, `<n>.1` | Markdown source converted to troff via `pandoc`. Section 1 (user commands). Install to `%{_mandir}/man1/` (RPM) and `debian/<n>/usr/share/man/man1/` (DEB). |
@@ -408,6 +477,31 @@ The translator receives in the working directory:
 If the spec's DEPENDENCIES section references hints files, they are also
 present. Read them before writing `go.mod` or any code that uses those
 libraries — they contain verified dependency version strings.
+
+### Module identity resolution
+
+Before any code or manifest is generated, resolve the module identity
+required by `MODULE-IDENTITY: host-specified`. The translator reads
+authoritative sources in this order:
+
+1. The spec's META `Module:` field, if present.
+2. Any language-specific hints file (e.g. `<spec-name>.go.hints.md`)
+   declaring a module name.
+3. The pre-existing manifest in the output directory from a prior
+   translation (Go: `go.mod`; Rust: `Cargo.toml`).
+
+If exactly one source provides an identity, use it. If two or more
+sources provide identities and they agree, use the agreed value. If
+they disagree, halt with a diagnostic identifying every source and its
+value. If no source provides an identity, halt with a diagnostic
+requesting one.
+
+Identity is never inferred from project name, repository URL guesswork,
+or heuristic from spec content. This is the same discipline applied to
+the spec hash — derived values must come from a deterministic source.
+
+Once resolved, the identity propagates to all artefacts where it
+appears (per `MODULE-IDENTITY: propagated`).
 
 ### Resume logic
 
