@@ -2,9 +2,9 @@
 ## Human Intent, Machine Implementation
 
 **Status:** Draft
-**Version:** 0.3.23
+**Version:** 0.3.24
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-16
+**Date:** 2026-05-18
 
 ---
 
@@ -14,7 +14,7 @@ Informally known as **Piccadilly** — *the place where intent becomes implement
 
 The **Post-Coding Development** paradigm (PCD) fundamentally changes how software is created. Domain experts write specifications in structured Markdown describing what a system should do. AI translates those specifications into complete, packaged, tested implementations. Engineers never write implementation code. If the output is wrong, they fix the specification and regenerate — they never touch the code.
 
-This is not AI-assisted coding. In vibe coding, humans write code and AI suggests; the code remains the primary artifact. In PCD, humans write specifications and AI generates all implementation code; the specification is the primary artifact and the source of truth.
+This is not AI-assisted coding. In vibe coding, humans write code and AI suggests; the code remains the translator artifact. In PCD, humans write specifications and AI generates all implementation code; the specification is the translator artifact and the source of truth.
 
 PCD enables AI-augmented development in safety-critical and regulated domains — automotive, aviation, medical devices, finance, government — that currently prohibit AI code generation because AI-suggested code cannot be audited. The paradigm resolves this by making the specification the audit point: human-authored, human-reviewed, validated by tooling, and cryptographically linked to every generated artifact. The spec is what you certify. The code is what you verify.
 
@@ -28,7 +28,7 @@ At AWS re:Invent 2025, Amazon CTO Werner Vogels dedicated a significant portion 
 |---|---|---|---|
 | Human writes | implementation code | code + prompts | specifications only |
 | AI role | none | suggests / completes | translates spec → code |
-| Primary artifact | source code | source code | specification |
+| Translator artifact | source code | source code | specification |
 | Target language | developer decides | developer decides | deployment template |
 | If output is wrong | edit the code | edit the code | fix the spec, regenerate |
 | Regulated domains | manual audit | prohibited | enabled by design |
@@ -46,21 +46,21 @@ Templates enforce the separation of intent from implementation. A specification 
 
 For large specifications — dozens of behaviors, thousands of lines — the milestone mechanism partitions translation into sequential passes. The first milestone is always a scaffold pass: all files, all types, all function signatures, all stubs, compile gate only. Subsequent milestones fill in real implementations one scoped set of behaviors at a time. The scaffold holds without modification through all milestones, giving every subsequent translator a stable foundation. The `sitar` system information tool — 35 behaviors, 2900-line specification — was translated to both Go and Rust in single sessions each using this pattern.
 
-Formal verification through meta-languages (Lean 4, F*, Dafny) is a supported path for highest-assurance requirements but is not the default or the primary case. The paradigm works — and has been empirically validated — on the direct path: specification → AI → code, with validation through executable examples, independent test generation, and the audit bundle.
+Formal verification through meta-languages (Lean 4, F*, Dafny) is a supported path for highest-assurance requirements but is not the default or the translator case. The paradigm works — and has been empirically validated — on the direct path: specification → AI → code, with validation through executable examples, independent test generation, and the audit bundle.
 
 ---
 
 ## 2. Goals
 
-PCD has three primary goals and several derived goals that follow from them.
+PCD has three translator goals and several derived goals that follow from them.
 
-The primary goals are: enable AI code generation in regulated and safety-critical domains that currently prohibit it; shift the engineering role from writing implementation code to authoring precise specifications; and produce a cryptographically auditable chain of custody from specification to deployed artifact.
+The translator goals are: enable AI code generation in regulated and safety-critical domains that currently prohibit it; shift the engineering role from writing implementation code to authoring precise specifications; and produce a cryptographically auditable chain of custody from specification to deployed artifact.
 
 The regulatory goal is the most consequential. ISO 26262, DO-178C, IEC 62304, and Common Criteria require auditable development processes. AI-suggested code is opaque and fails these requirements. PCD resolves this by making the human-authored, human-reviewed specification the audit point, not the generated code. The specification is certified; the code is verified against it. Every generated artifact — source files, binary, RPM, DEB, container image — embeds the SHA256 hash of the specification it was produced from, creating a verifiable link that does not depend on trusting the build pipeline.
 
 The engineering role goal requires a genuine shift in what organizations value. The expensive, difficult, intellectually demanding work in PCD is writing precise specifications — capturing behaviors, invariants, and examples accurately enough that the generated code is correct. This is harder than writing code; it requires architectural thinking, not implementation thinking. The cheap part is running the translator. A complete translation run for a well-specified component costs one LLM session. This asymmetry has a direct implication: when in doubt whether a specification change warrants full regeneration or incremental update, the answer is always full regeneration. The spec is the investment; the translator run is cheap.
 
-From these primary goals follow: removing target language as a specification concern; supporting incremental adoption in mixed codebases; providing open, replaceable tooling with no vendor lock-in to any AI provider; and enabling digital sovereignty through local LLM compatibility.
+From these translator goals follow: removing target language as a specification concern; supporting incremental adoption in mixed codebases; providing open, replaceable tooling with no vendor lock-in to any AI provider; and enabling digital sovereignty through local LLM compatibility.
 
 ---
 
@@ -86,7 +86,7 @@ From these primary goals follow: removing target language as a specification con
 
 ## 4. State of the Business
 
-The software industry is converging on specification-driven development. Werner Vogels named it at re:Invent 2025. GitHub Copilot, Cursor, and similar tools have demonstrated mass-market demand for AI code generation, while simultaneously surfacing its primary limitation: AI-generated code is opaque, non-auditable, and prohibited in regulated domains. The gap between what AI can produce and what regulated industries can accept is large and growing.
+The software industry is converging on specification-driven development. Werner Vogels named it at re:Invent 2025. GitHub Copilot, Cursor, and similar tools have demonstrated mass-market demand for AI code generation, while simultaneously surfacing its translator limitation: AI-generated code is opaque, non-auditable, and prohibited in regulated domains. The gap between what AI can produce and what regulated industries can accept is large and growing.
 
 PCD occupies a position that no current commercial tool addresses: AI code generation that is auditable by design, suitable for regulated domains, and vendor-neutral. The critical differentiator is not technical sophistication — it is the explicit placement of the human review point. Every AI coding assistant places the human in the loop at the code level, which is exactly where regulators require human comprehension. PCD places the human in the loop at the specification level, which is where human comprehension is both possible and valuable, and treats the code as a generated artifact subject to automated verification.
 
@@ -114,7 +114,7 @@ The hard questions must be answered honestly. Copyright ownership of AI-generate
 
 ## 6. Strategic Priorities
 
-The toolchain is functional and self-hosting. `pcd-lint` validates specification structure against 17 rules. `mcp-server-pcd` serves templates, prompts, and hints to any MCP-capable LLM host, providing a complete translation environment in a single server connection. Nine deployment templates cover the primary deployment contexts. The empirical record spans multiple models, languages, and specification sizes. The foundation is solid.
+The toolchain is functional and self-hosting. `pcd-lint` validates specification structure against 17 rules. `mcp-server-pcd` serves templates, prompts, and hints to any MCP-capable LLM host, providing a complete translation environment in a single server connection. Nine deployment templates cover the translator deployment contexts. The empirical record spans multiple models, languages, and specification sizes. The foundation is solid.
 
 The immediate priority is making the paradigm accessible. The specification format has a learning curve that the interview prompt partially addresses but does not eliminate. The `user-guide.md` covers the spec author workflow; the `technical-reference.md` covers the full toolchain. Making these documents complete, accurate, and usable for engineers who have not been part of the development process is the highest-leverage activity for adoption.
 
@@ -1043,7 +1043,7 @@ audit_bundle/
 │   ├── TRANSLATION_REPORT.md        # AI translator self-evaluation
 │   └── translation-workflow.pikchr  # Pikchr workflow diagram (renders to SVG)
 ├── independent_tests/               # Optional: second-agent test cases
-│   └── independent_test.go          # Tests generated by a second LLM
+│   └── independent_test.go          # Tests written by the test-author LLM
 └── metadata.json                    # Traceability, hashes, versions
 ```
 
@@ -1059,8 +1059,8 @@ run — inputs, decisions, outputs — as a machine-generated audit trail.
 See Appendix A.18 for the diagram format and content requirements.
 
 The `independent_tests/` directory is optional but strongly recommended for
-safety-critical components. A second AI translator independently reads the
-specification and generates test cases, without access to the primary
+safety-critical components. A second LLM, acting as test-author, independently reads the
+specification and generates test cases, without access to the translator
 translator's implementation. These tests are run against the generated code;
 failures indicate specification ambiguity or translation errors.
 See Appendix A.18 for the second-agent test generation approach.
@@ -1435,7 +1435,7 @@ We initially considered ATS2 for its powerful linear type system. Multiple LLMs 
 | Dimension | Traditional Coding | AI-Assisted Coding | Post-Coding Development |
 |-----------|-------------------|-------------------|------------------------|
 | **Human Role** | Write implementation code | Write code + iterate with AI | Write specifications (no coding) |
-| **Primary Artifact** | Source code | Source code (AI-influenced) | Specification |
+| **Translator Artifact** | Source code | Source code (AI-influenced) | Specification |
 | **Target Language** | Developer decides | Developer decides | Deployment template decides |
 | **Memory Safety** | Depends on language | Same as language choice | Guaranteed by meta-language (verified path) |
 | **Auditability** | Hard for complex code | Harder (AI suggestions opaque) | **Easy: specs + proofs** |
@@ -1462,18 +1462,18 @@ specifications, pre-translation linting, tests-first discipline, executable
 examples — cannot eliminate the residual risk of translation error or
 hallucination. For components where a runtime defect has safety, security,
 or regulatory consequences, an additional verification mechanism is needed:
-an independent test suite produced by a second LLM, with no access to the
-primary translation's code.
+an independent test suite produced by a separate LLM acting as test-author, with no access to the
+translation's code.
 
 PCD distinguishes two operational modes:
 
-- **Single-LLM mode** (the default). One translator (primary) writes tests
+- **Single-LLM mode** (the default). One translator (translator) writes tests
   under `independent_tests/<llm-name>/` first, then the implementation,
   then runs the tests. This is the standard PCD workflow and covers the
   majority of components.
-- **Dual-LLM mode** (escalation). A second translator (secondary) writes
+- **Dual-LLM mode** (escalation). A second LLM acting as test-author writes
   an independent test suite first, with no access to any implementation.
-  Primary then runs as in single-LLM mode and additionally runs secondary's
+  Translator then runs as in single-LLM mode and additionally runs test-author's
   test suite against its implementation.
 
 ### When Dual-LLM Mode Is Appropriate
@@ -1491,8 +1491,8 @@ following applies:
   affects every downstream user.
 
 The gate is operational, not declarative — no META field controls it.
-The user chooses to run secondary, or does not. This keeps the choice
-explicit and visible in the audit trail (a secondary run is either present
+The user chooses to run test-author, or does not. This keeps the choice
+explicit and visible in the audit trail (a test-author run is either present
 in `independent_tests/` or it is not), and it avoids the trap of a hidden
 process configuration that an auditor cannot verify by inspecting the
 artefacts.
@@ -1504,55 +1504,55 @@ scaffold milestone (where the package structure and interface shapes are
 committed) and any milestone covering safety-critical or security-critical
 behaviours warrant the additional cost; later milestones implementing
 individual non-critical behaviours may not. The mechanism is identical
-to the full-spec case — secondary runs first against the milestone-scoped
-translation, primary runs second — and the hash and template continuity
+to the full-spec case — test-author runs first against the milestone-scoped
+translation, translator runs second — and the hash and template continuity
 checks described below apply at the milestone boundary. The choice of
 which milestones to escalate is itself an audit artefact: it shows up as
-the presence or absence of secondary's directory next to each milestone's
+the presence or absence of test-author's directory next to each milestone's
 TRANSLATION_REPORT.md.
 
 ### The Operational Flow
 
 ```
-Step 1 — Secondary runs first:
+Step 1 — Test-author runs first:
 
   spec.md ─┐
-           ├─► secondary LLM ─► independent_tests/mistral-large-2/
+           ├─► test-author LLM ─► independent_tests/mistral-large-2/
   template ┘                    TEST_REPORT.md
                                 (no implementation, no packaging)
 
-Step 2 — Primary runs next:
+Step 2 — Translator runs next:
 
   spec.md ─┐
-  template ├─► primary LLM ─► independent_tests/claude-sonnet-4-5/
+  template ├─► translator LLM ─► independent_tests/claude-sonnet-4-5/
   hints ─ ─┘                  generated code, packaging
-  secondary tests (read-only)  runs both test suites
+  test-author tests (read-only)  runs both test suites
                               TRANSLATION_REPORT.md
-                              (incl. results of secondary tests)
+                              (incl. results of test-author tests)
 ```
 
-Primary writes its own tests *before* reading secondary's tests, preserving
-the tests-first discipline. After implementation, primary runs both test
-suites. If primary's own tests fail, primary may refine the test or fix
+Translator writes its own tests *before* reading test-author's tests, preserving
+the tests-first discipline. After implementation, translator runs both test
+suites. If translator's own tests fail, translator may refine the test or fix
 the implementation, with the action logged in the Test Refinements table
-of TRANSLATION_REPORT.md. **Primary may not edit secondary's tests under
+of TRANSLATION_REPORT.md. **Translator may not edit test-author's tests under
 any circumstances** — they are the independent cross-check, and their
 value depends on their having been written without knowledge of any
 implementation.
 
-**Continuity checks.** Before running secondary's tests against the
-implementation, primary verifies two properties of secondary's run.
-First, the `Spec-SHA256` recorded in secondary's `TEST_REPORT.md` must
-match the SHA256 of the specification primary received as input. If the
-specification was edited between secondary's run and primary's run,
-secondary's tests are stale by definition, and running them against
-primary's implementation tests the wrong contract. Second, the
+**Continuity checks.** Before running test-author's tests against the
+implementation, translator verifies two properties of test-author's run.
+First, the `Spec-SHA256` recorded in test-author's `TEST_REPORT.md` must
+match the SHA256 of the specification translator received as input. If the
+specification was edited between test-author's run and translator's run,
+test-author's tests are stale by definition, and running them against
+translator's implementation tests the wrong contract. Second, the
 deployment template, preset resolution, and hints files in scope for
-primary's run must match those secondary used. A primary run targeting
-Rust cannot meaningfully use secondary's Go tests, even if the spec hash
-matches. Mismatch on either check aborts primary's run with a diagnostic
-identifying which property differed; the user re-runs secondary against
-the current scope before retrying primary. The continuity checks are
+translator's run must match those test-author used. A translator run targeting
+Rust cannot meaningfully use test-author's Go tests, even if the spec hash
+matches. Mismatch on either check aborts translator's run with a diagnostic
+identifying which property differed; the user re-runs test-author against
+the current scope before retrying translator. The continuity checks are
 mechanical applications of the same spec-hash discipline that already
 binds artefacts to specifications elsewhere in the framework; they
 extend that discipline to one additional boundary.
@@ -1562,47 +1562,47 @@ extend that discipline to one additional boundary.
 | Outcome | Interpretation | Recommended action |
 |---|---|---|
 | Both suites pass | High confidence; two independent readings of the spec agree | Proceed |
-| Primary tests pass, secondary tests fail | Either primary has a defect not caught by its own tests, or secondary misread the spec, or the spec is ambiguous on that BEHAVIOR | Investigate; reviewer determines cause; fix the cause, not the test |
-| Both suites fail | Likely a translation defect in primary, possibly compounded by spec ambiguity | Diagnose primary; consider clarifying the spec and rerunning both LLMs |
-| Primary tests fail, secondary tests pass | Primary's own tests caught its defect; primary should have fixed it before submitting | Treat as a primary-side failure; primary did not satisfy its own discipline |
+| Translator tests pass, test-author tests fail | Either translator has a defect not caught by its own tests, or test-author misread the spec, or the spec is ambiguous on that BEHAVIOR | Investigate; reviewer determines cause; fix the cause, not the test |
+| Both suites fail | Likely a translation defect in translator, possibly compounded by spec ambiguity | Diagnose translator; consider clarifying the spec and rerunning both LLMs |
+| Translator tests fail, test-author tests pass | Translator's own tests caught its defect; translator should have fixed it before submitting | Treat as a translator-side failure; translator did not satisfy its own discipline |
 
 The first row is the high-confidence outcome. The second row is the
 diagnostic outcome that justifies the additional cost of dual-LLM mode —
 it surfaces spec ambiguity that single-LLM mode would not catch. The third
 row indicates a translation defect that warrants spec clarification before
 investing further effort. The fourth row indicates a process failure in
-the primary run that should not have been submitted.
+the translator run that should not have been submitted.
 
-In no case is the resolution to adjust secondary's tests to match primary's
+In no case is the resolution to adjust test-author's tests to match translator's
 behaviour. The integrity of the cross-check depends on this discipline.
 
 ### Library Templates: A Special Case
 
 For deployment templates targeting shared libraries (`library-c-abi`,
-`verified-library`), secondary's tests need to reference function and type
+`verified-library`), test-author's tests need to reference function and type
 names that the specification may not pin precisely. Test logic — what is
 asserted, against which examples, with which expected outputs — can be
 determined from the spec alone. The bindings to specific identifiers
 cannot.
 
-Secondary handles this in two phases:
+Test-author handles this in two phases:
 
-- **Phase A** (before primary): test logic is written, with
+- **Phase A** (before translator): test logic is written, with
   `<INTERFACE_PLACEHOLDER>` markers for any function or type names not
   pinned by the spec.
-- **Phase B** (after primary): a mechanical rebind pass replaces the
-  placeholders with primary's actual names. The rebind is logged as
+- **Phase B** (after translator): a mechanical rebind pass replaces the
+  placeholders with translator's actual names. The rebind is logged as
   `interface rebind` in the Test Refinements table and may not change
   assertions, expected values, or coverage.
 
 The independence property is preserved because the test content — the
-substance of what is being verified — was determined before primary
+substance of what is being verified — was determined before translator
 committed any code. Only the surface-level identifier bindings come
 afterward.
 
 ### Same Language for Tests and Code
 
-Both primary and secondary write tests in the language declared by the
+Both test-author and translator write tests in the language declared by the
 deployment template. This is a production constraint, not a methodological
 preference: certified runtime environments — Common Criteria images, OBS
 build workers, certified container images — carry the toolchain for one
@@ -1611,8 +1611,8 @@ both runtimes in the certified image, doubling the supply-chain surface
 for no operational benefit.
 
 The cost of forgoing cross-language independence is accepted. Independence
-is provided by secondary's reading being independent — it works from the
-specification alone, with no access to primary's implementation — not by
+is provided by test-author's reading being independent — it works from the
+specification alone, with no access to translator's implementation — not by
 the test language differing from the implementation language.
 
 ### Directory Naming as an Audit Artefact
@@ -1646,8 +1646,8 @@ value — when implementations agreed, three of the four cells were
 redundant; when they disagreed, the test-versus-test combinations were
 not the most efficient probe of the disagreement. The current design
 replaces the matrix with a tiered model: single-LLM by default, dual-LLM
-when escalation criteria apply, and direct cross-checking of secondary's
-tests against primary's implementation rather than a full matrix. The
+when escalation criteria apply, and direct cross-checking of test-author's
+tests against translator's implementation rather than a full matrix. The
 audit value is preserved; the operational cost drops.
 
 ---
@@ -1927,7 +1927,7 @@ The GIVEN/WHEN/THEN structure used in the EXAMPLES section of this paradigm is d
 Formal specification languages used in industry for system design. Amazon Web Services has used TLA+ extensively for distributed systems (DynamoDB, S3). Alloy is used in security protocol design. Both provide mathematical rigour over system behaviour. Key differences: humans write TLA+ and Alloy directly — these are programming languages for specifications, not natural language. There is no AI translation layer, no deployment template concept, and no pathway from specification to deployable code.
 
 **F* and HACL\***
-Microsoft Research's F* has been used to produce formally verified C code for cryptographic primitives. The HACL* library (used in Firefox, the Linux kernel, and WireGuard) was produced this way. This is the closest existing work to our verified path. Key difference: humans write F* directly. The paradigm's contribution is placing AI as the translator so domain experts — not formal methods specialists — author the primary artifact.
+Microsoft Research's F* has been used to produce formally verified C code for cryptographic primitives. The HACL* library (used in Firefox, the Linux kernel, and WireGuard) was produced this way. This is the closest existing work to our verified path. Key difference: humans write F* directly. The paradigm's contribution is placing AI as the translator so domain experts — not formal methods specialists — author the translator artifact.
 
 **Dafny**
 Microsoft Research's Dafny compiles verified code to multiple target languages. It is accessible enough that some engineers use it without a formal methods background. Key difference: Dafny is still a programming language. Authors write Dafny, not structured natural language. It is a candidate meta-language within this paradigm, not a competing paradigm.
@@ -1961,7 +1961,7 @@ not produced a named methodology, a body of literature, or an abbreviation.
 This paradigm uses **Post-Coding Development** as a proper noun with a
 deliberately inverted meaning: *coding is no longer the central human activity*.
 The human role shifts from writing implementation code to authoring specifications.
-Code becomes a generated output — a compiler artefact — rather than the primary
+Code becomes a generated output — a compiler artefact — rather than the translator
 work product. The name marks that shift, not a phase that follows coding.
 
 The informal alias **Piccadilly** — *the place where intent becomes
@@ -1982,13 +1982,13 @@ throughout the tooling and documentation.
 | AWS Kiro | IDE-guided spec | Yes | No | No | No |
 | Thoughtworks SPDD | Structured prompt (REASONS Canvas) | Yes | No | No | No |
 | Program synthesis (research) | Formal spec language | Partial | Yes | No | No |
-| **Post-Coding Development** | **Structured natural language** | **Yes** | **Optional, pluggable** | **Yes (primary target)** | **Yes** |
+| **Post-Coding Development** | **Structured natural language** | **Yes** | **Optional, pluggable** | **Yes (translator target)** | **Yes** |
 
 ### What Is Genuinely Novel
 
 The combination that does not exist elsewhere:
 
-1. **Natural language as the primary artifact** — not a programming language, not a formal language, not a visual editor. Structured Markdown that domain experts can write without programming training.
+1. **Natural language as the translator artifact** — not a programming language, not a formal language, not a visual editor. Structured Markdown that domain experts can write without programming training.
 
 2. **Deployment templates as a first-class concept** — target language is not a human decision; it is derived from deployment context. Specifications are technology-agnostic and stable across language ecosystem changes.
 
@@ -2611,7 +2611,7 @@ not the full implementation spec."
 **Project Manifest**
 A top-level file (`pcd-project.md`) that declares all components in a
 system, their dependencies, build order, and system-level invariants.
-The manifest is the architect's primary artifact in a multi-component project.
+The manifest is the architect's translator artifact in a multi-component project.
 See Appendix A.17 for the `project-manifest` deployment template.
 
 **System-Level Invariants**
@@ -2835,40 +2835,40 @@ tests for cases the author did not consider: boundary conditions, error
 paths, invariant violations, and edge cases at the margins of the type
 constraints.
 
-This independence is structural, not stylistic. The second LLM has no
+This independence is structural, not stylistic. The test-author LLM has no
 access to any implementation. It reads only the specification and produces
-test cases from its own reading. Divergence between what the second LLM
-expects and what the primary translation produces surfaces specification
+test cases from its own reading. Divergence between what the test-author LLM
+expects and what the translation produces surfaces specification
 ambiguity or translation error.
 
 Independent test generation is also the foundation of dual-LLM verification
-(Appendix A.10). In dual-LLM mode, the second LLM runs first and writes
-its tests *before* primary writes any code; in single-LLM mode, primary
+(Appendix A.10). In dual-LLM mode, the test-author runs first and writes
+its tests *before* translator writes any code; in single-LLM mode, translator
 alone writes both tests and code, with the tests-first discipline.
 
 #### Workflow
 
 ```
-Spec ─► Primary LLM ─► independent_tests/<primary-llm-name>/
+Spec ─► Translator LLM ─► independent_tests/<translator-llm-name>/
                        generated code, packaging, TRANSLATION_REPORT.md
 
 (optional, escalation:)
 
-Spec ─► Secondary LLM ─► independent_tests/<secondary-llm-name>/
+Spec ─► Test-author LLM ─► independent_tests/<test-author-llm-name>/
                          TEST_REPORT.md
-                         (runs before primary; no implementation)
+                         (runs before translator; no implementation)
 ```
 
-Primary always writes tests before code. In single-LLM mode this is the
-only test suite. In dual-LLM mode, secondary's tests are produced first
-and primary runs both suites against its implementation.
+Translator always writes tests before code. In single-LLM mode this is the
+only test suite. In dual-LLM mode, test-author's tests are produced first
+and translator runs both suites against its implementation.
 
 #### What the Second Agent Receives
 
 The second agent receives only the specification file, the deployment
 template, and any applicable hints files. It receives a `ROLE.md` declaring
-`mode: secondary` and an `llm-name`. It runs the same `prompts/prompt.md`
-as primary; the prompt's two-role design handles the difference.
+`mode: test-author` and an `llm-name`. It runs the same `prompts/prompt.md`
+as translator; the prompt's two-role design handles the difference.
 
 The output is a test suite under `independent_tests/<llm-name>/`, written
 in the language the deployment template will resolve to, using that
@@ -2876,15 +2876,15 @@ language's standard testing framework. The suite asserts on every EXAMPLE,
 on declared error paths, on INVARIANTS, and on boundary conditions implied
 by the TYPES refinement predicates.
 
-For library templates (`library-c-abi`, `verified-library`), secondary's
+For library templates (`library-c-abi`, `verified-library`), test-author's
 tests use `<INTERFACE_PLACEHOLDER>` markers for any function or type names
-the spec does not pin precisely. After primary commits its interface,
-secondary is re-invoked with `mode: secondary-rebind` to bind placeholders
-to primary's actual names. Rebinding is mechanical only.
+the spec does not pin precisely. After translator commits its interface,
+test-author is re-invoked with `mode: test-author-rebind` to bind placeholders
+to translator's actual names. Rebinding is mechanical only.
 
 #### Tests-First and Refinement Discipline
 
-In every primary translation run — single-LLM or dual-LLM — primary writes
+In every translation run — single-LLM or dual-LLM — translator writes
 tests under `independent_tests/<llm-name>/` *before* writing implementation
 code. The ordering prevents post-hoc test tuning: tests written after the
 implementation tend to assert what the code does rather than what the spec
@@ -2899,32 +2899,32 @@ with one row per refinement and an explicit rationale. Permitted actions:
 | `code fixed` | Test was right; implementation was changed | One sentence stating what the implementation did wrong |
 | `test edited` | Test was wrong; test was changed | Must reference a spec section (an EXAMPLE, a PRECONDITION, an INVARIANT). "Made the test pass" is not a rationale |
 | `spec ambiguous` | Spec does not determine the answer | Failure documented; ambiguity listed in the report's ambiguities section |
-| `interface rebind` | Secondary mode only, library template Phase B | Identifier-only change; no assertion change |
+| `interface rebind` | Test-author mode only, library template Phase B | Identifier-only change; no assertion change |
 | `none` | Test passed without modification | Optional row, included for completeness |
 
 An unlogged test edit after a test run is a translation defect. The table
 makes the test-tuning failure mode visible to a reviewer: a passing build
 with no Test Refinements section after a known failure is a red flag.
 
-**Critical rule for dual-LLM mode:** primary may not edit secondary's tests
-under any circumstances. If secondary's tests fail on primary's code, the
-failure is diagnostic — primary may fix the implementation, the spec may
-be clarified and both LLMs rerun, or secondary may be re-invoked from a
-clarified spec — but secondary's tests are never adjusted to match primary's
+**Critical rule for dual-LLM mode:** translator may not edit test-author's tests
+under any circumstances. If test-author's tests fail on translator's code, the
+failure is diagnostic — translator may fix the implementation, the spec may
+be clarified and both LLMs rerun, or test-author may be re-invoked from a
+clarified spec — but test-author's tests are never adjusted to match translator's
 behaviour. The integrity of the independent cross-check depends on this.
 
 #### Confidence Interpretation
 
 | Result | Interpretation |
 |---|---|
-| All primary tests pass; no secondary suite | Single-LLM confidence; appropriate for QM-level components |
-| Both primary and secondary suites pass | High confidence; two independent readings of the spec agree |
-| Primary passes, secondary fails | Either primary defect not caught by primary's own tests, secondary misread the spec, or spec ambiguity — investigate |
-| Primary fails | Process failure; primary should have either fixed the code or refined the test before submitting |
+| All translator tests pass; no test-author suite | Single-LLM confidence; appropriate for QM-level components |
+| Both test-author and translator suites pass | High confidence; two independent readings of the spec agree |
+| Translator passes, test-author fails | Either translator defect not caught by translator's own tests, test-author misread the spec, or spec ambiguity — investigate |
+| Translator fails | Process failure; translator should have either fixed the code or refined the test before submitting |
 
 The second-LLM test results are documented in TRANSLATION_REPORT.md under
-a required section: **Test Results — Secondary Suite**, alongside the
-primary suite's results. Both are summarised in the per-EXAMPLE confidence
+a required section: **Test Results — Test-author Suite**, alongside the
+translator suite's results. Both are summarised in the per-EXAMPLE confidence
 table.
 
 #### TRANSLATION_REPORT Confidence Table
@@ -2940,8 +2940,8 @@ backing must be explicitly disclosed as unverified.
 
 | EXAMPLE                | Confidence | Verification method                            | Unverified claims                  |
 |------------------------|------------|------------------------------------------------|------------------------------------|
-| successful_transfer    | High       | TestTransfer (primary) + test_transfer_ok (secondary) | concurrent contention behaviour    |
-| insufficient_funds     | High       | TestErrFunds (primary) + test_insufficient (secondary) | none                               |
+| successful_transfer    | High       | TestTransfer (translator) + test_transfer_ok (test-author) | concurrent contention behaviour    |
+| insufficient_funds     | High       | TestErrFunds (translator) + test_insufficient (test-author) | none                               |
 | same_account_rejection | Low        | No test yet                                    | entire rejection path unverified   |
 ```
 
@@ -3198,7 +3198,7 @@ LLM translation is probabilistic. Two runs from the same spec with the same
 model may make different structural decisions — naming conventions, error
 handling patterns, package layout. Over multiple incremental runs,
 particularly with different models or model versions, a codebase can develop
-internal inconsistency that no individual run introduced. This is the primary
+internal inconsistency that no individual run introduced. This is the translator
 risk of incremental update: not that any single change is wrong, but that
 the accumulation of independently-reasonable decisions produces a codebase
 that no longer has a coherent architecture.
@@ -3371,7 +3371,8 @@ the translator. This asymmetry should inform the default choice.
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 0.3.23 | 2026-05-16    | A.10 and A.18 (Idea 2) rewritten to reflect the tiered single-LLM / dual-LLM model. The four-cell cross-validation matrix is replaced with operational escalation criteria and a tests-first discipline within every primary translation run. |
+| 0.3.24 | 2026-05-18    | Renamed dual-LLM roles from `primary`/`secondary` to `translator`/`test-author` to remove the confusing seniority/ordering implications of the old names. The test-author always runs before the translator. Tiebreaker role re-scoped: invoked only by a human reviewer for ambiguous test-author test failures, not as automatic adjudication. |
+| 0.3.23 | 2026-05-16    | A.10 and A.18 (Idea 2) rewritten to reflect the tiered single-LLM / dual-LLM model. The four-cell cross-validation matrix is replaced with operational escalation criteria and a tests-first discipline within every translation run. |
 | 0.3.22 | 2026-04-13/15 | Spec hash embedding (A.20, RULE-18, all templates, prompt.md); doc restructure (user-guide, technical-reference, whitepaper 6-pager); mcp-server-pcd v0.3.1 spec (verify_spec_hash); `spack-package` deployment template added (10th template; first declarative specification target type; derived from Spack 1.1.1 source; all 18 `spack audit` checks mapped to INVARIANTS) |
 | 0.3.21 | 2026-04-04/07 | MILESTONE mechanism; Scaffold-first pattern; stub contract; RULE-15/16/17 added to pcd-lint; mcp-server-pcd set_milestone_status tool; doc restructure (user-guide, reverse-prompt, interview-prompt Phase 9) |
 | 0.3.20 | 2026-04-01 | Man pages as required deliverable (all templates except cloud-native and project-manifest); pandoc as build-time dependency; all 9 templates pcd-lint clean |

@@ -11,7 +11,7 @@ input directory alongside this prompt:
 
 3. *(optional)* `ROLE.md` — a small directive file selecting the
    translator role for this run. See **Role** below. If absent, the role
-   is `primary`.
+   is `translator`.
 
 Additional files may be present if listed in the spec's DEPENDENCIES section
 or in the active MILESTONE's `Hints-file:` field (hints files, interface
@@ -26,32 +26,32 @@ Read all hints files before generating any code.
 
 This prompt operates in one of two roles, selected at invocation:
 
-- **`primary`** (default): produce tests *and* implementation code. Tests
+- **`translator`** (default): produce tests *and* implementation code. Tests
   are written before code (see **Tests First** below).
-- **`secondary`**: produce only tests, then stop. No implementation code,
+- **`test-author`**: produce only tests, then stop. No implementation code,
   no packaging deliverables, no scaffolding.
 
 ### Ordering
 
-Secondary always runs **before** primary. The independence of secondary's
+Test-author always runs **before** translator. The independence of test-author's
 test suite depends on it having been written without sight of any
-implementation. If primary has already produced output for this
-specification, secondary cannot run meaningfully — its tests would either
-be influenced by primary's choices (destroying independence) or, worse,
+implementation. If translator has already produced output for this
+specification, test-author cannot run meaningfully — its tests would either
+be influenced by translator's choices (destroying independence) or, worse,
 the LLM would interpret the prior output as a signal to do something
 other than what its role demands.
 
 Two operational consequences follow:
 
-- **Secondary's input directory must contain only the specification, the
+- **Test-author's input directory must contain only the specification, the
   deployment template, applicable hints files, and `ROLE.md`.** It must
   not contain any prior translation output, any `TRANSLATION_REPORT.md`,
   any `code/` directory, any packaging files, or any `independent_tests/`
   subdirectory from a prior run.
-- **Primary's input directory must contain secondary's output if dual-LLM
-  mode is intended.** Specifically: secondary's `independent_tests/<llm-name>/`
-  directory and its `TEST_REPORT.md`. If these are absent, primary runs
-  in single-LLM mode (which is also a valid invocation — secondary is
+- **Translator's input directory must contain test-author's output if dual-LLM
+  mode is intended.** Specifically: test-author's `independent_tests/<llm-name>/`
+  directory and its `TEST_REPORT.md`. If these are absent, translator runs
+  in single-LLM mode (which is also a valid invocation — test-author is
   optional).
 
 The clean separation is enforced by guard checks at the start of each
@@ -63,19 +63,19 @@ If a file `ROLE.md` is present in the input directory, it selects the
 role and identifies the LLM. Expected format:
 
 ```
-mode: primary
+mode: translator
 llm-name: claude-sonnet-4-5
 ```
 
 or:
 
 ```
-mode: secondary
+mode: test-author
 llm-name: mistral-large-2
 ```
 
-If `ROLE.md` is absent, assume `mode: primary` and use the placeholder
-`llm-name: primary` for directory naming. The `llm-name` value must be
+If `ROLE.md` is absent, assume `mode: translator` and use the placeholder
+`llm-name: unknown-translator` for directory naming. The `llm-name` value must be
 lowercase, hyphen-separated, with no dots or version-decimal suffixes
 (e.g. `claude-sonnet-4-5`, not `Claude-Sonnet-4.5`).
 
@@ -83,18 +83,18 @@ lowercase, hyphen-separated, with no dots or version-decimal suffixes
 
 ## Tests First
 
-Tests are written before implementation code, in every primary run. This
+Tests are written before implementation code, in every translator run. This
 ordering is normative, not stylistic. It prevents post-hoc test tuning
 (tests written after seeing the code tend to assert what the code does,
 not what the spec requires).
 
-For a **primary** run:
+For a **translator** run:
 
-Secondary's output is optional. If `independent_tests/<other-llm-name>/`
+Test-author's output is optional. If `independent_tests/<other-role-llm-name>/`
 and `TEST_REPORT.md` are present in the input directory, this is a
-dual-LLM run; if absent, this is a single-LLM run. Primary's main flow
+dual-LLM run; if absent, this is a single-LLM run. Translator's main flow
 is identical in both cases; the only difference is whether step 6
-applies. Do not stall, ask, or warn if secondary's output is absent —
+applies. Do not stall, ask, or warn if test-author's output is absent —
 single-LLM is a fully supported invocation.
 
 1. Read the specification, the deployment template, and all hints files.
@@ -109,29 +109,29 @@ single-LLM is a fully supported invocation.
 4. Run the test suite against the implementation. Record results.
 5. If any test fails: either fix the implementation, or refine the test
    *with documented rationale* (see **Test Refinements** below).
-6. If a `secondary` test suite exists at `independent_tests/<other-llm-name>/`
+6. If a `test-author` test suite exists at `independent_tests/<other-role-llm-name>/`
    in the input directory, first verify continuity before running it:
-   - Read `TEST_REPORT.md` (produced by secondary). Confirm its
+   - Read `TEST_REPORT.md` (produced by test-author). Confirm its
      `Spec-SHA256` matches the SHA256 of the current spec file. If they
-     differ, halt and report: "Error: secondary test suite was produced
-     from a different specification (hash mismatch). Re-run secondary
-     against the current spec." Do not run secondary's tests against
+     differ, halt and report: "Error: test-author test suite was produced
+     from a different specification (hash mismatch). Re-run test-author
+     against the current spec." Do not run test-author's tests against
      the implementation.
    - Confirm the deployment template, preset resolution, and hints
      files listed in `TEST_REPORT.md` match those in scope for this
      run. On any mismatch, halt with the same diagnostic pattern.
-   - With both checks passed, run secondary's test suite against the
+   - With both checks passed, run test-author's test suite against the
      implementation and record results separately. **Do not edit
-     secondary's tests under any circumstances** — they are the
+     test-author's tests under any circumstances** — they are the
      independent cross-check.
 
-For a **secondary** run:
+For a **test-author** run:
 
 1. **Before reading anything else**, verify that the input directory is
-   clean of prior primary output. Specifically, halt with a diagnostic if
+   clean of prior translator output. Specifically, halt with a diagnostic if
    any of the following are present in the input directory or in a
    conventionally-shared output directory (`code/`, `cmd/`, the working
-   directory's source tree, or any sibling directory primary would write
+   directory's source tree, or any sibling directory translator would write
    to):
    - a `TRANSLATION_REPORT.md` file
    - any implementation source files in the target language (`.go`,
@@ -141,25 +141,25 @@ For a **secondary** run:
      `debian/`, `Cargo.toml`, `go.mod`, `pyproject.toml`)
    - any `independent_tests/` subdirectory from a previous run
 
-   The diagnostic must read: "Error: secondary mode requires a clean
-   input directory. Prior primary output detected: <list of files
-   found>. Secondary always runs before primary. Either (a) clear the
-   prior output and restart the workflow from secondary, or (b) treat
-   this as a single-LLM run and do not invoke secondary." Do not write
+   The diagnostic must read: "Error: test-author mode requires a clean
+   input directory. Prior translator output detected: <list of files
+   found>. Test-author always runs before translator. Either (a) clear the
+   prior output and restart the workflow from test-author, or (b) treat
+   this as a single-LLM run and do not invoke test-author." Do not write
    any output. Stop.
 
 2. Read the specification and all hints files. Do not read or assume
    any implementation.
 3. Write the test suite under
    `independent_tests/<llm-name>/`, in the language declared by the
-   deployment template (resolve the same way primary would).
+   deployment template (resolve the same way translator would).
 4. If the deployment template targets a **library** (e.g. `library-c-abi`,
    `verified-library`): tests are written in two phases. Phase A
    (this run): write the test logic with `<INTERFACE_PLACEHOLDER>`
    markers for any function or type names the spec does not pin
-   precisely. Phase B (later): after primary commits its implementation,
-   re-run this prompt in `mode: secondary-rebind` and bind the
-   placeholders to primary's actual names. The rebind is mechanical
+   precisely. Phase B (later): after translator commits its implementation,
+   re-run this prompt in `mode: test-author-rebind` and bind the
+   placeholders to translator's actual names. The rebind is mechanical
    only — assertions, expected values, and test coverage may not change.
 5. Stop. Do not write code. Do not write packaging. Do not write a
    `TRANSLATION_REPORT.md` — write a `TEST_REPORT.md` instead (see
@@ -191,8 +191,8 @@ Permissible actions:
 - **`spec ambiguous`** — the spec does not determine the answer. Test
   left as-is, failure documented, ambiguity recorded in the report's
   ambiguities list.
-- **`interface rebind`** — secondary mode only (Phase B). Test was
-  rebound to primary's actual names; no assertion change.
+- **`interface rebind`** — test-author mode only (Phase B). Test was
+  rebound to translator's actual names; no assertion change.
 - **`none`** — test passed; no action taken. Including these rows is
   optional but makes the table a complete record.
 
@@ -273,7 +273,7 @@ If the spec contains one or more `## MILESTONE:` sections, find the one with
     establish the test surface that later milestones complete.
   - The `Included BEHAVIORs` field covers the complete BEHAVIOR set;
     `Deferred BEHAVIORs` is empty or omitted
-  - The compile gate is the primary acceptance criterion
+  - The compile gate is the translator acceptance criterion
   - After this pass, all subsequent milestone translators will find a stable
     foundation and will only replace stub bodies — they will never need to
     create new files or define new types
@@ -355,8 +355,8 @@ Do not invent a delivery mechanism not listed above.
 
 **Note on dual-LLM mode:** dual-LLM verification requires a delivery mode
 that persists files between runs — filesystem or MCP. Browser/inline mode
-is single-LLM by definition because secondary's tests cannot be carried
-across to primary's run without persistent storage.
+is single-LLM by definition because test-author's tests cannot be carried
+across to translator's run without persistent storage.
 
 ---
 
@@ -392,13 +392,13 @@ incomplete, regardless of whether all other deliverables are present.
 
 ## Reports
 
-### TRANSLATION_REPORT.md (primary mode)
+### TRANSLATION_REPORT.md (translator mode)
 
 Produce a `TRANSLATION_REPORT.md` covering:
 
 - **Spec-SHA256:** `<hash>` — SHA256 of `<specname>.md` as provided
 - **LLM-Name:** `<llm-name>` — from `ROLE.md` or placeholder
-- **Mode:** `primary`
+- **Mode:** `translator`
 - Target language resolved, and whether any preset overrides the template default
 - Delivery mode used and why
 - How STEPS ordering was applied for each BEHAVIOR block
@@ -414,11 +414,11 @@ Produce a `TRANSLATION_REPORT.md` covering:
   BEHAVIORs included and deferred, stubs produced, acceptance criteria
   result (pass/fail per criterion)
 - Compile gate result (see template EXECUTION section)
-- **Test results — primary suite:**
+- **Test results — translator suite:**
   every test in `independent_tests/<llm-name>/` with pass/fail/skip
-- **Test results — secondary suite** (if present at input):
-  every test in `independent_tests/<other-llm-name>/` with pass/fail/skip,
-  and a note: "secondary tests are the independent cross-check; they
+- **Test results — test-author suite** (if present at input):
+  every test in `independent_tests/<other-role-llm-name>/` with pass/fail/skip,
+  and a note: "test-author tests are the independent cross-check; they
   were not edited"
 - **Test Refinements** table (see Test Refinements above)
 - Per-example confidence as a table:
@@ -427,9 +427,9 @@ Produce a `TRANSLATION_REPORT.md` covering:
 
   Confidence definitions:
   - **High** = a named test function in `independent_tests/<llm-name>/`
-    *and*, if present, `independent_tests/<other-llm-name>/`, both pass
+    *and*, if present, `independent_tests/<other-role-llm-name>/`, both pass
     without any live external service
-  - **Medium** = primary tests pass; secondary tests absent, or some
+  - **Medium** = translator tests pass; test-author tests absent, or some
     paths require live services and are untested
   - **Low** = no test function covers this; reasoning or code review only
 
@@ -441,28 +441,28 @@ Write `TRANSLATION_REPORT.md` last, after all other deliverables are
 complete and the compile gate has passed (or has been explicitly
 documented as not executed — see template EXECUTION section).
 
-### TEST_REPORT.md (secondary mode)
+### TEST_REPORT.md (test-author mode)
 
 Produce a `TEST_REPORT.md` covering:
 
 - **Spec-SHA256:** `<hash>`
 - **LLM-Name:** `<llm-name>`
-- **Mode:** `secondary` (or `secondary-rebind`)
+- **Mode:** `test-author` (or `test-author-rebind`)
 - **Deployment-Template:** template filename and version (e.g.
   `cli-tool.template.md v0.3.21`)
 - **Preset-Resolution:** any preset overrides that affected the run,
   in the order they were applied (system → user → project)
 - **Hints-Files-Read:** list of hints files in scope, with versions
   where applicable
-- Target language resolved (the same way primary would resolve it)
+- Target language resolved (the same way translator would resolve it)
 - Tests produced: one row per test function, with the EXAMPLE/BEHAVIOR/
   INVARIANT it covers
 - INTERFACE_PLACEHOLDER markers used (library templates only)
 - Specification ambiguities encountered
 - Note: this report does not include a compile gate result, an
-  implementation, or a confidence table — those are primary's deliverables.
+  implementation, or a confidence table — those are translator's deliverables.
 
 The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`, and
-`Hints-Files-Read` fields are mandatory because primary will verify them
-against its own scope before running secondary's tests. Mismatch on any
-of these aborts primary's run.
+`Hints-Files-Read` fields are mandatory because translator will verify them
+against its own scope before running test-author's tests. Mismatch on any
+of these aborts translator's run.

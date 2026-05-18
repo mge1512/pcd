@@ -1,8 +1,8 @@
 # PCD User Guide
 
-**Version:** 0.3.23
+**Version:** 0.3.24
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-16
+**Date:** 2026-05-18
 **License:** CC-BY-4.0
 
 ---
@@ -924,10 +924,10 @@ cli-tool.template.md    # the deployment template
 ```
 
 You may optionally include a `ROLE.md` file declaring the LLM name (used
-to name the test directory). If omitted, the placeholder `primary` is used:
+to name the test directory). If omitted, the placeholder `translator` is used:
 
 ```
-mode: primary
+mode: translator
 llm-name: claude-sonnet-4-5
 ```
 
@@ -957,45 +957,45 @@ the generated code.
 ### Dual-LLM mode (escalation)
 
 For components where a runtime defect has safety, security, or regulatory
-consequences, run an independent test suite from a second LLM before the
-primary translation. Typical triggers: `Safety-Level` above QM,
+consequences, run an independent test suite from a separate LLM acting as test-author before the
+translation. Typical triggers: `Safety-Level` above QM,
 `Verification` not equal to `none`, novel specs with high suspected
 ambiguity, or any component in the PCD toolchain itself.
 
 The flow has two steps:
 
-**Step 1: Run secondary.** Add a `ROLE.md` to the input directory:
+**Step 1: Run test-author.** Add a `ROLE.md` to the input directory:
 
 ```
-mode: secondary
+mode: test-author
 llm-name: mistral-large-2
 ```
 
-Invoke the same `prompts/prompt.md` with a different LLM. Secondary writes
+Invoke the same `prompts/prompt.md` with a different LLM. Test-author writes
 only tests under `independent_tests/mistral-large-2/` in the language the
-deployment template will resolve to. Secondary produces a `TEST_REPORT.md`
+deployment template will resolve to. Test-author produces a `TEST_REPORT.md`
 and stops — no implementation, no packaging.
 
-**Step 2: Run primary.** Replace `ROLE.md` with the primary version:
+**Step 2: Run translator.** Replace `ROLE.md` with the translator version:
 
 ```
-mode: primary
+mode: translator
 llm-name: claude-sonnet-4-5
 ```
 
-Keep secondary's `independent_tests/mistral-large-2/` directory in place.
-Invoke the prompt with the primary LLM. Primary first verifies that the
+Keep test-author's `independent_tests/mistral-large-2/` directory in place.
+Invoke the prompt with the translator LLM. Translator first verifies that the
 spec hash and template continuity are intact:
 
-- The `Spec-SHA256` recorded in secondary's `TEST_REPORT.md` must match
+- The `Spec-SHA256` recorded in test-author's `TEST_REPORT.md` must match
   the current specification's hash. If the specification has been edited
-  between secondary's run and primary's run, primary aborts and you must
-  re-run secondary against the current spec.
+  between test-author's run and translator's run, translator aborts and you must
+  re-run test-author against the current spec.
 - The deployment template, preset resolution, and hints files in scope
-  must be the same as those secondary used.
+  must be the same as those test-author used.
 
-With both checks passed, primary writes its own tests under
-`independent_tests/claude-sonnet-4-5/` *before* reading secondary's, then
+With both checks passed, translator writes its own tests under
+`independent_tests/claude-sonnet-4-5/` *before* reading test-author's, then
 writes the implementation, then runs **both** test suites. The
 TRANSLATION_REPORT.md reports results for both suites separately.
 
@@ -1007,21 +1007,21 @@ provider-specific details go in the report; the directory name is the
 short form. Keep it lowercase, hyphen-separated, no version-decimal
 suffix.
 
-**Key rule:** primary may not edit secondary's tests under any
-circumstances. If secondary's tests fail on primary's code, the failure
-is a diagnostic signal — investigate whether primary has a bug, secondary
+**Key rule:** translator may not edit test-author's tests under any
+circumstances. If test-author's tests fail on translator's code, the failure
+is a diagnostic signal — investigate whether translator has a bug, test-author
 misread the spec, or the spec is ambiguous. Fix the cause; do not fix the
 test.
 
 **Library special case.** For `library-c-abi` and `verified-library`
-templates, secondary writes tests with `<INTERFACE_PLACEHOLDER>` markers
-for any function or type names the spec does not pin. After primary
-commits the interface, re-invoke secondary with `mode: secondary-rebind`
-to bind placeholders to primary's actual names. Rebinding is mechanical
+templates, test-author writes tests with `<INTERFACE_PLACEHOLDER>` markers
+for any function or type names the spec does not pin. After translator
+commits the interface, re-invoke test-author with `mode: test-author-rebind`
+to bind placeholders to translator's actual names. Rebinding is mechanical
 only — assertions and coverage do not change.
 
 **Delivery mode constraint.** Dual-LLM mode requires filesystem or MCP
-delivery — secondary's tests have to persist between runs. Browser/inline
+delivery — test-author's tests have to persist between runs. Browser/inline
 mode is single-LLM by definition.
 
 **Milestone-level dual-LLM.** For large specs partitioned into milestones
@@ -1030,8 +1030,8 @@ specification. Escalating only the milestones that warrant it — the
 scaffold pass, and any milestone covering safety- or security-critical
 behaviours — keeps the bulk of the work in single-LLM mode while
 preserving the independent cross-check where it matters. The flow is the
-same per-milestone: secondary runs first against the milestone scope,
-primary runs second, hash and template continuity checks apply at the
+same per-milestone: test-author runs first against the milestone scope,
+translator runs second, hash and template continuity checks apply at the
 milestone boundary. Sitar's scaffold milestone is a typical candidate;
 its later milestones implementing individual collectors may not be.
 
@@ -1044,13 +1044,13 @@ For `mcp-server-pcd` style components with many embedded assets, full
 input (all templates, hints, prompts) is required for correct embedding
 — partial input produces placeholder assets.
 
-For dual-LLM mode, pair a primary translator and a secondary test author
+For dual-LLM mode, pair a translator and a test-author test author
 from independent model families. The reference pairing for non-SUSE PCD
-work is Claude Sonnet (primary), Mistral Large 2 via La Plateforme
-(secondary, independent EU jurisdiction). A third model — GPT-5 in the
+work is Claude Sonnet (translator), Mistral Large 2 via La Plateforme
+(test-author, independent EU jurisdiction). A third model — GPT-5 in the
 current reference pairing — is invoked only when a human reviewer needs
-a second opinion on whether a failed secondary test reflects a primary
-defect, a secondary misreading, or genuine spec ambiguity. It is not run
+a second opinion on whether a failed test-author test reflects a translator
+defect, a test-author misreading, or genuine spec ambiguity. It is not run
 automatically.
 
 ---
@@ -1085,7 +1085,7 @@ infallible — the spec is your responsibility, not the model's.
 | `prompts/reverse-prompt.md`   | Existing code: reverse-engineer → spec           | `pcd://prompts/reverse`       |
 | `prompts/change-impact.md`    | Assess impact of a spec change                   | `pcd://prompts/change-impact` |
 | `prompts/reviewer.md`         | Independent review of a translation run          | `pcd://prompts/reviewer`      |
-| `prompts/tiebreaker.md`       | Adjudicate ambiguous secondary-test failures     | `pcd://prompts/tiebreaker`    |
+| `prompts/tiebreaker.md`       | Adjudicate ambiguous test-author-test failures     | `pcd://prompts/tiebreaker`    |
 
 ---
 
@@ -1106,7 +1106,7 @@ description (a unified diff of the spec or a plain-language description)
 and optionally the existing generated code.
 
 The assessment returns a recommendation: **full regeneration** or
-**incremental update**, with the primary deciding factor and reasoning.
+**incremental update**, with the translator deciding factor and reasoning.
 
 The decision rules in brief:
 

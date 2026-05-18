@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.3.23
+**Version:** 0.3.24
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-16
+**Date:** 2026-05-18
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -170,9 +170,9 @@ without affecting anyone else. The spec author participates in none of this.
 
 ## 4. The Deployment Template System
 
-PCD ships nine deployment templates covering the primary deployment contexts:
+PCD ships nine deployment templates covering the translator deployment contexts:
 
-`cli-tool` is the primary template for command-line tools. Default language: Go.
+`cli-tool` is the translator template for command-line tools. Default language: Go.
 Valid alternatives: Rust, C, C++, C#. Produces a static binary, RPM package, DEB
 package, man page, and README documenting OBS installation. Man pages are a
 required deliverable (section 1 commands, section 3 libraries). `pandoc` is a
@@ -365,7 +365,7 @@ all files are delivered cannot accurately document what was produced. The orderi
 requirement was added after early runs produced reports that described planned
 deliverables rather than actual ones.
 
-**Why tests are written before implementation code.** Within a single primary
+**Why tests are written before implementation code.** Within a single translator
 translation run, the prompt mandates that test functions under
 `independent_tests/<llm-name>/` are written before the implementation. The
 purpose is to prevent post-hoc test tuning — tests written after seeing the
@@ -377,7 +377,7 @@ table with documented rationale; an unlogged test edit after a test run is a
 translation defect.
 
 **Why the prompt has two roles.** The translator prompt operates in either
-`primary` mode (the default — produce tests and code) or `secondary` mode
+`translator` mode (the default — produce tests and code) or `test-author` mode
 (produce only tests, then stop). The role is selected at invocation via an
 optional `ROLE.md` file in the input directory. A single prompt with two
 roles is simpler than two separate prompts: the rules about derived language,
@@ -441,14 +441,13 @@ AI translation is probabilistic. The same specification translated twice by the
 same model may produce different implementations — each correct, but making
 different architectural decisions. Over multiple runs, this variance accumulates.
 Three mechanisms address this: the per-EXAMPLE confidence table in
-TRANSLATION_REPORT.md, the tests-first discipline within every primary
-translation run, and (optionally) an independent test suite produced by a
-second LLM before the primary translation.
+TRANSLATION_REPORT.md, the tests-first discipline within every translator run, and (optionally) an independent test suite produced by a
+separate LLM acting as test-author, before the translator runs.
 
 **The translation confidence table.** Every translation report must include a
 per-example confidence table with three levels: High (a named test function in
 `independent_tests/<llm-name>/` passes without any live external service;
-when a secondary suite is present, both suites pass), Medium (some paths
+when a test-author suite is present, both suites pass), Medium (some paths
 tested, others require live services), and Low (no test covers this, code
 review only). A claim is verified only if it references a specific named test
 function. Unverified claims must be listed explicitly. This discipline was
@@ -456,7 +455,7 @@ introduced after early translation reports claimed high confidence for examples
 that had no corresponding tests — the confidence was the translator's assessment
 of its own work, not an empirical measurement.
 
-**The tests-first discipline.** In every primary translation run, the translator
+**The tests-first discipline.** In every translation run, the translator
 writes test functions under `independent_tests/<llm-name>/` *before* writing
 implementation code. The ordering matters: tests written after implementation
 tend to assert what the code does rather than what the spec requires, because
@@ -473,18 +472,17 @@ rationale. The permitted actions are `code fixed` (the test was right; the
 implementation was changed), `test edited` (the test was wrong; rationale
 must reference a spec section, never "made the test pass"), `spec ambiguous`
 (the spec does not determine the answer; failure documented), and
-`interface rebind` (secondary mode only). An unlogged test edit after a test
+`interface rebind` (test-author mode only). An unlogged test edit after a test
 run is a translation defect. The table is the audit artifact that makes the
 test-tuning failure mode visible to a reviewer: a passing build with no Test
 Refinements section after a failing test is a red flag.
 
-**Independent test generation by a second LLM.** A second AI translator can
-read only the specification — not any primary translation's code — and
-generate a test suite. This test suite is then run against the primary
-translation's code in addition to the primary's own tests. Failures indicate
-specification ambiguity (both translators read the spec differently) or
-translation error (the primary translator's code does not satisfy the spec's
-semantics). The second agent has no access to the primary translation; its
+**Independent test generation by a second LLM.** A second LLM, acting as test-author, can
+read only the specification — not any translation's code — and
+generate a test suite. This test suite is then run against the translator's code in addition to the translator's own tests. Failures indicate
+specification ambiguity (the two LLMs read the spec differently) or
+translation error (the translator pass produced code that does not satisfy the spec's
+semantics). The second agent has no access to the translation; its
 tests are truly independent. Section 15 covers the operational workflow and
 when this escalation is appropriate.
 
@@ -540,7 +538,7 @@ BEHAVIORs, or an INTERFACE changed: full regeneration.
 automates this analysis. Given the specification change (as a diff or plain-language
 description) and optionally the existing generated code, it applies the decision
 framework and returns a structured recommendation: full regeneration or incremental
-update, with primary factor and reasoning. When existing code is not provided,
+update, with translator factor and reasoning. When existing code is not provided,
 the tool biases conservative — it cannot verify blast radius without the code.
 The recommendation in this case explicitly notes the limitation.
 
@@ -697,7 +695,7 @@ lesson from early experimentation with ATS2 (a powerful linear type system)
 was that LLM training data coverage is non-negotiable for an AI-native paradigm.
 ATS2's syntax is underrepresented in LLM training data; multiple models
 consistently produced syntactically incorrect ATS2. Lean 4 was chosen as the
-primary reference meta-language because it combines strong verification power
+translator reference meta-language because it combines strong verification power
 with broad LLM training data coverage and active community support.
 
 Lean 4 is a strong candidate for theorem proving requirements (ISO 26262 ASIL-C/D,
@@ -720,11 +718,10 @@ cannot provide.
 ## 15. Dual-LLM Verification
 
 PCD distinguishes two operational modes for translation. The default is
-**single-LLM mode**: one translator (primary) writes tests under
+**single-LLM mode**: one LLM acting as translator writes tests under
 `independent_tests/<llm-name>/` first, then the implementation, then runs
-the tests. The optional escalation is **dual-LLM mode**: a second translator
-(secondary) writes a test suite first, with no access to any implementation;
-primary then runs as in single-LLM mode and additionally runs secondary's
+the tests. The optional escalation is **dual-LLM mode**: a second LLM acting as test-author writes a test suite first, with no access to any implementation;
+translator then runs as in single-LLM mode and additionally runs test-author's
 test suite against its implementation.
 
 Most translations run in single-LLM mode. Dual-LLM mode is the appropriate
@@ -733,7 +730,7 @@ escalation when one or more of the following applies: the component has
 `none`; the spec is novel or has a high suspected ambiguity surface; the
 component is part of the PCD toolchain itself (where a regression would
 affect every downstream user). The gate is operational, not declarative —
-no META field controls it. The user runs secondary, or they do not.
+no META field controls it. The user runs test-author, or they do not.
 
 **Milestone-level dual-LLM.** For large specifications partitioned into
 milestones, dual-LLM mode may be applied per milestone rather than across
@@ -742,67 +739,67 @@ the milestones with the highest verification value — typically the scaffold
 milestone (where the package structure and interface shapes are committed)
 and any milestone covering safety-critical or security-critical behaviours
 — while keeping the bulk of the work in single-LLM mode. The mechanism is
-the same as the full-spec case: secondary runs first against the milestone-
-scoped translation, primary runs second against the same scope, and the
+the same as the full-spec case: test-author runs first against the milestone-
+scoped translation, translator runs second against the same scope, and the
 hash and template continuity checks apply at the milestone level. The
 choice of which milestones to escalate is recorded in the audit bundle by
-the presence or absence of secondary's directory next to each milestone's
+the presence or absence of test-author's directory next to each milestone's
 TRANSLATION_REPORT.md.
 
 **The operational flow in dual-LLM mode.**
 
-1. Secondary runs first. Its `ROLE.md` declares `mode: secondary` and an
-   `llm-name`. Secondary reads the spec and the deployment template, writes
-   tests under `independent_tests/<secondary-llm-name>/` in the same
+1. Test-author runs first. Its `ROLE.md` declares `mode: test-author` and an
+   `llm-name`. Test-author reads the spec and the deployment template, writes
+   tests under `independent_tests/<test-author-llm-name>/` in the same
    language the implementation will use, and produces a `TEST_REPORT.md`.
-   Secondary does not write any implementation code, scaffolding, or
+   Test-author does not write any implementation code, scaffolding, or
    packaging.
-2. Primary runs next. It finds secondary's tests already present in the
-   input directory. Primary first verifies that the `Spec-SHA256` recorded
-   in secondary's `TEST_REPORT.md` matches the current specification's
+2. Translator runs next. It finds test-author's tests already present in the
+   input directory. Translator first verifies that the `Spec-SHA256` recorded
+   in test-author's `TEST_REPORT.md` matches the current specification's
    hash. If the hashes differ — the specification has been edited between
-   secondary's run and primary's run — primary aborts with a diagnostic
-   and the user re-runs secondary against the current specification.
-   Stale secondary tests are not run against primary's implementation.
-   Primary then verifies that the deployment template, preset resolution,
-   and hints files in scope are the same as those secondary used; mismatch
+   test-author's run and translator's run — translator aborts with a diagnostic
+   and the user re-runs test-author against the current specification.
+   Stale test-author tests are not run against translator's implementation.
+   Translator then verifies that the deployment template, preset resolution,
+   and hints files in scope are the same as those test-author used; mismatch
    on any of these is treated the same way as a hash mismatch. With both
-   checks passed, primary writes its own tests under
-   `independent_tests/<primary-llm-name>/` *before* reading secondary's
+   checks passed, translator writes its own tests under
+   `independent_tests/<translator-llm-name>/` *before* reading test-author's
    tests, then writes the implementation, then runs both test suites.
-3. Primary may refine its own tests after the test run, subject to the
-   refinement discipline. Primary **may not** edit secondary's tests under
-   any circumstances. Secondary's tests are the independent cross-check;
+3. Translator may refine its own tests after the test run, subject to the
+   refinement discipline. Translator **may not** edit test-author's tests under
+   any circumstances. Test-author's tests are the independent cross-check;
    the property that gives them value is that they were written without
    knowledge of any implementation.
-4. If secondary's tests fail on primary's implementation: the failure is
-   diagnostic, not stop-the-world. Primary records the failure in
-   TRANSLATION_REPORT.md. The reviewer determines the cause — primary
-   bug, secondary test misreads spec, or spec ambiguity — and acts
-   accordingly. Primary may fix the implementation, the spec may be
-   clarified and both LLMs rerun, or secondary may be re-invoked to
-   regenerate tests *from a clarified spec*. Secondary's tests are never
-   adjusted to match primary's behaviour.
+4. If test-author's tests fail on translator's implementation: the failure is
+   diagnostic, not stop-the-world. Translator records the failure in
+   TRANSLATION_REPORT.md. The reviewer determines the cause — translator
+   bug, test-author test misreads spec, or spec ambiguity — and acts
+   accordingly. Translator may fix the implementation, the spec may be
+   clarified and both LLMs rerun, or test-author may be re-invoked to
+   regenerate tests *from a clarified spec*. Test-author's tests are never
+   adjusted to match translator's behaviour.
 
 **The library-interface special case.** For deployment templates targeting
-shared libraries (`library-c-abi`, `verified-library`), secondary's tests
+shared libraries (`library-c-abi`, `verified-library`), test-author's tests
 need to reference function and type names that the spec may not pin
-precisely. Secondary writes tests in two phases. Phase A (before primary):
+precisely. Test-author writes tests in two phases. Phase A (before translator):
 test logic is written with `<INTERFACE_PLACEHOLDER>` markers for any
-function or type name the spec does not pin. Phase B (after primary): a
-mechanical rebind pass replaces placeholders with primary's actual names.
+function or type name the spec does not pin. Phase B (after translator): a
+mechanical rebind pass replaces placeholders with translator's actual names.
 The rebind is logged as `interface rebind` in the Test Refinements table
 and may not change assertions, expected values, or coverage. The
 independence property is preserved because the test content — what is
 asserted, against which examples, with which expected outputs — was
-determined before primary committed any code.
+determined before translator committed any code.
 
-**Same language for tests and code.** Both primary and secondary write
+**Same language for tests and code.** Both test-author and translator write
 tests in the language declared by the deployment template. This is the
 same production constraint described in section 9: certified runtime
 images carry the toolchain for one language only. The cost of forgoing
 cross-language independence is accepted. Independence is provided by
-secondary writing *against the spec alone*, not by writing in a different
+test-author writing *against the spec alone*, not by writing in a different
 language.
 
 **Directory naming.** Test directories are named after the LLM that
@@ -816,7 +813,7 @@ names — otherwise the directory accumulates copies on every regeneration.
 
 **Cost asymmetry.** Single-LLM mode costs one translation run. Dual-LLM
 mode costs two runs and one additional test-execution pass against the
-primary implementation. For a component where a runtime defect has
+translator implementation. For a component where a runtime defect has
 safety, security, or regulatory consequences, the additional cost is
 justified by the spec-ambiguity probe and the independent test suite.
 For components without such consequences, the cost is overhead. The
@@ -824,8 +821,8 @@ operational gate keeps the choice explicit and visible.
 
 **Delivery-mode constraint.** Dual-LLM verification requires a delivery
 mode that persists files between runs — filesystem or MCP. Browser/inline
-mode is single-LLM by definition because secondary's tests cannot be
-carried across to primary's run without persistent storage.
+mode is single-LLM by definition because test-author's tests cannot be
+carried across to translator's run without persistent storage.
 
 ---
 
@@ -873,7 +870,7 @@ them directly; there is no AI translation layer and no pathway from specificatio
 to deployable code. F*/HACL* is the closest existing work to PCD's verified path:
 HACL* (used in Firefox, the Linux kernel, and WireGuard) was produced from F*
 specifications. The difference is that humans write F* directly; PCD places AI
-as the translator so domain experts author the primary artifact. Dafny compiles
+as the translator so domain experts author the translator artifact. Dafny compiles
 verified code to multiple targets and is accessible without a formal methods
 background; it is a candidate meta-language within PCD, not a competing paradigm.
 
@@ -886,7 +883,7 @@ convergence of Werner Vogels' re:Invent 2025 keynote with the core thesis of
 this work — independently developed — is external validation of the problem
 framing.
 
-What is genuinely novel: natural language as the primary artifact (structured
+What is genuinely novel: natural language as the translator artifact (structured
 Markdown, not a programming language or formal language); deployment templates
 as a first-class concept (target language is not a human decision); formal
 verification as optional and pluggable; regulated-domain certification as a
@@ -898,7 +895,7 @@ design goal from the start; and self-hosting from the first artifact.
 
 The paradigm has been validated empirically across multiple models, environments,
 and specification sizes. This section records the key findings. The full test
-data is maintained in the primary test log.
+data is maintained in the translator test log.
 
 **Universal finding: language resolution.** Every model tested resolved the
 target language by reading the deployment template, without being told explicitly.
