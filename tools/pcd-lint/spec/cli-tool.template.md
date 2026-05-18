@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.27
+Version:     0.3.28
 Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -133,7 +133,13 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | SPEC-SCHEMA | MAJOR.MINOR.PATCH | required | Version of the Post-Coding spec schema this file was written against. |
 | AUTHOR | name <email> | required | At least one Author: line required. Repeating key; multiple authors permitted. |
 | LICENSE | SPDX identifier | required | Must be a valid SPDX license identifier or compound expression. Example: Apache-2.0. |
-| LANGUAGE | Go | default | Default target language. Override via preset. Valid alternatives: Rust, C, C++, C#. |
+| LANGUAGE | Go | default | Default target language. Override via preset. Valid alternatives: Rust, C, C++, C#, Java, Lean4. |
+| LANGUAGE | Rust | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). |
+| LANGUAGE | C | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). |
+| LANGUAGE | C++ | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). |
+| LANGUAGE | C# | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). |
+| LANGUAGE | Java | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). Use `jlink`-based custom runtime image for the final CLI binary; avoid a JRE dependency. |
+| LANGUAGE | Lean4 | supported | Selected via preset. Per-language deliverable details apply (see DELIVERABLES). Lean 4 CLI tools are uncommon and require Lake-based build; translator should not attempt unless the model is known to be capable of agentic Lean 4 software engineering (not the same as Lean 4 theorem proving). Most Lean 4 specs belong under `verified-library`, not `cli-tool`. |
 | LANGUAGE-ALTERNATIVES | Rust | supported | May be selected via preset or project override. |
 | LANGUAGE-ALTERNATIVES | C | supported | May be selected via preset or project override. |
 | LANGUAGE-ALTERNATIVES | C++ | supported | May be selected via preset or project override. |
@@ -391,7 +397,7 @@ the translator derives them from this section.
 ### Delivery Order
 
 Deliverables must be produced in the following order:
-1. Core implementation files (source, go.mod, Makefile, README.md, LICENSE)
+1. Core implementation files (source files, module/dependency manifest per target language, Makefile, README.md, LICENSE)
 2. Required packaging artifacts (RPM, DEB) in table order
 3. Supported packaging artifacts if preset active (OCI, PKG, binary)
 4. TRANSLATION_REPORT.md last, after all other files are written and verified
@@ -400,9 +406,9 @@ Deliverables must be produced in the following order:
 
 | OUTPUT-FORMAT | Constraint | Required Deliverable Files | Notes |
 |---|---|---|---|
-| source | required | `main.go` (or `cmd/<n>/main.go`) + at least one implementation file in `internal/<n>/` or equivalent, `go.mod` | Per `SOURCE-PARTITIONING: modular` and `one-entry-one-implementation`, a single-file implementation is not permitted. The entry-point file contains only CLI dispatch; behaviour implementation lives in a separate package or namespace. Translator documents the chosen partitioning in the translation report. |
+| source | required | An entry-point file + at least one implementation file in a separate module/package + the language's module/dependency manifest. See per-language details under "Per-language source layout" below. | Per `SOURCE-PARTITIONING: modular` and `one-entry-one-implementation`, a single-file implementation is not permitted. The entry-point file contains only CLI dispatch; behaviour implementation lives in a separate package or namespace. Translator documents the chosen partitioning in the translation report. |
 | public-api | required | `TRANSLATION_REPORT.md` section `## Public API Surface` | Per `PUBLIC-API-SURFACE: recorded-in-report`. One row per exported symbol, with full signature, grouped by module. The next translation reads this section to verify continuity. |
-| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. `build` target must set `CGO_ENABLED=0` for Go, `-static` for C/C++. `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
+| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. The `build` target's invocation of the language toolchain is per-language (see "Per-language build invocation" below). `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
 | docs | required | `README.md` | Must document: installation via OBS (zypper, apt, dnf), usage, flags, exit codes. Must not document curl-based installation. |
 | man | required | `<n>.1.md`, `<n>.1` | Markdown source converted to troff via `pandoc`. Section 1 (user commands). Install to `%{_mandir}/man1/` (RPM) and `debian/<n>/usr/share/man/man1/` (DEB). |
 | license | required | `LICENSE` | SPDX identifier from spec META + authoritative URL to the full license text. Never reproduce the full license text. |
@@ -424,13 +430,69 @@ in the specification title (first `#` heading). It must be:
 
 ### Deliverable Content Requirements
 
+**Per-language source layout (`source` deliverable):**
+
+| LANGUAGE | Entry-point file | Implementation location | Manifest file |
+|---|---|---|---|
+| Go | `main.go` (or `cmd/<n>/main.go`) | `internal/<n>/` package | `go.mod` |
+| Rust | `src/main.rs` (or `src/bin/<n>.rs`) | `src/lib.rs` + modules under `src/` | `Cargo.toml` |
+| C | `src/main.c` | `src/<n>.c` + `include/<n>.h` (multiple .c files supported) | `meson.build` or hand-written `Makefile` plus `Makefile.am` if autotools |
+| C++ | `src/main.cpp` | `src/<n>.cpp` + `include/<n>.hpp` (multiple .cpp files supported) | `meson.build` or `CMakeLists.txt` |
+| C# | `Program.cs` (top-level statements) | `src/<Component>/` with one class per file | `<n>.csproj` |
+| Java | `src/main/java/<package>/Main.java` | `src/main/java/<package>/` with one class per file | `pom.xml` (Maven) or `build.gradle` (Gradle) |
+| Lean4 | `Main.lean` | `<Component>/Basic.lean` and further modules under the namespace directory | `lakefile.lean` plus `lean-toolchain` |
+
+For every language, the entry-point file contains only CLI dispatch:
+argument parsing, top-level error reporting, calling into the
+implementation. Behaviour implementation lives in a separate
+package/module/namespace. Single-file implementations are forbidden
+(per `SOURCE-PARTITIONING: modular`).
+
+**Per-language build invocation (`Makefile` `build:` target):**
+
+| LANGUAGE | `build:` target invocation | Notes |
+|---|---|---|
+| Go | `CGO_ENABLED=0 go build -o <n> ./cmd/<n>` (or `./` if entry is `main.go` at root) | Static binary, no glibc dependency. |
+| Rust | `cargo build --release` (binary at `target/release/<n>`) | Release profile. Static linking via `RUSTFLAGS='-C target-feature=+crt-static'` for musl targets. |
+| C | `$(CC) -static -O2 -o <n> src/*.c` (or `meson setup build && meson compile -C build`) | Static linking via `-static`. |
+| C++ | `$(CXX) -static -O2 -o <n> src/*.cpp` (or via `meson` / `cmake`) | Static linking via `-static`. |
+| C# | `dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true` | Self-contained single-file deployment. Output binary at `bin/Release/<framework>/<rid>/publish/<n>`. |
+| Java | `mvn -B clean package && jlink --module-path target/<n>-deps:$JAVA_HOME/jmods --add-modules <module> --launcher <n>=<module>/<package>.Main --output build/jlink-image && cp build/jlink-image/bin/<n> ./<n>` | Maven build, then `jlink` to produce a custom runtime image. The launcher script in `build/jlink-image/bin/<n>` is the CLI binary. Avoid full JRE dependency. |
+| Lean4 | `lake build` (binary at `.lake/build/bin/<n>`) | Lake is Lean 4's build tool. The `lakefile.lean` must declare an executable target. `lean --run main.lean` is the wrong invocation: it executes the script, it does not produce a binary. |
+
+The `Makefile` `build:` target's body invokes the language toolchain
+appropriately and then copies or symlinks the resulting binary to the
+project root (where `BINARY-LOCATION: project-root` expects it).
+
+**Per-language Containerfile builder stage (`Containerfile` `FROM ... AS builder`):**
+
+| LANGUAGE | Builder image | Notes |
+|---|---|---|
+| Go | `FROM registry.suse.com/bci/golang:latest AS builder` | |
+| Rust | `FROM registry.suse.com/bci/rust:latest AS builder` | |
+| C | `FROM registry.suse.com/bci/bci-base:latest AS builder` with `gcc make` installed in builder layer | |
+| C++ | `FROM registry.suse.com/bci/bci-base:latest AS builder` with `gcc-c++ make` installed in builder layer | |
+| C# | `FROM registry.suse.com/bci/dotnet-sdk:latest AS builder` | |
+| Java | `FROM registry.suse.com/bci/openjdk-devel:latest AS builder` | jlink available in the SDK image. |
+| Lean4 | `FROM registry.suse.com/bci/bci-base:latest AS builder` with the Lean 4 toolchain installed via `elan` (translator must document the install step) | No SUSE-published Lean 4 image exists yet; document the install method in the translation report. |
+
+Final stage in all cases: `FROM scratch` for statically-linked binaries
+(Go, Rust, C, C++ with `-static`), `FROM registry.suse.com/bci/bci-micro:latest`
+for languages requiring a minimal runtime (C# self-contained, Java jlink image).
+Never use unqualified names such as `golang:1.24` or `docker.io/openjdk`. This
+is a supply chain security requirement, not a preference.
+
 **RPM spec (`<n>.spec`):**
 - `License:` field must use the SPDX identifier from the spec META
 - `BuildRequires:` must not include curl or any network fetch tool
 - `BuildRequires:` must include `pandoc` (for man page generation)
+- `BuildRequires:` must include the language toolchain (`go`, `rust`,
+  `gcc`/`gcc-c++`, `dotnet-sdk`, `java-21-openjdk-devel` + `maven`,
+  or `lean4` per language)
 - `%build` must include: `pandoc <n>.1.md -s -t man -o <n>.1`
 - `%files` must include: `%{_mandir}/man1/<n>.1*`
-- `%build` section must set `CGO_ENABLED=0` for Go, `-static` for C/C++
+- `%build` section invokes the language's build command as in the
+  per-language build invocation table above
 - `Source0:` must reference a local tarball, not a URL
 
 **debian/copyright:**
@@ -439,19 +501,27 @@ in the specification title (first `#` heading). It must be:
 
 **debian/control Build-Depends:**
 - Must include `pandoc` in `Build-Depends`
+- Must include the language toolchain in `Build-Depends`
+  (`golang-go`, `rustc`/`cargo`, `gcc`/`g++`, `dotnet-sdk-8.0`,
+  `default-jdk` + `maven`, or Lean 4 toolchain documentation, per
+  language)
 
 **debian/rules:**
 - Must include man page build step: `pandoc <n>.1.md -s -t man -o <n>.1`
 - Man page must be installed to `usr/share/man/man1/<n>.1`
+- Must invoke the language's build command as in the per-language
+  build invocation table above
 
 **Containerfile:**
 - Must use multi-stage build: builder stage + minimal final stage
-- Builder stage must use `FROM registry.suse.com/bci/golang:latest AS builder`
-  for Go. Never use unqualified names such as `golang:1.24` or `docker.io/golang`.
+- Builder stage uses the per-language SUSE BCI image (table above)
+- Never use unqualified names such as `golang:1.24` or `docker.io/golang`.
   This is a supply chain security requirement, not a preference.
-- Final stage must be `FROM scratch` (static binary; no runtime dependencies)
-- Layer order in builder stage: `COPY go.mod go.sum ./` → `RUN go mod download`
-  → `COPY . .` → `RUN CGO_ENABLED=0 go build`
+- Final stage as documented in the per-language table above
+- Layer order in builder stage: copy manifest first, fetch deps,
+  copy source, build. Per-language manifest filenames apply (e.g.
+  `COPY go.mod go.sum ./` for Go, `COPY Cargo.toml Cargo.lock ./`
+  for Rust, `COPY pom.xml ./` for Java).
 - Must not expose any ports unless the spec DEPLOYMENT section declares them
 - Must not include a package manager in the final image
 
@@ -548,15 +618,23 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 - Tests must cover every EXAMPLE, every declared error path, every
   `[observable]` INVARIANT, and the boundary conditions implied by TYPE
   refinement predicates.
-- Tests use Go's standard testing package; no custom in-tree harness.
+- Tests use the target language's standard testing framework
+  (Go: `testing` package; Rust: `#[test]` with `cargo test`; C/C++:
+  any standard framework or a hand-written harness; C#: xUnit or
+  NUnit; Java: JUnit 5; Lean 4: `Lean.Elab.Term.Test` or a minimal
+  hand-written harness). No custom in-tree harness for languages
+  with established conventions.
 - This phase MUST complete before any non-test source file is written.
   The prompt's Tests-First guard halts the translator if this directory
   is empty when Phase 2 begins.
 
 **Phase 2 — Core implementation**
-- All `.go` source files (typically `main.go`, or `cmd/<n>/main.go` for
-  larger tools, plus any additional `.go` files for interfaces and helpers)
-- `go.mod` — direct dependencies only; see Compile gate below
+- All source files for the target language, per the per-language
+  source layout table in DELIVERABLES
+- The language's module/dependency manifest (`go.mod`, `Cargo.toml`,
+  `pom.xml` / `build.gradle`, `meson.build` / `CMakeLists.txt`,
+  `<n>.csproj`, `lakefile.lean` + `lean-toolchain`) — direct
+  dependencies only; see Compile gate below
 
 **Phase 3 — Build and packaging**
 - `Makefile`
@@ -580,22 +658,26 @@ the next. Do not produce `TRANSLATION_REPORT.md` until Phase 6 is done.
 ### Test-author syntax check
 
 When this template is consumed in `mode: test-author`, the test-author's
-syntax check (mandated by the universal prompt) consists of these commands,
-run in order. Each must succeed; the first failure halts the run before
-`TEST_REPORT.md` is written.
+syntax check (mandated by the universal prompt) consists of language-
+specific commands run in order. Each must succeed; the first failure
+halts the run before `TEST_REPORT.md` is written.
 
-```
-$ go vet ./independent_tests/<llm-name>/...
-$ gofmt -l ./independent_tests/<llm-name>/
-```
+| LANGUAGE | Commands |
+|---|---|
+| Go | `go vet ./independent_tests/<llm-name>/...` then `gofmt -l ./independent_tests/<llm-name>/` (must produce empty output) |
+| Rust | `cargo check --tests --manifest-path independent_tests/<llm-name>/Cargo.toml` then `rustfmt --check independent_tests/<llm-name>/src/` |
+| C / C++ | `$(CC) -fsyntax-only independent_tests/<llm-name>/*.c` (or `.cpp` with `$(CXX)`); plus `clang-format --dry-run --Werror independent_tests/<llm-name>/*` if a `.clang-format` is present |
+| C# | `dotnet build --no-restore independent_tests/<llm-name>/` (verify-only via `dotnet build -t:Compile`) |
+| Java | `mvn -B compile -pl independent_tests/<llm-name> -DskipTests` (Maven) or `gradle compileTestJava` (Gradle) |
+| Lean 4 | `lake env lean --only-check independent_tests/<llm-name>/*.lean` (or `lake build --check` if the lakefile declares a check-only target) |
 
-`go vet` must exit 0. `gofmt -l` must produce no output (an empty list of
-unformatted files). A non-empty `gofmt -l` indicates a parse failure or
-formatting drift; both are blockers. If the test files reference packages
-or symbols that the translator will provide (e.g. `exec.Command("./pcd-lint")`
-where `pcd-lint` does not yet exist), this is acceptable — the test-author
-syntax check verifies that the test files themselves parse and conform to
-Go's syntax, not that they compile against a complete implementation.
+If the test files reference symbols that the translator will provide
+(e.g. `exec.Command("./pcd-lint")` where `pcd-lint` does not yet
+exist), this is acceptable — the test-author syntax check verifies
+that the test files themselves parse and conform to the language's
+syntax, not that they compile against a complete implementation. The
+test runner cannot run yet, but the parser/type-checker can do its
+work on the test source.
 
 ### Compile gate
 
@@ -604,20 +686,40 @@ execute shell commands, document this explicitly under the heading
 "Phase 6 — Compile gate not executed" in TRANSLATION_REPORT.md and
 state why. Do not silently omit this phase.
 
+The commands below are language-specific. Use the row for your
+resolved target language.
+
 **Step 1 — Dependency resolution**
 
-Run: `go mod tidy`
+| LANGUAGE | Command |
+|---|---|
+| Go | `go mod tidy` |
+| Rust | `cargo fetch` (and `cargo update` only if necessary) |
+| C / C++ | None at this step — dependencies are declared in packaging artefacts and resolved at build time by the system package manager. |
+| C# | `dotnet restore` |
+| Java | `mvn dependency:resolve` (Maven) or `gradle dependencies` (Gradle) |
+| Lean 4 | `lake update` |
 
-This resolves all direct and indirect dependencies and writes `go.sum`.
-Do not hand-write indirect dependencies — they must come from `go mod tidy`.
+This resolves all direct and indirect dependencies and writes the
+language's lock file (`go.sum`, `Cargo.lock`, `packages.lock.json`,
+etc.). Do not hand-write indirect dependencies — they must come from
+the language's resolver.
 
-If `go mod tidy` cannot be run:
-- Produce `go.mod` with direct dependencies only, no `go.sum`
-- Note in TRANSLATION_REPORT.md that `go mod tidy` must be run before building
+If dependency resolution cannot be run:
+- Produce the manifest with direct dependencies only, no lock file
+- Note in TRANSLATION_REPORT.md that dependency resolution must be
+  run before building
 
 **Step 2 — Compilation**
 
-Run: `go build ./...`
+| LANGUAGE | Command |
+|---|---|
+| Go | `go build ./...` |
+| Rust | `cargo build --release` |
+| C / C++ | `make` (or `meson compile -C build`) |
+| C# | `dotnet build -c Release` |
+| Java | `mvn -B compile` (Maven) or `gradle build` (Gradle) |
+| Lean 4 | `lake build` |
 
 If compilation fails, fix only the identified errors and re-run.
 Do not rewrite unaffected files. Repeat until compilation succeeds
@@ -625,7 +727,14 @@ or all reasonable fixes are exhausted.
 
 **Step 3 — Translator test run**
 
-Run: `go test ./independent_tests/<llm-name>/...`
+| LANGUAGE | Command |
+|---|---|
+| Go | `go test ./independent_tests/<llm-name>/...` |
+| Rust | `cargo test --test '*' --manifest-path independent_tests/<llm-name>/Cargo.toml` (or the test directory's idiomatic invocation) |
+| C / C++ | Per the test harness chosen; document in TRANSLATION_REPORT.md |
+| C# | `dotnet test independent_tests/<llm-name>/` |
+| Java | `mvn -B test -pl independent_tests/<llm-name>` (Maven) |
+| Lean 4 | `lake test` or `lake exe <test-target>` |
 
 If tests fail, either fix the implementation (logged in Test Refinements
 as `code fixed`) or refine the test with documented rationale referencing
@@ -634,11 +743,9 @@ the spec (logged as `test edited`). Never edit a test without justification.
 **Step 4 — Test-author test run** (dual-LLM mode only)
 
 If a `independent_tests/<other-role-llm-name>/` directory exists and the
-continuity checks in the prompt's step 7 passed, run:
-`go test ./independent_tests/<other-role-llm-name>/...`
-
-Record results separately. Do not edit test-author's tests under any
-circumstances.
+continuity checks in the prompt's step 7 passed, invoke the equivalent
+test command for the test-author's suite. Record results separately.
+Do not edit test-author's tests under any circumstances.
 
 **Step 5 — Record result**
 
@@ -646,11 +753,39 @@ Record pass/fail for each step in TRANSLATION_REPORT.md.
 Once all steps pass, do not modify any source files further.
 Proceed immediately to Phase 7.
 
-### go.mod rules
+### Module manifest rules
+
+The same discipline applies regardless of target language:
 
 - Declare only direct dependencies (those your code imports directly)
-- Do NOT hand-write indirect dependencies (resolved by `go mod tidy`)
-- Do NOT fabricate pseudo-versions or commit hashes for untagged modules
-  If hints files are present: use the verified versions they provide
-  If no hints file: flag the dependency in TRANSLATION_REPORT.md as
-  requiring manual version verification before building
+- Do NOT hand-write indirect dependencies (resolved by the language's
+  dependency tool: `go mod tidy` for Go, `cargo` for Rust, Maven's
+  transitive resolution for Java, etc.)
+- Do NOT fabricate pseudo-versions or commit hashes for untagged
+  modules. If hints files are present, use the verified versions they
+  provide. If no hints file: flag the dependency in TRANSLATION_REPORT.md
+  as requiring manual version verification before building.
+
+Per-language manifest specifics:
+
+- **Go (`go.mod`):** declare module path, Go version, direct
+  `require` entries only.
+- **Rust (`Cargo.toml`):** `[package]` table with `name`, `version`,
+  `edition`, `license` (SPDX); `[dependencies]` with direct entries
+  only; `[[bin]]` declaring the executable target.
+- **C / C++ (`meson.build` or `CMakeLists.txt`):** declare the
+  project name, version, language standard. External library
+  dependencies are documented in `BuildRequires:` / `Build-Depends:`
+  in packaging artefacts, since C and C++ have no in-tree dependency
+  resolution by convention.
+- **C# (`<n>.csproj`):** `<Project Sdk="Microsoft.NET.Sdk">` with
+  `<TargetFramework>`, `<OutputType>Exe</OutputType>`,
+  `<PackageReference>` entries for direct dependencies only.
+- **Java (`pom.xml`):** `<modelVersion>4.0.0</modelVersion>`,
+  `<groupId>`, `<artifactId>`, `<version>`, `<packaging>jar</packaging>`,
+  `<dependencies>` with direct entries only. If using Gradle
+  (`build.gradle`), `dependencies { implementation '...' }` block
+  with direct entries only.
+- **Lean 4 (`lakefile.lean`):** `package <n>` declaration,
+  `lean_exe <n> { root := \`Main }` for the executable target.
+  Plus `lean-toolchain` file pinning the Lean 4 version.

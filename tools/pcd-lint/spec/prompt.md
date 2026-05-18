@@ -601,6 +601,58 @@ implement it, and document the ambiguity in the translation report.
 
 ---
 
+## No unsolicited deliverables
+
+Every artefact the translator (or test-author) writes must trace to an
+explicit authorisation. The authoritative sources, in priority order:
+
+1. The deployment template's `## DELIVERABLES` section (or equivalent
+   per-language section within it).
+2. The spec's `## DELIVERABLES` section.
+3. This prompt's `## Reports` section (`TRANSLATION_REPORT.md`,
+   `TEST_REPORT.md`).
+4. A hints file's explicit declaration of an additional artefact.
+
+If you find yourself about to write a file that none of these authorise,
+do not write it. Halt with a diagnostic identifying:
+
+- The filename you considered writing.
+- Why you thought it was appropriate (the implicit convention you were
+  about to follow).
+- The fact that no authoritative source named the file.
+
+The spec author — or a subsequent prompt or template revision —
+decides whether the template should be amended to authorise the file,
+or whether the file genuinely should not exist. The translator does
+not make that decision unilaterally.
+
+This applies in particular to files that are "conventional" in a
+language or ecosystem but unspecified by the template:
+
+- Source-control metadata: `.gitignore`, `.editorconfig`,
+  `.pre-commit-config.yaml`, `.github/workflows/*.yml`
+- Project documentation conventions not named in DELIVERABLES:
+  `CHANGELOG.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  `SECURITY.md`
+- IDE configuration: `.vscode/`, `.idea/`, `.envrc`
+- Lock files not named in the template (`go.sum`, `Cargo.lock`,
+  `package-lock.json`) — the template either names them as required
+  deliverables or it does not; the translator does not invent them
+- Build directories and outputs (`bin/`, `build/`, `target/`,
+  `dist/`) — these are runtime outputs, not source artefacts, and
+  must not be written by the translator
+
+The reverse is also true: every artefact the template's DELIVERABLES
+section names as `required` must be produced. Skipping a required
+deliverable is the same class of error as inventing an unauthorised
+one — both put the produced set out of agreement with the template.
+
+The general principle: the produced artefact set is a function of the
+spec, template, prompt, and hints; the translator's job is to compute
+that function, not to extend it with locally-plausible additions.
+
+---
+
 ## Delivery modes
 
 Deliver the implementation as follows, depending on your environment:
