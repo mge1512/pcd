@@ -1,14 +1,15 @@
 #!/usr/bin/make -f
+# generated from spec: pcd-lint.md sha256:293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
 
-export CGO_ENABLED=0
-export DH_GOPKG := github.com/mge1512/pcd-lint
+export DH_GOPKG := github.com/mge1512/pcd/tools/pcd-lint
+export CGO_ENABLED := 0
 
 %:
-	dh $@
+	dh $@ --with golang
 
 override_dh_auto_build:
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o pcd-lint .
 	pandoc pcd-lint.1.md -s -t man -o pcd-lint.1
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o pcd-lint ./cmd/pcd-lint/
 
 override_dh_auto_install:
 	install -Dm755 pcd-lint debian/pcd-lint/usr/bin/pcd-lint

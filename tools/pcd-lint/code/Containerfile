@@ -1,0 +1,19 @@
+# generated from spec: pcd-lint.md sha256:293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
+# SPDX-License-Identifier: GPL-2.0-only
+LABEL pcd.spec.sha256="293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9"
+
+FROM registry.suse.com/bci/golang:latest AS builder
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o pcd-lint ./cmd/pcd-lint/
+
+FROM scratch
+
+COPY --from=builder /build/pcd-lint /usr/bin/pcd-lint
+
+ENTRYPOINT ["/usr/bin/pcd-lint"]

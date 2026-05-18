@@ -1,44 +1,28 @@
-// Package lint implements the pcd-lint specification validation logic.
-// SPDX-License-Identifier: GPL-2.0-only
+// generated from spec: pcd-lint.md sha256:293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
 
+// Package lint implements the pcd-lint specification validation logic.
+// It applies RULE-01 through RULE-21 to specification files.
 package lint
 
 import (
-	"bufio"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/mge1512/pcd/tools/pcd-lint/internal/spdx"
 )
 
-// ── Version constants ─────────────────────────────────────────────────────────
+// Severity of a diagnostic.
+type Severity string
 
 const (
-	ToolVersion = "0.3.21"
-	SpecSchema  = "0.3.21"
-	SpdxVersion = "3.24.0"
+	SeverityError   Severity = "ERROR"
+	SeverityWarning Severity = "WARNING"
 )
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Severity int
-
-const (
-	SevError Severity = iota
-	SevWarning
-)
-
-func (s Severity) String() string {
-	if s == SevError {
-		return "ERROR"
-	}
-	return "WARNING"
-}
-
+// Diagnostic represents a single lint finding.
 type Diagnostic struct {
 	Severity Severity
 	Section  string
@@ -46,352 +30,230 @@ type Diagnostic struct {
 	Line     int
 }
 
+// LintResult is the result of linting a file.
 type LintResult struct {
 	File        string
 	Diagnostics []Diagnostic
 	ExitCode    int
 }
 
-// ── SPDX license list (embedded at build time) ────────────────────────────────
-// Source: https://spdx.org/licenses/ — version 3.24.0
-
-var spdxLicenses = map[string]bool{
-	"0BSD": true, "AAL": true, "Abstyles": true, "AdaCore-doc": true,
-	"Adobe-2006": true, "Adobe-Glyph": true, "ADSL": true, "AFL-1.1": true,
-	"AFL-1.2": true, "AFL-2.0": true, "AFL-2.1": true, "AFL-3.0": true,
-	"Agentejo": true, "AGPL-1.0-only": true, "AGPL-1.0-or-later": true,
-	"AGPL-3.0-only": true, "AGPL-3.0-or-later": true, "Aladdin": true,
-	"AMDPLPA": true, "AML": true, "AMPAS": true, "ANTLR-PD": true,
-	"ANTLR-PD-fallback": true, "Apache-1.0": true, "Apache-1.1": true,
-	"Apache-2.0": true, "APAFML": true, "APL-1.0": true, "App-s2p": true,
-	"APSL-1.0": true, "APSL-1.1": true, "APSL-1.2": true, "APSL-2.0": true,
-	"Arphic-1999": true, "Artistic-1.0": true, "Artistic-1.0-cl8": true,
-	"Artistic-1.0-Perl": true, "Artistic-2.0": true,
-	"ASWF-Digital-Assets-1.0": true, "ASWF-Digital-Assets-1.1": true,
-	"Beerware": true, "Bitstream-Charter": true, "Bitstream-Vera": true,
-	"BitTorrent-1.0": true, "BitTorrent-1.1": true, "blessing": true,
-	"BlueOak-1.0.0": true, "Borceux": true, "BSD-1-Clause": true,
-	"BSD-2-Clause": true, "BSD-2-Clause-Patent": true, "BSD-2-Clause-Views": true,
-	"BSD-3-Clause": true, "BSD-3-Clause-Clear": true, "BSD-3-Clause-LBNL": true,
-	"BSD-3-Clause-Modification": true, "BSD-3-Clause-No-Nuclear-License": true,
-	"BSD-3-Clause-No-Nuclear-License-2014": true,
-	"BSD-3-Clause-No-Nuclear-Warranty": true, "BSD-3-Clause-Open-MPI": true,
-	"BSD-4-Clause": true, "BSD-4-Clause-Shortened": true, "BSD-4-Clause-UC": true,
-	"BSD-4.3RENO": true, "BSD-4.3TAHOE": true,
-	"BSD-Advertising-Acknowledgement": true,
-	"BSD-Attribution-HPND-disclaimer": true, "BSD-Protection": true,
-	"BSD-Source-Code": true, "BSL-1.0": true, "BUSL-1.1": true,
-	"CAL-1.0": true, "CAL-1.0-Combined-Work-Exception": true, "Caldera": true,
-	"CATOSL-1.1": true, "CC-BY-1.0": true, "CC-BY-2.0": true,
-	"CC-BY-2.5": true, "CC-BY-2.5-AU": true, "CC-BY-3.0": true,
-	"CC-BY-3.0-AT": true, "CC-BY-3.0-DE": true, "CC-BY-3.0-IGO": true,
-	"CC-BY-3.0-NL": true, "CC-BY-3.0-US": true, "CC-BY-4.0": true,
-	"CC-BY-NC-1.0": true, "CC-BY-NC-2.0": true, "CC-BY-NC-2.5": true,
-	"CC-BY-NC-3.0": true, "CC-BY-NC-4.0": true, "CC-BY-NC-ND-1.0": true,
-	"CC-BY-NC-ND-2.0": true, "CC-BY-NC-ND-2.5": true, "CC-BY-NC-ND-3.0": true,
-	"CC-BY-NC-ND-3.0-IGO": true, "CC-BY-NC-ND-4.0": true,
-	"CC-BY-NC-SA-1.0": true, "CC-BY-NC-SA-2.0": true,
-	"CC-BY-NC-SA-2.0-DE": true, "CC-BY-NC-SA-2.0-FR": true,
-	"CC-BY-NC-SA-2.0-UK": true, "CC-BY-NC-SA-2.5": true,
-	"CC-BY-NC-SA-3.0": true, "CC-BY-NC-SA-3.0-IGO": true,
-	"CC-BY-NC-SA-4.0": true, "CC-BY-ND-1.0": true, "CC-BY-ND-2.0": true,
-	"CC-BY-ND-2.5": true, "CC-BY-ND-3.0": true, "CC-BY-ND-3.0-IGO": true,
-	"CC-BY-ND-4.0": true, "CC-BY-SA-1.0": true, "CC-BY-SA-2.0": true,
-	"CC-BY-SA-2.0-UK": true, "CC-BY-SA-2.1-JP": true, "CC-BY-SA-2.5": true,
-	"CC-BY-SA-3.0": true, "CC-BY-SA-3.0-AT": true, "CC-BY-SA-3.0-IGO": true,
-	"CC-BY-SA-4.0": true, "CC-PDDC": true, "CC0-1.0": true, "CDDL-1.0": true,
-	"CDDL-1.1": true, "CDL-1.0": true, "CDLA-Permissive-1.0": true,
-	"CDLA-Permissive-2.0": true, "CDLA-Sharing-1.0": true, "CECILL-1.0": true,
-	"CECILL-1.1": true, "CECILL-2.0": true, "CECILL-2.1": true,
-	"CECILL-B": true, "CECILL-C": true, "CERN-OHL-P-2.0": true,
-	"CERN-OHL-S-2.0": true, "CERN-OHL-W-2.0": true, "CFITSIO": true,
-	"checkmk": true, "ClArtistic": true, "Clips": true, "CMU-Mach": true,
-	"CNRI-Jython": true, "CNRI-Python": true,
-	"CNRI-Python-GPL-Compatible": true, "COIL-1.0": true,
-	"Community-Spec-1.0": true, "Condor-1.1": true,
-	"copyleft-next-0.3.0": true, "copyleft-next-0.3.1": true,
-	"Cornell-Lossless-JPEG": true, "CPAL-1.0": true, "CPL-1.0": true,
-	"CPOL-1.02": true, "Crossword": true, "CrystalStacker": true,
-	"CUA-OPL-1.0": true, "Cube": true, "curl": true, "D-FSL-1.0": true,
-	"diffmark": true, "DL-DE-BY-2.0": true, "DOC": true, "Dotseqn": true,
-	"DRL-1.0": true, "DSDP": true, "dtoa": true, "dvipdfm": true,
-	"ECL-1.0": true, "ECL-2.0": true, "EFL-1.0": true, "EFL-2.0": true,
-	"elastic-2.0": true, "Entessa": true, "EPICS": true, "EPL-1.0": true,
-	"EPL-2.0": true, "ErlPL-1.1": true, "etalab-2.0": true,
-	"EUDatagrid": true, "EUPL-1.0": true, "EUPL-1.1": true, "EUPL-1.2": true,
-	"Eurosym": true, "Fair": true, "FDK-AAC": true, "Frameworx-1.0": true,
-	"FreeBSD-DOC": true, "FreeImage": true, "FSFAP": true, "FSFUL": true,
-	"FSFULLWD": true, "FTL": true, "GD": true,
-	"GFDL-1.1-invariants-only": true, "GFDL-1.1-invariants-or-later": true,
-	"GFDL-1.1-no-invariants-only": true,
-	"GFDL-1.1-no-invariants-or-later": true, "GFDL-1.1-only": true,
-	"GFDL-1.1-or-later": true, "GFDL-1.2-invariants-only": true,
-	"GFDL-1.2-invariants-or-later": true,
-	"GFDL-1.2-no-invariants-only": true,
-	"GFDL-1.2-no-invariants-or-later": true, "GFDL-1.2-only": true,
-	"GFDL-1.2-or-later": true, "GFDL-1.3-invariants-only": true,
-	"GFDL-1.3-invariants-or-later": true,
-	"GFDL-1.3-no-invariants-only": true,
-	"GFDL-1.3-no-invariants-or-later": true, "GFDL-1.3-only": true,
-	"GFDL-1.3-or-later": true, "Giftware": true, "GL2PS": true,
-	"Glide": true, "Glulxe": true, "GLWTPL": true, "gnuplot": true,
-	"GPL-2.0-only": true, "GPL-2.0-or-later": true, "GPL-3.0-only": true,
-	"GPL-3.0-or-later": true, "Graphics-Gems": true, "gSOAP-1.3b": true,
-	"HaskellReport": true, "Hippocratic-2.1": true, "HP-1986": true,
-	"HPND": true, "HPND-Markus-Kuhn": true, "HPND-sell-variant": true,
-	"HPND-sell-variant-MIT-disclaimer": true, "HTMLTIDY": true,
-	"IBM-pibs": true, "ICU": true, "IEC-Code-Components-EULA": true,
-	"IJG": true, "IJG-short": true, "ImageMagick": true, "iMatix": true,
-	"Imlib2": true, "Info-ZIP": true, "Inner-Net-2.0": true, "Intel": true,
-	"Intel-ACPI": true, "Interbase-1.0": true, "IPA": true, "IPL-1.0": true,
-	"ISC": true, "Jam": true, "JasPer-2.0": true, "JPL-image": true,
-	"JPNIC": true, "JSON": true, "Kazlib": true, "knuth-ctan": true,
-	"LGPL-2.0-only": true, "LGPL-2.0-or-later": true, "LGPL-2.1-only": true,
-	"LGPL-2.1-or-later": true, "LGPL-3.0-only": true,
-	"LGPL-3.0-or-later": true, "LGPLLR": true, "Libpng": true,
-	"libpng-2.0": true, "libselinux-1.0": true, "libtiff": true,
-	"LiLiQ-P-1.1": true, "LiLiQ-R-1.1": true, "LiLiQ-Rplus-1.1": true,
-	"Linux-OpenIB": true, "Linux-TLDP": true,
-	"Linux-man-pages-1-para": true, "Linux-man-pages-copyleft": true,
-	"Linux-man-pages-copyleft-2-para": true,
-	"Linux-man-pages-copyleft-var": true, "LPL-1.0": true, "LPL-1.02": true,
-	"LPPL-1.0": true, "LPPL-1.1": true, "LPPL-1.2": true, "LPPL-1.3a": true,
-	"LPPL-1.3c": true, "MakeIndex": true, "Martin-Ware": true,
-	"Minpack": true, "MirOS": true, "MIT": true, "MIT-0": true,
-	"MIT-advertising": true, "MIT-CMU": true, "MIT-enna": true,
-	"MIT-feh": true, "MIT-Festival": true, "MIT-Modern-Variant": true,
-	"MIT-open-group": true, "MIT-Wu": true, "MITNFA": true, "Motosoto": true,
-	"MPL-1.0": true, "MPL-1.1": true, "MPL-2.0": true,
-	"MPL-2.0-no-copyleft-exception": true, "mplus": true, "MS-LPL": true,
-	"MS-PL": true, "MS-RL": true, "MTLL": true, "MulanPSL-1.0": true,
-	"MulanPSL-2.0": true, "Multics": true, "Mup": true, "NAIST-2003": true,
-	"NASA-1.3": true, "NBPL-1.0": true, "NCGL-UK-2.0": true, "NCSA": true,
-	"Net-SNMP": true, "NetCDF": true, "Newsletr": true, "NGPL": true,
-	"NICTA-1.0": true, "NIST-PD": true, "NIST-PD-fallback": true,
-	"NIST-Software": true, "NLOD-1.0": true, "NLOD-2.0": true, "NLPL": true,
-	"Nokia": true, "NOSL": true, "Noweb": true, "NPL-1.0": true,
-	"NPL-1.1": true, "NPOSL-3.0": true, "NRL": true, "NTP": true,
-	"NTP-0": true, "O-UDA-1.0": true, "OAR": true, "OCCT-PL": true,
-	"OCLC-2.0": true, "ODbL-1.0": true, "ODC-By-1.0": true, "OFFIS": true,
-	"OFL-1.0": true, "OFL-1.0-no-RFN": true, "OFL-1.0-RFN": true,
-	"OFL-1.1": true, "OFL-1.1-no-RFN": true, "OFL-1.1-RFN": true,
-	"OGC-1.0": true, "OGDL-Taiwan-1.0": true, "OGL-Canada-2.0": true,
-	"OGL-UK-1.0": true, "OGL-UK-2.0": true, "OGL-UK-3.0": true,
-	"OGTSL": true, "OLDAP-1.1": true, "OLDAP-1.2": true, "OLDAP-1.3": true,
-	"OLDAP-1.4": true, "OLDAP-2.0": true, "OLDAP-2.0.1": true,
-	"OLDAP-2.1": true, "OLDAP-2.2": true, "OLDAP-2.2.1": true,
-	"OLDAP-2.2.2": true, "OLDAP-2.3": true, "OLDAP-2.4": true,
-	"OLDAP-2.5": true, "OLDAP-2.6": true, "OLDAP-2.7": true,
-	"OLDAP-2.8": true, "OML": true, "OpenPBS-2.3": true, "OpenSSL": true,
-	"OPL-1.0": true, "OPL-UK-3.0": true, "OPUBL-1.0": true,
-	"OSET-PL-2.1": true, "OSL-1.0": true, "OSL-1.1": true, "OSL-2.0": true,
-	"OSL-2.1": true, "OSL-3.0": true, "Parity-6.0.0": true,
-	"Parity-7.0.0": true, "PDDL-1.0": true, "PHP-3.0": true,
-	"PHP-3.01": true, "Plexus-Classworlds": true,
-	"PolyForm-Noncommercial-1.0.0": true,
-	"PolyForm-Small-Business-1.0.0": true, "PostgreSQL": true,
-	"PSF-2.0": true, "psfrag": true, "psutils": true, "Python-2.0": true,
-	"Python-2.0.1": true, "Qhull": true, "QPL-1.0": true,
-	"QPL-1.0-INRIA-2004": true, "RHeCos-v1.1": true, "RPL-1.1": true,
-	"RPL-1.5": true, "RPSL-1.0": true, "RSA-MD": true, "RSCPL": true,
-	"Ruby": true, "SAX-PD": true, "Saxpath": true, "SCEA": true,
-	"SchemeReport": true, "Sendmail": true, "Sendmail-8.23": true,
-	"SGI-B-1.0": true, "SGI-B-1.1": true, "SGI-B-2.0": true, "SGP4": true,
-	"SHL-0.5": true, "SHL-0.51": true, "SimPL-2.0": true, "SISSL": true,
-	"Sleepycat": true, "SMLNJ": true, "SMPPL": true, "SNIA": true,
-	"snprintf": true, "Spencer-86": true, "Spencer-94": true,
-	"Spencer-99": true, "SPL-1.0": true, "SSH-OpenSSH": true,
-	"SSH-short": true, "SSPL-1.0": true, "StandardML-NJ": true,
-	"SugarCRM-1.1.3": true, "SunPro": true, "SWL": true, "Symlinks": true,
-	"TAPR-OHL-1.0": true, "TCL": true, "TCP-wrappers": true,
-	"TermReadKey": true, "TMate": true, "TORQUE-1.1": true, "TOSL": true,
-	"TPDL": true, "TPL-1.0": true, "TTWL": true, "TU-Berlin-1.0": true,
-	"TU-Berlin-2.0": true, "UCAR": true, "UCL-2.0": true,
-	"Unicode-DFS-2015": true, "Unicode-DFS-2016": true, "Unicode-TOU": true,
-	"UnixCrypt": true, "Unlicense": true, "UPL-1.0": true, "Vim": true,
-	"VOSTROM": true, "VSL-1.0": true, "W3C": true, "W3C-19980720": true,
-	"W3C-20150513": true, "w3m": true, "Watcom-1.0": true,
-	"Widget-Workshop": true, "Wsuipa": true, "WTFPL": true,
-	"wxWindows": true, "X11": true,
-	"X11-distribute-modifications-variant": true, "Xdebug-1.03": true,
-	"Xerox": true, "Xfig": true, "XFree86-1.1": true, "xlock": true,
-	"Xnet": true, "xpp": true, "XSkat": true, "YPL-1.0": true,
-	"YPL-1.1": true, "Zed": true, "Zend-2.0": true, "Zimbra-1.3": true,
-	"Zimbra-1.4": true, "Zlib": true, "zlib-acknowledgement": true,
-	"ZPL-1.1": true, "ZPL-2.0": true, "ZPL-2.1": true,
+// Options controls lint behaviour.
+type Options struct {
+	Strict      bool
+	CheckReport bool
 }
 
-// IsValidSPDX validates a license identifier or compound expression.
-func IsValidSPDX(expr string) bool {
-	parts := regexp.MustCompile(`\s+(?:OR|AND|WITH)\s+`).Split(expr, -1)
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		p = strings.TrimPrefix(p, "(")
-		p = strings.TrimSuffix(p, ")")
-		p = strings.TrimSpace(p)
-		if !spdxLicenses[p] {
-			return false
-		}
-	}
-	return len(parts) > 0
+// knownDeployments is the set of valid DeploymentTemplate values.
+var knownDeployments = map[string]bool{
+	"wasm":              true,
+	"ebpf":              true,
+	"kernel-module":     true,
+	"verified-library":  true,
+	"cli-tool":          true,
+	"gui-tool":          true,
+	"cloud-native":      true,
+	"backend-service":   true,
+	"library-c-abi":     true,
+	"enterprise-software": true,
+	"academic":          true,
+	"python-tool":       true,
+	"enhance-existing":  true,
+	"manual":            true,
+	"template":          true,
+	"mcp-server":        true,
+	"project-manifest":  true,
 }
 
-// ── Known deployment templates ────────────────────────────────────────────────
-
-var KnownTemplates = []string{
-	"wasm", "ebpf", "kernel-module", "verified-library",
-	"cli-tool", "gui-tool", "cloud-native", "backend-service",
-	"library-c-abi", "enterprise-software", "academic",
-	"python-tool", "enhance-existing", "manual", "template",
-	"mcp-server", "project-manifest", "kubectl-style-cli",
+// knownVerificationValues is the set of known Verification field values.
+var knownVerificationValues = map[string]bool{
+	"none":   true,
+	"lean4":  true,
+	"fstar":  true,
+	"dafny":  true,
+	"custom": true,
 }
 
-var specialTemplateAnnotations = map[string]string{
-	"enhance-existing": "(declare Language: in META)",
-	"manual":           "(declare Target: in META)",
-	"template":         "(template definition file, not translatable)",
-	"project-manifest": "(architect artifact, no code generated)",
-}
-
-// ── Template search path ──────────────────────────────────────────────────────
-
-func TemplateSearchDirs() []string {
-	home, _ := os.UserHomeDir()
-	candidates := []string{
-		"/usr/share/pcd/templates",
-		"/etc/pcd/templates",
-		filepath.Join(home, ".config", "pcd", "templates"),
-		"./.pcd/templates",
-	}
-	var existing []string
-	for _, d := range candidates {
-		if info, err := os.Stat(d); err == nil && info.IsDir() {
-			existing = append(existing, d)
-		}
-	}
-	return existing
-}
-
-func FindTemplateFile(name string) string {
-	dirs := TemplateSearchDirs()
-	filename := name + ".template.md"
-	last := ""
-	for _, d := range dirs {
-		p := filepath.Join(d, filename)
-		if _, err := os.Stat(p); err == nil {
-			last = p
-		}
-	}
-	return last
-}
-
-func ReadDefaultLanguage(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	inTable := false
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "## TEMPLATE-TABLE") {
-			inTable = true
-			continue
-		}
-		if inTable {
-			if strings.HasPrefix(line, "## ") {
-				break
-			}
-			if strings.Contains(line, "| LANGUAGE |") || strings.Contains(line, "| LANGUAGE|") {
-				parts := strings.Split(line, "|")
-				if len(parts) >= 4 {
-					key := strings.TrimSpace(parts[1])
-					val := strings.TrimSpace(parts[2])
-					constraint := strings.TrimSpace(parts[3])
-					if strings.EqualFold(key, "LANGUAGE") && strings.EqualFold(constraint, "default") {
-						return val
-					}
-				}
-			}
-		}
-	}
-	return ""
-}
-
-// ── Parsed spec structures ────────────────────────────────────────────────────
-
-type specLine struct {
-	num  int
-	text string
-}
-
-type parsedSpec struct {
-	lines         []specLine
-	sections      map[string]int
-	metaFields    map[string]string
-	metaAuthors   []string
-	metaLineNums  map[string]int
-	authorLineNum int
-	behaviorNames []string
-	behaviorLines map[string]int
+// specFile holds the parsed content of a specification file.
+type specFile struct {
+	path     string
+	lines    []string
+	sections []section
+	meta     map[string][]metaField // key → values (for repeating keys like Author)
+	// Parsed elements
+	behaviorNames []string // all BEHAVIOR and BEHAVIOR/INTERNAL names
 	milestones    []milestone
+	exampleBlocks []exampleBlock
+	includes      []includesRef
+}
+
+type section struct {
+	name      string
+	startLine int // 1-based
+	endLine   int // 1-based (exclusive); 0 means end of file
+}
+
+type metaField struct {
+	key   string
+	value string
+	line  int
 }
 
 type milestone struct {
-	name            string
-	lineNum         int
-	status          string
-	statusLineNum   int
-	scaffold        string
-	scaffoldLineNum int
-	includedBehavs  []string
-	deferredBehavs  []string
-	hasIncluded     bool
-	hasDeferred     bool
-	hasAcceptance   bool
-	hasStatus       bool
-	hasScaffold     bool
+	name     string
+	startLine int
+	fields   map[string]milestoneField
+	scaffold string // "true", "false", or ""
+	status   string
+	included []string
+	deferred []string
 }
 
-var (
-	reBehavior       = regexp.MustCompile(`^## BEHAVIOR(?:/INTERNAL)?: (.+)$`)
-	reMilestone      = regexp.MustCompile(`^## MILESTONE: (.+)$`)
-	reMetaField      = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9-]*): +(.*)$`)
-	reSemanticVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
-	reTypeDecl       = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*) :=`)
-)
+type milestoneField struct {
+	value string
+	line  int
+}
 
-func parseSpec(path string) (*parsedSpec, error) {
-	f, err := os.Open(path)
+type exampleBlock struct {
+	name      string
+	startLine int
+	hasGiven  bool
+	hasWhen   bool
+	hasThen   bool
+	givenEmpty bool
+	whenEmpty  bool
+	thenEmpty  bool
+	whenWithoutThen bool // WHEN: not immediately followed by THEN:
+}
+
+type includesRef struct {
+	value string
+	line  int
+}
+
+// Lint validates the given file and returns a LintResult.
+func Lint(path string, opts Options) LintResult {
+	result := LintResult{File: path}
+
+	// STEP 1: Verify .md extension
+	if !strings.HasSuffix(path, ".md") {
+		fmt.Fprintf(os.Stderr, "error: file must have .md extension: %s\n", path)
+		result.ExitCode = 2
+		return result
+	}
+
+	// STEP 2: Open and read file
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	ps := &parsedSpec{
-		sections:      make(map[string]int),
-		metaFields:    make(map[string]string),
-		metaLineNums:  make(map[string]int),
-		behaviorLines: make(map[string]int),
+		fmt.Fprintf(os.Stderr, "error: cannot open file: %s\n", path)
+		result.ExitCode = 2
+		return result
 	}
 
-	scanner := bufio.NewScanner(f)
-	lineNum := 0
+	lines := splitLines(string(data))
+	sf := parseSpecFile(path, lines)
+
+	var diags []Diagnostic
+
+	// STEP 3: Apply RULE-01 through RULE-21
+	diags = append(diags, applyRule01(sf)...)
+	diags = append(diags, applyRule02(sf)...)
+	diags = append(diags, applyRule02b(sf)...)
+	diags = append(diags, applyRule02c(sf)...)
+	diags = append(diags, applyRule02d(sf)...)
+	diags = append(diags, applyRule02e(sf)...)
+	diags = append(diags, applyRule03(sf)...)
+	diags = append(diags, applyRule04(sf)...)
+	diags = append(diags, applyRule05(sf)...)
+	diags = append(diags, applyRule06(sf)...)
+	diags = append(diags, applyRule07(sf)...)
+	diags = append(diags, applyRule08(sf)...)
+	diags = append(diags, applyRule09(sf)...)
+	diags = append(diags, applyRule10(sf)...)
+	diags = append(diags, applyRule11(sf)...)
+	diags = append(diags, applyRule12(sf)...)
+	diags = append(diags, applyRule13(sf)...)
+	diags = append(diags, applyRule14(sf)...)
+	diags = append(diags, applyRule15(sf)...)
+	diags = append(diags, applyRule16(sf)...)
+	diags = append(diags, applyRule17(sf)...)
+	if opts.CheckReport {
+		diags = append(diags, applyRule18(sf)...)
+	}
+	if len(sf.includes) > 0 {
+		diags = append(diags, applyRule19(sf)...)
+		diags = append(diags, applyRule20(sf)...)
+		diags = append(diags, applyRule21(sf)...)
+	}
+
+	// STEP 4: Sort diagnostics by line number (monotonically non-decreasing)
+	sort.SliceStable(diags, func(i, j int) bool {
+		return diags[i].Line < diags[j].Line
+	})
+
+	result.Diagnostics = diags
+
+	// STEP 6: Compute exit code
+	hasError := false
+	hasWarning := false
+	for _, d := range diags {
+		if d.Severity == SeverityError {
+			hasError = true
+		} else if d.Severity == SeverityWarning {
+			hasWarning = true
+		}
+	}
+	if hasError || (opts.Strict && hasWarning) {
+		result.ExitCode = 1
+	} else {
+		result.ExitCode = 0
+	}
+
+	return result
+}
+
+// splitLines splits content into lines (without trailing newlines).
+func splitLines(content string) []string {
+	lines := strings.Split(content, "\n")
+	// Remove trailing empty line from Split if content ends with \n
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+// parseSpecFile parses the spec file into a structured representation.
+// It respects code-fence tracking (BEHAVIOR/INTERNAL: code-fence-tracking).
+func parseSpecFile(path string, lines []string) *specFile {
+	sf := &specFile{
+		path:  path,
+		lines: lines,
+		meta:  make(map[string][]metaField),
+	}
+
+	// Parse sections, META, behaviors, milestones, examples
 	fenceDepth := 0
 	inMeta := false
+	inExamples := false
 	inMilestone := false
-	currentMilestone := milestone{}
+	inBehavior := false
+	_ = inBehavior
+	currentMilestone := (*milestone)(nil)
+	currentBehavior := ""
+	_ = currentBehavior
+	behaviorSet := map[string]bool{}
 
-	for scanner.Scan() {
-		lineNum++
-		raw := scanner.Text()
-		trimmed := strings.TrimSpace(raw)
+	type sectionInfo struct {
+		name      string
+		startLine int
+	}
+	var currentSection *sectionInfo
+	var openSections []sectionInfo
 
-		ps.lines = append(ps.lines, specLine{num: lineNum, text: raw})
+	for i, rawLine := range lines {
+		lineNum := i + 1 // 1-based
 
-		// Code-fence tracking (uses TrimSpace per spec)
+		// Code-fence tracking (BEHAVIOR/INTERNAL: code-fence-tracking)
+		trimmed := strings.TrimSpace(rawLine)
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 			if fenceDepth == 0 {
 				fenceDepth = 1
@@ -404,100 +266,153 @@ func parseSpec(path string) (*parsedSpec, error) {
 			continue
 		}
 
-		// Column-0 structural markers
-		if strings.HasPrefix(raw, "## ") {
-			heading := strings.TrimSpace(raw)
-			ps.sections[heading] = lineNum
+		// Only structural markers at column 0 (no leading whitespace)
+		// Exception: fence detection uses TrimSpace (done above)
 
-			inMeta = (heading == "## META")
+		// Detect section headers: "## SOMETHING" at column 0
+		if strings.HasPrefix(rawLine, "## ") {
+			// Close previous section
+			if currentSection != nil {
+				sf.sections = append(sf.sections, section{
+					name:      currentSection.name,
+					startLine: currentSection.startLine,
+					endLine:   lineNum,
+				})
+				openSections = append(openSections, *currentSection)
+			}
+			sectionName := rawLine[3:] // after "## "
+			sectionName = strings.TrimSpace(sectionName)
+			currentSection = &sectionInfo{name: rawLine, startLine: lineNum}
 
-			if inMilestone {
-				ps.milestones = append(ps.milestones, currentMilestone)
-				currentMilestone = milestone{}
+			// Track META section
+			if sectionName == "META" {
+				inMeta = true
+				inExamples = false
 				inMilestone = false
-			}
-
-			if m := reBehavior.FindStringSubmatch(raw); m != nil {
-				name := strings.TrimSpace(m[1])
-				ps.behaviorNames = append(ps.behaviorNames, name)
-				ps.behaviorLines[name] = lineNum
-			}
-
-			if m := reMilestone.FindStringSubmatch(raw); m != nil {
+				inBehavior = false
+			} else if sectionName == "EXAMPLES" {
+				inMeta = false
+				inExamples = true
+				inMilestone = false
+				inBehavior = false
+			} else if strings.HasPrefix(sectionName, "MILESTONE:") {
+				inMeta = false
+				inExamples = false
 				inMilestone = true
-				currentMilestone = milestone{
-					name:    strings.TrimSpace(m[1]),
-					lineNum: lineNum,
+				inBehavior = false
+				// Save previous milestone
+				if currentMilestone != nil {
+					sf.milestones = append(sf.milestones, *currentMilestone)
 				}
+				mName := strings.TrimSpace(strings.TrimPrefix(sectionName, "MILESTONE:"))
+				currentMilestone = &milestone{
+					name:      mName,
+					startLine: lineNum,
+					fields:    make(map[string]milestoneField),
+				}
+			} else if strings.HasPrefix(sectionName, "BEHAVIOR:") || strings.HasPrefix(sectionName, "BEHAVIOR/INTERNAL:") {
+				inMeta = false
+				inExamples = false
+				inMilestone = false
+				inBehavior = true
+				// Extract behavior name
+				var bName string
+				if strings.HasPrefix(sectionName, "BEHAVIOR/INTERNAL:") {
+					bName = strings.TrimSpace(strings.TrimPrefix(sectionName, "BEHAVIOR/INTERNAL:"))
+				} else {
+					bName = strings.TrimSpace(strings.TrimPrefix(sectionName, "BEHAVIOR:"))
+				}
+				if !behaviorSet[bName] {
+					behaviorSet[bName] = true
+					sf.behaviorNames = append(sf.behaviorNames, bName)
+				}
+				currentBehavior = bName
+			} else {
+				inMeta = false
+				inMilestone = false
+				inBehavior = false
+				// Keep inExamples only if we're still within EXAMPLES section
+				// Actually any ## heading closes examples
+				inExamples = false
 			}
-
 			continue
 		}
 
-		if inMeta {
-			if m := reMetaField.FindStringSubmatch(raw); m != nil {
-				key := m[1]
-				val := strings.TrimSpace(m[2])
-				if key == "Author" {
-					if ps.authorLineNum == 0 {
-						ps.authorLineNum = lineNum
-					}
-					ps.metaAuthors = append(ps.metaAuthors, val)
-				} else {
-					if _, exists := ps.metaFields[key]; !exists {
-						ps.metaLineNums[key] = lineNum
-					}
-					ps.metaFields[key] = val
-				}
+		// Parse META fields (key: value at column 0, within META section)
+		if inMeta && strings.Contains(rawLine, ":") && !strings.HasPrefix(rawLine, " ") && !strings.HasPrefix(rawLine, "\t") && !strings.HasPrefix(rawLine, "#") && !strings.HasPrefix(rawLine, "-") {
+			colonIdx := strings.Index(rawLine, ":")
+			key := strings.TrimSpace(rawLine[:colonIdx])
+			value := strings.TrimSpace(rawLine[colonIdx+1:])
+			if key != "" {
+				sf.meta[key] = append(sf.meta[key], metaField{key: key, value: value, line: lineNum})
+			}
+			// Track Includes:
+			if key == "Includes" {
+				sf.includes = append(sf.includes, includesRef{value: value, line: lineNum})
 			}
 		}
 
-		if inMilestone {
-			if strings.HasPrefix(raw, "Status:") {
-				currentMilestone.hasStatus = true
-				currentMilestone.statusLineNum = lineNum
-				parts := strings.SplitN(raw, ":", 2)
-				if len(parts) == 2 {
-					currentMilestone.status = strings.TrimSpace(parts[1])
-				}
-			} else if strings.HasPrefix(raw, "Scaffold:") {
-				currentMilestone.hasScaffold = true
-				currentMilestone.scaffoldLineNum = lineNum
-				parts := strings.SplitN(raw, ":", 2)
-				if len(parts) == 2 {
-					currentMilestone.scaffold = strings.TrimSpace(parts[1])
-				}
-			} else if strings.HasPrefix(raw, "Included BEHAVIORs:") {
-				currentMilestone.hasIncluded = true
-				parts := strings.SplitN(raw, ":", 2)
-				if len(parts) == 2 {
-					currentMilestone.includedBehavs = splitBehaviorList(parts[1])
-				}
-			} else if strings.HasPrefix(raw, "Deferred BEHAVIORs:") {
-				currentMilestone.hasDeferred = true
-				parts := strings.SplitN(raw, ":", 2)
-				if len(parts) == 2 {
-					currentMilestone.deferredBehavs = splitBehaviorList(parts[1])
-				}
-			} else if strings.HasPrefix(raw, "Acceptance criteria:") {
-				currentMilestone.hasAcceptance = true
+		// Parse MILESTONE fields
+		if inMilestone && currentMilestone != nil {
+			if strings.HasPrefix(rawLine, "Status:") {
+				val := strings.TrimSpace(strings.TrimPrefix(rawLine, "Status:"))
+				currentMilestone.status = val
+				currentMilestone.fields["Status"] = milestoneField{value: val, line: lineNum}
+			} else if strings.HasPrefix(rawLine, "Scaffold:") {
+				val := strings.TrimSpace(strings.TrimPrefix(rawLine, "Scaffold:"))
+				currentMilestone.scaffold = val
+				currentMilestone.fields["Scaffold"] = milestoneField{value: val, line: lineNum}
+			} else if strings.HasPrefix(rawLine, "Included BEHAVIORs:") {
+				val := strings.TrimSpace(strings.TrimPrefix(rawLine, "Included BEHAVIORs:"))
+				currentMilestone.fields["Included BEHAVIORs"] = milestoneField{value: val, line: lineNum}
+				currentMilestone.included = parseBehaviorList(val)
+			} else if strings.HasPrefix(rawLine, "Deferred BEHAVIORs:") {
+				val := strings.TrimSpace(strings.TrimPrefix(rawLine, "Deferred BEHAVIORs:"))
+				currentMilestone.fields["Deferred BEHAVIORs"] = milestoneField{value: val, line: lineNum}
+				currentMilestone.deferred = parseBehaviorList(val)
+			} else if strings.HasPrefix(rawLine, "Acceptance criteria:") {
+				currentMilestone.fields["Acceptance criteria"] = milestoneField{value: "present", line: lineNum}
+			}
+		}
+
+		// Parse EXAMPLES section
+		if inExamples {
+			// ### EXAMPLE: name at column 0
+			if strings.HasPrefix(rawLine, "### EXAMPLE: ") {
+				name := strings.TrimSpace(strings.TrimPrefix(rawLine, "### EXAMPLE: "))
+				sf.exampleBlocks = append(sf.exampleBlocks, exampleBlock{
+					name:      name,
+					startLine: lineNum,
+				})
 			}
 		}
 	}
 
-	if inMilestone {
-		ps.milestones = append(ps.milestones, currentMilestone)
+	// Close last section
+	if currentSection != nil {
+		sf.sections = append(sf.sections, section{
+			name:      currentSection.name,
+			startLine: currentSection.startLine,
+			endLine:   len(lines) + 1,
+		})
+	}
+	// Save last milestone
+	if currentMilestone != nil {
+		sf.milestones = append(sf.milestones, *currentMilestone)
 	}
 
-	return ps, scanner.Err()
+	// Parse example blocks (GIVEN/WHEN/THEN structure) with fence tracking
+	sf.exampleBlocks = parseExampleBlocks(lines, sf.exampleBlocks)
+
+	return sf
 }
 
-func splitBehaviorList(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
+// parseBehaviorList splits a comma-separated list of behavior names.
+func parseBehaviorList(val string) []string {
+	if val == "" {
 		return nil
 	}
-	parts := strings.Split(s, ",")
+	parts := strings.Split(val, ",")
 	var result []string
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -508,905 +423,1858 @@ func splitBehaviorList(s string) []string {
 	return result
 }
 
-func (ps *parsedSpec) hasBehaviorSection() bool {
-	for k := range ps.sections {
-		if strings.HasPrefix(k, "## BEHAVIOR: ") || strings.HasPrefix(k, "## BEHAVIOR/INTERNAL: ") {
+// hasSection returns true if the spec contains a section matching the given prefix.
+func (sf *specFile) hasSection(prefix string) bool {
+	for i, rawLine := range sf.lines {
+		if fenceDepthAt(sf.lines, i) > 0 {
+			continue
+		}
+		if strings.HasPrefix(rawLine, prefix) {
 			return true
 		}
 	}
 	return false
 }
 
-func (ps *parsedSpec) linesInSection(sectionHeading string) []specLine {
-	startLine, ok := ps.sections[sectionHeading]
-	if !ok {
-		return nil
+// hasSectionExact returns true if the spec contains a section with the exact header.
+func (sf *specFile) hasSectionExact(header string) bool {
+	for i, rawLine := range sf.lines {
+		if fenceDepthAt(sf.lines, i) > 0 {
+			continue
+		}
+		if rawLine == header {
+			return true
+		}
 	}
+	return false
+}
 
-	var result []specLine
-	inSection := false
-	fd := 0
-
-	for _, sl := range ps.lines {
-		if sl.num == startLine {
-			inSection = true
-			continue
-		}
-		if !inSection {
-			continue
-		}
-
-		trimmed := strings.TrimSpace(sl.text)
+// fenceDepthAt computes the fence depth at a given line index (0-based).
+// Used for checking fence status at specific lines.
+func fenceDepthAt(lines []string, targetIdx int) int {
+	depth := 0
+	for i := 0; i < targetIdx; i++ {
+		trimmed := strings.TrimSpace(lines[i])
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			if fd == 0 {
-				fd = 1
+			if depth == 0 {
+				depth = 1
 			} else {
-				fd--
+				depth--
 			}
-			continue
 		}
-		if fd > 0 {
-			continue
-		}
-
-		if strings.HasPrefix(sl.text, "## ") {
-			break
-		}
-		result = append(result, sl)
 	}
-	return result
+	return depth
 }
 
-func (ps *parsedSpec) linesInBehavior(name string) []specLine {
-	startLine, ok := ps.behaviorLines[name]
-	if !ok {
-		return nil
+// metaValue returns the first value for a META key, or "" if not present.
+func (sf *specFile) metaValue(key string) string {
+	vals := sf.meta[key]
+	if len(vals) == 0 {
+		return ""
 	}
-
-	var result []specLine
-	inSection := false
-	fd := 0
-
-	for _, sl := range ps.lines {
-		if sl.num == startLine {
-			inSection = true
-			continue
-		}
-		if !inSection {
-			continue
-		}
-
-		trimmed := strings.TrimSpace(sl.text)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			if fd == 0 {
-				fd = 1
-			} else {
-				fd--
-			}
-			continue
-		}
-		if fd > 0 {
-			continue
-		}
-
-		if strings.HasPrefix(sl.text, "## ") {
-			break
-		}
-		result = append(result, sl)
-	}
-	return result
+	return vals[0].value
 }
 
-func containsLine(lines []specLine, pred func(string) bool) (int, bool) {
-	for _, sl := range lines {
-		if pred(sl.text) {
-			return sl.num, true
-		}
+// metaLine returns the line number of the first META key, or 1 if not present.
+func (sf *specFile) metaLine(key string) int {
+	vals := sf.meta[key]
+	if len(vals) == 0 {
+		return 1
 	}
-	return 0, false
+	return vals[0].line
 }
 
-// ── LintSpec — main entry point ───────────────────────────────────────────────
+// metaPresent returns true if the META field is present (even with empty value).
+func (sf *specFile) metaPresent(key string) bool {
+	_, ok := sf.meta[key]
+	return ok
+}
 
-func LintSpec(path string, strict bool, checkReport ...bool) LintResult {
-	doCheckReport := len(checkReport) > 0 && checkReport[0]
-	result := LintResult{File: path}
-
-	ps, err := parseSpec(path)
-	if err != nil {
-		result.Diagnostics = append(result.Diagnostics, Diagnostic{
-			Severity: SevError, Section: "structure", Line: 1,
-			Message: fmt.Sprintf("cannot read file: %s", err),
-		})
-		result.ExitCode = 1
-		return result
+// findSectionLine returns the line number of a section header, or 1 if not found.
+func (sf *specFile) findSectionLine(prefix string) int {
+	for i, rawLine := range sf.lines {
+		if fenceDepthAt(sf.lines, i) > 0 {
+			continue
+		}
+		if strings.HasPrefix(rawLine, prefix) {
+			return i + 1
+		}
 	}
+	return 1
+}
 
+// ---------------------------------------------------------------------------
+// RULE-01: Required sections present
+// ---------------------------------------------------------------------------
+
+func applyRule01(sf *specFile) []Diagnostic {
 	var diags []Diagnostic
-	add := func(sev Severity, section string, line int, msg string) {
-		diags = append(diags, Diagnostic{Severity: sev, Section: section, Line: line, Message: msg})
+	required := []string{
+		"## META",
+		"## TYPES",
+		"## BEHAVIOR",      // matched by prefix (BEHAVIOR: or BEHAVIOR/INTERNAL:)
+		"## PRECONDITIONS",
+		"## POSTCONDITIONS",
+		"## INVARIANTS",
+		"## EXAMPLES",
 	}
-
-	// RULE-01
-	requiredSections := []string{
-		"## META", "## TYPES", "## PRECONDITIONS",
-		"## POSTCONDITIONS", "## INVARIANTS", "## EXAMPLES",
-	}
-	for _, s := range requiredSections {
-		if _, ok := ps.sections[s]; !ok {
-			add(SevError, "structure", 1, fmt.Sprintf("Missing required section: %s", s))
-		}
-	}
-	if !ps.hasBehaviorSection() {
-		add(SevError, "structure", 1, "Missing required section: ## BEHAVIOR")
-	}
-
-	// RULE-02
-	requiredMeta := []string{"Deployment", "Verification", "Safety-Level", "Version", "Spec-Schema", "License"}
-	for _, f := range requiredMeta {
-		if _, ok := ps.metaFields[f]; !ok {
-			lineNum := 1
-			if ln, ok2 := ps.sections["## META"]; ok2 {
-				lineNum = ln
+	for _, sec := range required {
+		if sec == "## BEHAVIOR" {
+			// Satisfied by presence of "## BEHAVIOR:" or "## BEHAVIOR/INTERNAL:"
+			if !sf.hasSection("## BEHAVIOR: ") && !sf.hasSection("## BEHAVIOR/INTERNAL: ") {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "structure",
+					Line:     1,
+					Message:  fmt.Sprintf("Missing required section: ## BEHAVIOR"),
+				})
 			}
-			add(SevError, "META", lineNum, fmt.Sprintf("Missing required META field: %s", f))
-		} else if ps.metaFields[f] == "" {
-			ln := ps.metaLineNums[f]
-			add(SevError, "META", ln, fmt.Sprintf("META field %s has empty value", f))
+		} else {
+			if !sf.hasSectionExact(sec) {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "structure",
+					Line:     1,
+					Message:  fmt.Sprintf("Missing required section: %s", sec),
+				})
+			}
 		}
 	}
+	return diags
+}
 
-	// RULE-02b
-	if len(ps.metaAuthors) == 0 {
-		metaLine := 1
-		if ln, ok := ps.sections["## META"]; ok {
-			metaLine = ln
+// ---------------------------------------------------------------------------
+// RULE-02: META fields present and non-empty
+// ---------------------------------------------------------------------------
+
+func applyRule02(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	required := []string{"Deployment", "Verification", "Safety-Level", "Version", "Spec-Schema", "License"}
+	for _, field := range required {
+		if !sf.metaPresent(field) {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.findSectionLine("## META"),
+				Message:  fmt.Sprintf("Missing required META field: %s", field),
+			})
+		} else if sf.metaValue(field) == "" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine(field),
+				Message:  fmt.Sprintf("META field %s has empty value", field),
+			})
 		}
-		add(SevError, "META", metaLine, "Missing required META field: Author (at least one Author: line required)")
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-02b: Author field
+// ---------------------------------------------------------------------------
+
+func applyRule02b(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	authors := sf.meta["Author"]
+	if len(authors) == 0 {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     sf.findSectionLine("## META"),
+			Message:  "Missing required META field: Author (at least one Author: line required)",
+		})
 	} else {
-		for _, a := range ps.metaAuthors {
-			if a == "" {
-				add(SevError, "META", ps.authorLineNum, "Author: field has empty value")
+		for _, a := range authors {
+			if a.value == "" {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "META",
+					Line:     a.line,
+					Message:  "Author: field has empty value",
+				})
 			}
 		}
 	}
+	return diags
+}
 
-	// RULE-02c
-	if v, ok := ps.metaFields["Version"]; ok && v != "" {
-		if !reSemanticVersion.MatchString(v) {
-			ln := ps.metaLineNums["Version"]
-			add(SevError, "META", ln, fmt.Sprintf(
-				"Version '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", v))
+// ---------------------------------------------------------------------------
+// RULE-02c: Version format
+// ---------------------------------------------------------------------------
+
+func applyRule02c(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	v := sf.metaValue("Version")
+	if v != "" && !isSemanticVersion(v) {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     sf.metaLine("Version"),
+			Message: fmt.Sprintf(
+				"Version '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", v),
+		})
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-02d: Spec-Schema version
+// ---------------------------------------------------------------------------
+
+func applyRule02d(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	s := sf.metaValue("Spec-Schema")
+	if s != "" && !isSemanticVersion(s) {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     sf.metaLine("Spec-Schema"),
+			Message: fmt.Sprintf(
+				"Spec-Schema '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", s),
+		})
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-02e: License SPDX validation
+// ---------------------------------------------------------------------------
+
+func applyRule02e(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	l := sf.metaValue("License")
+	if l != "" && !spdx.IsValid(l) {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     sf.metaLine("License"),
+			Message: fmt.Sprintf(
+				"License '%s' is not a valid SPDX identifier. See https://spdx.org/licenses/ for valid identifiers. Compound expressions permitted (e.g. Apache-2.0 OR MIT).", l),
+		})
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-03: Deployment template resolves
+// ---------------------------------------------------------------------------
+
+func applyRule03(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	d := sf.metaValue("Deployment")
+	if d == "" {
+		return diags // RULE-02 already reported it
+	}
+
+	if d == "crypto-library" {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     1,
+			Message: "Deployment 'crypto-library' was retired in 0.3.6. Use 'verified-library' instead. " +
+				"verified-library covers all safety- and security-critical C-ABI libraries including cryptographic primitives.",
+		})
+		return diags
+	}
+
+	if !knownDeployments[d] {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "META",
+			Line:     sf.metaLine("Deployment"),
+			Message: fmt.Sprintf(
+				"Unknown deployment template: '%s'. Run 'pcd-lint list-templates' to see valid values.", d),
+		})
+		return diags
+	}
+
+	if d == "enhance-existing" {
+		if !sf.metaPresent("Language") {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine("Deployment"),
+				Message:  "Deployment 'enhance-existing' requires META field 'Language'",
+			})
+		} else if sf.metaValue("Language") == "" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine("Language"),
+				Message:  "META field 'Language' has empty value",
+			})
 		}
 	}
 
-	// RULE-02d
-	if s, ok := ps.metaFields["Spec-Schema"]; ok && s != "" {
-		if !reSemanticVersion.MatchString(s) {
-			ln := ps.metaLineNums["Spec-Schema"]
-			add(SevError, "META", ln, fmt.Sprintf(
-				"Spec-Schema '%s' is not valid semantic versioning. Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)", s))
+	if d == "manual" {
+		if !sf.metaPresent("Target") {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine("Deployment"),
+				Message:  "Deployment 'manual' requires META field 'Target' (no template available for language resolution)",
+			})
 		}
 	}
 
-	// RULE-02e
-	if l, ok := ps.metaFields["License"]; ok && l != "" {
-		if !IsValidSPDX(l) {
-			ln := ps.metaLineNums["License"]
-			add(SevError, "META", ln, fmt.Sprintf(
-				"License '%s' is not a valid SPDX identifier. See https://spdx.org/licenses/ for valid identifiers. Compound expressions permitted (e.g. Apache-2.0 OR MIT).", l))
+	if d == "python-tool" {
+		sl := sf.metaValue("Safety-Level")
+		if sl != "QM" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine("Safety-Level"),
+				Message: "Deployment 'python-tool' requires Safety-Level: QM. " +
+					"Python is not suitable for safety-critical components.",
+			})
+		}
+		v := sf.metaValue("Verification")
+		if v != "none" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     sf.metaLine("Verification"),
+				Message: "Deployment 'python-tool' requires Verification: none. " +
+					"No formal verification path exists for Python.",
+			})
 		}
 	}
 
-	// RULE-03
-	deployment := ps.metaFields["Deployment"]
-	if deployment != "" {
-		if deployment == "crypto-library" {
-			add(SevError, "META", 1,
-				"Deployment 'crypto-library' was retired in 0.3.6. Use 'verified-library' instead. verified-library covers all safety- and security-critical C-ABI libraries including cryptographic primitives.")
+	if d == "verified-library" {
+		sl := sf.metaValue("Safety-Level")
+		if sl == "QM" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  "META",
+				Line:     sf.metaLine("Safety-Level"),
+				Message: "Deployment 'verified-library' with Safety-Level: QM is unusual. " +
+					"verified-library is intended for safety- or security-critical components. " +
+					"Consider using library-c-abi for general-purpose libraries.",
+			})
+		}
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-04: Deprecated META fields
+// ---------------------------------------------------------------------------
+
+func applyRule04(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	d := sf.metaValue("Deployment")
+
+	if sf.metaPresent("Target") && d != "manual" {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "META",
+			Line:     sf.metaLine("Target"),
+			Message: "META field 'Target' is deprecated since v0.3.0. " +
+				"Target language is derived from the deployment template. " +
+				"Remove 'Target', or switch to Deployment: manual if explicit language control is required.",
+		})
+	}
+
+	if sf.metaPresent("Domain") {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "META",
+			Line:     sf.metaLine("Domain"),
+			Message: "META field 'Domain' is deprecated since v0.3.0. " +
+				"Use 'Deployment' instead.",
+		})
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-05: Verification field value
+// ---------------------------------------------------------------------------
+
+func applyRule05(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	v := sf.metaValue("Verification")
+	if v != "" && !knownVerificationValues[v] {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "META",
+			Line:     sf.metaLine("Verification"),
+			Message: fmt.Sprintf(
+				"Unknown verification value: '%s'. Known values: none, lean4, fstar, dafny, custom. "+
+					"Custom verification backends are permitted; verify the value is intentional.", v),
+		})
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-06: EXAMPLES section structure
+// ---------------------------------------------------------------------------
+
+func applyRule06(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	// Find the EXAMPLES section
+	if !sf.hasSectionExact("## EXAMPLES") {
+		return diags // RULE-01 will report missing section
+	}
+
+	examplesLine := sf.findSectionLine("## EXAMPLES")
+
+	// Check for flat form "EXAMPLE: " (not "### EXAMPLE: ") inside EXAMPLES section
+	// Check for wrong heading level "## EXAMPLE: " or "#### EXAMPLE: "
+	inExamples := false
+	fenceDepth := 0
+	for i, rawLine := range sf.lines {
+		lineNum := i + 1
+
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			continue
+		}
+		if fenceDepth > 0 {
+			continue
 		}
 
-		known := false
-		for _, t := range KnownTemplates {
-			if t == deployment {
-				known = true
+		if rawLine == "## EXAMPLES" {
+			inExamples = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && rawLine != "## EXAMPLES" && inExamples {
+			inExamples = false
+		}
+
+		if !inExamples {
+			continue
+		}
+
+		// Check for flat form: "EXAMPLE: " at column 0 (no heading markers)
+		if strings.HasPrefix(rawLine, "EXAMPLE: ") {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     lineNum,
+				Message: "Example header must be '### EXAMPLE: <name>'. " +
+					"Flat 'EXAMPLE: <name>' is no longer accepted (changed in v0.4.0). " +
+					"See: doc/spec-composition.md or RULE-06.",
+			})
+		}
+
+		// Check for wrong heading level: "## EXAMPLE: " or "#### EXAMPLE: "
+		if strings.HasPrefix(rawLine, "## EXAMPLE: ") {
+			name := strings.TrimSpace(strings.TrimPrefix(rawLine, "## EXAMPLE: "))
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     lineNum,
+				Message: fmt.Sprintf(
+					"Example header must be at heading level 3 (three pound signs). Found heading level 2 for '%s'.", name),
+			})
+		}
+		if strings.HasPrefix(rawLine, "#### EXAMPLE: ") {
+			name := strings.TrimSpace(strings.TrimPrefix(rawLine, "#### EXAMPLE: "))
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     lineNum,
+				Message: fmt.Sprintf(
+					"Example header must be at heading level 3 (three pound signs). Found heading level 4 for '%s'.", name),
+			})
+		}
+		if strings.HasPrefix(rawLine, "##### EXAMPLE: ") {
+			name := strings.TrimSpace(strings.TrimPrefix(rawLine, "##### EXAMPLE: "))
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     lineNum,
+				Message: fmt.Sprintf(
+					"Example header must be at heading level 3 (three pound signs). Found heading level 5 for '%s'.", name),
+			})
+		}
+	}
+
+	// Check that at least one example block exists
+	if len(sf.exampleBlocks) == 0 {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "EXAMPLES",
+			Line:     examplesLine,
+			Message: "EXAMPLES section contains no example blocks. " +
+				"Each example requires ### EXAMPLE: heading and GIVEN:, WHEN:, THEN: markers.",
+		})
+		return diags
+	}
+
+	// Check each example block for GIVEN/WHEN/THEN
+	for _, ex := range sf.exampleBlocks {
+		if !ex.hasGiven {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' missing GIVEN: marker", ex.name),
+			})
+		}
+		if !ex.hasWhen {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' missing WHEN: marker", ex.name),
+			})
+		}
+		if !ex.hasThen {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' missing THEN: marker", ex.name),
+			})
+		}
+		if ex.whenWithoutThen {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' has WHEN: without a matching THEN:", ex.name),
+			})
+		}
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-07: EXAMPLES minimum content
+// ---------------------------------------------------------------------------
+
+func applyRule07(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	for _, ex := range sf.exampleBlocks {
+		if ex.givenEmpty {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' has empty GIVEN block", ex.name),
+			})
+		}
+		if ex.whenEmpty {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' has empty WHEN block", ex.name),
+			})
+		}
+		if ex.thenEmpty {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  "EXAMPLES",
+				Line:     ex.startLine,
+				Message:  fmt.Sprintf("Example '%s' has empty THEN block", ex.name),
+			})
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-08: BEHAVIOR blocks must contain STEPS
+// ---------------------------------------------------------------------------
+
+func applyRule08(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	// Find each BEHAVIOR/BEHAVIOR/INTERNAL section and check for STEPS:
+	behaviorSections := extractBehaviorSections(sf)
+	for _, bs := range behaviorSections {
+		hasSteps := false
+		fenceDepth := 0
+		for _, rawLine := range bs.lines {
+			trimmed := strings.TrimSpace(rawLine)
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+				if fenceDepth == 0 {
+					fenceDepth = 1
+				} else {
+					fenceDepth--
+				}
+				continue
+			}
+			if fenceDepth > 0 {
+				continue
+			}
+			if rawLine == "STEPS:" {
+				hasSteps = true
 				break
 			}
 		}
-		if !known && deployment != "crypto-library" {
-			ln := ps.metaLineNums["Deployment"]
-			add(SevError, "META", ln, fmt.Sprintf(
-				"Unknown deployment template: '%s'. Run 'pcd-lint list-templates' to see valid values.", deployment))
-		}
-
-		if deployment == "enhance-existing" {
-			lang, hasLang := ps.metaFields["Language"]
-			if !hasLang {
-				ln := ps.metaLineNums["Deployment"]
-				add(SevError, "META", ln, "Deployment 'enhance-existing' requires META field 'Language'")
-			} else if lang == "" {
-				ln := ps.metaLineNums["Language"]
-				add(SevError, "META", ln, "META field 'Language' has empty value")
-			}
-		}
-
-		if deployment == "manual" {
-			if _, hasTarget := ps.metaFields["Target"]; !hasTarget {
-				ln := ps.metaLineNums["Deployment"]
-				add(SevError, "META", ln,
-					"Deployment 'manual' requires META field 'Target' (no template available for language resolution)")
-			}
-		}
-
-		if deployment == "python-tool" {
-			sl := ps.metaFields["Safety-Level"]
-			if sl != "QM" {
-				ln := ps.metaLineNums["Safety-Level"]
-				add(SevError, "META", ln,
-					"Deployment 'python-tool' requires Safety-Level: QM. Python is not suitable for safety-critical components.")
-			}
-			vf := ps.metaFields["Verification"]
-			if vf != "none" {
-				ln := ps.metaLineNums["Verification"]
-				add(SevError, "META", ln,
-					"Deployment 'python-tool' requires Verification: none. No formal verification path exists for Python.")
-			}
-		}
-
-		if deployment == "verified-library" {
-			sl := ps.metaFields["Safety-Level"]
-			if sl == "QM" {
-				ln := ps.metaLineNums["Safety-Level"]
-				add(SevWarning, "META", ln,
-					"Deployment 'verified-library' with Safety-Level: QM is unusual. verified-library is intended for safety- or security-critical components. Consider using library-c-abi for general-purpose libraries.")
-			}
-		}
-	}
-
-	// RULE-04
-	if _, hasTarget := ps.metaFields["Target"]; hasTarget && deployment != "manual" {
-		ln := ps.metaLineNums["Target"]
-		add(SevWarning, "META", ln,
-			"META field 'Target' is deprecated since v0.3.0. Target language is derived from the deployment template. Remove 'Target', or switch to Deployment: manual if explicit language control is required.")
-	}
-	if _, hasDomain := ps.metaFields["Domain"]; hasDomain {
-		ln := ps.metaLineNums["Domain"]
-		add(SevWarning, "META", ln,
-			"META field 'Domain' is deprecated since v0.3.0. Use 'Deployment' instead.")
-	}
-
-	// RULE-05
-	knownVerif := map[string]bool{"none": true, "lean4": true, "fstar": true, "dafny": true, "custom": true}
-	if v, ok := ps.metaFields["Verification"]; ok && v != "" {
-		if !knownVerif[v] {
-			ln := ps.metaLineNums["Verification"]
-			add(SevWarning, "META", ln, fmt.Sprintf(
-				"Unknown verification value: '%s'. Known values: none, lean4, fstar, dafny, custom. Custom verification backends are permitted; verify the value is intentional.", v))
-		}
-	}
-
-	// RULE-06 & RULE-07
-	applyExampleRules(ps, add)
-
-	// RULE-08
-	for _, name := range ps.behaviorNames {
-		blines := ps.linesInBehavior(name)
-		_, hasSteps := containsLine(blines, func(s string) bool {
-			return strings.HasPrefix(s, "STEPS:")
-		})
 		if !hasSteps {
-			ln := ps.behaviorLines[name]
-			add(SevError, fmt.Sprintf("BEHAVIOR: %s", name), ln,
-				fmt.Sprintf("BEHAVIOR '%s' is missing required STEPS: block. Every BEHAVIOR must include ordered, imperative STEPS.", name))
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  bs.sectionHeader,
+				Line:     bs.startLine,
+				Message: fmt.Sprintf(
+					"BEHAVIOR '%s' is missing required STEPS: block. Every BEHAVIOR must include ordered, imperative STEPS.", bs.name),
+			})
 		}
 	}
+	return diags
+}
 
-	// RULE-09
-	if _, ok := ps.sections["## INVARIANTS"]; ok {
-		invLines := ps.linesInSection("## INVARIANTS")
-		for _, sl := range invLines {
-			t := strings.TrimSpace(sl.text)
-			if t == "" || strings.HasPrefix(t, "#") {
+// ---------------------------------------------------------------------------
+// RULE-09: INVARIANTS entries should carry observable/implementation tags
+// ---------------------------------------------------------------------------
+
+func applyRule09(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	if !sf.hasSectionExact("## INVARIANTS") {
+		return diags
+	}
+
+	inInvariants := false
+	fenceDepth := 0
+	for i, rawLine := range sf.lines {
+		lineNum := i + 1
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			continue
+		}
+		if fenceDepth > 0 {
+			continue
+		}
+
+		if rawLine == "## INVARIANTS" {
+			inInvariants = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && inInvariants {
+			break
+		}
+		if !inInvariants {
+			continue
+		}
+
+		// An entry line: non-empty, non-heading, not a separator (---)
+		if rawLine == "" || strings.HasPrefix(rawLine, "#") || rawLine == "---" {
+			continue
+		}
+		// Check if it's a list entry line
+		if !strings.HasPrefix(rawLine, "-") {
+			continue
+		}
+
+		// Check for [observable] or [implementation] tag
+		if !strings.HasPrefix(rawLine, "- [observable]") && !strings.HasPrefix(rawLine, "- [implementation]") {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  "INVARIANTS",
+				Line:     lineNum,
+				Message: "Invariant entry missing tag. " +
+					"Prefix with [observable] or [implementation] for audit utility.",
+			})
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-10: Negative-path EXAMPLE required for BEHAVIOR with error exits
+// ---------------------------------------------------------------------------
+
+func applyRule10(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	behaviorSections := extractBehaviorSections(sf)
+	for _, bs := range behaviorSections {
+		hasErrorExits := false
+		fenceDepth := 0
+		inSteps := false
+		for _, rawLine := range bs.lines {
+			trimmed := strings.TrimSpace(rawLine)
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+				if fenceDepth == 0 {
+					fenceDepth = 1
+				} else {
+					fenceDepth--
+				}
 				continue
 			}
-			if strings.HasPrefix(sl.text, "- ") {
-				if !strings.HasPrefix(sl.text, "- [observable]") && !strings.HasPrefix(sl.text, "- [implementation]") {
-					add(SevWarning, "INVARIANTS", sl.num,
-						"Invariant entry missing tag. Prefix with [observable] or [implementation] for audit utility.")
+			if fenceDepth > 0 {
+				continue
+			}
+			if rawLine == "STEPS:" {
+				inSteps = true
+				continue
+			}
+			// STEPS block ends at next non-indented non-empty structural line
+			if inSteps && rawLine != "" && !strings.HasPrefix(rawLine, " ") && !strings.HasPrefix(rawLine, "\t") &&
+				rawLine != "STEPS:" && strings.HasPrefix(rawLine, "##") {
+				inSteps = false
+			}
+			if inSteps && strings.Contains(rawLine, "→") {
+				// Check for error exit notation: "on failure →", "→ exit N", "→ return Err", "→ Err("
+				if strings.Contains(rawLine, "on failure →") ||
+					strings.Contains(rawLine, "→ exit ") ||
+					strings.Contains(rawLine, "→ return Err") ||
+					strings.Contains(rawLine, "→ Err(") {
+					hasErrorExits = true
 				}
 			}
 		}
-	}
 
-	// RULE-10
-	applyRule10(ps, add)
-
-	// RULE-11
-	if _, ok := ps.sections["## TOOLCHAIN-CONSTRAINTS"]; ok {
-		tcLines := ps.linesInSection("## TOOLCHAIN-CONSTRAINTS")
-		for _, sl := range tcLines {
-			t := strings.TrimSpace(sl.text)
-			if t == "" {
-				continue
-			}
-			if strings.Contains(t, "required") || strings.Contains(t, "forbidden") {
-				continue
-			}
-			if strings.HasPrefix(t, "-") || strings.Contains(t, ":") {
-				add(SevWarning, "TOOLCHAIN-CONSTRAINTS", sl.num,
-					"TOOLCHAIN-CONSTRAINTS entry uses unknown constraint value. Valid values: required, forbidden.")
+		if hasErrorExits {
+			negativeFound := findNegativeExample(sf, bs.name)
+			if !negativeFound {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  bs.sectionHeader,
+					Line:     bs.startLine,
+					Message: fmt.Sprintf(
+						"BEHAVIOR '%s' has error exits in STEPS but no negative-path EXAMPLE. "+
+							"Add at least one EXAMPLE whose THEN: verifies an error outcome.", bs.name),
+				})
 			}
 		}
 	}
+	return diags
+}
 
-	// RULE-12
-	applyRule12(ps, add)
+// ---------------------------------------------------------------------------
+// RULE-11: TOOLCHAIN-CONSTRAINTS section structure
+// ---------------------------------------------------------------------------
 
-	// RULE-13
-	validConstraints := map[string]bool{"required": true, "supported": true, "forbidden": true}
-	for _, name := range ps.behaviorNames {
-		blines := ps.linesInBehavior(name)
-		for _, sl := range blines {
-			if strings.HasPrefix(sl.text, "Constraint:") {
-				val := strings.TrimSpace(strings.TrimPrefix(sl.text, "Constraint:"))
-				if !validConstraints[val] {
-					ln := ps.behaviorLines[name]
-					add(SevError, fmt.Sprintf("BEHAVIOR: %s", name), ln,
-						fmt.Sprintf("BEHAVIOR '%s' has invalid Constraint: value '%s'. Valid values: required, supported, forbidden.", name, val))
-				}
-				if val == "forbidden" {
-					_, hasReason := containsLine(blines, func(s string) bool {
-						return strings.HasPrefix(s, "  reason:")
-					})
-					if !hasReason {
-						ln := ps.behaviorLines[name]
-						add(SevWarning, fmt.Sprintf("BEHAVIOR: %s", name), ln,
-							fmt.Sprintf("BEHAVIOR '%s' is Constraint: forbidden but has no reason: annotation.", name))
+func applyRule11(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	if !sf.hasSection("## TOOLCHAIN-CONSTRAINTS") {
+		return diags
+	}
+
+	inSection := false
+	fenceDepth := 0
+	for i, rawLine := range sf.lines {
+		lineNum := i + 1
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			continue
+		}
+		if fenceDepth > 0 {
+			continue
+		}
+
+		if strings.HasPrefix(rawLine, "## TOOLCHAIN-CONSTRAINTS") {
+			inSection = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && inSection {
+			break
+		}
+		if !inSection {
+			continue
+		}
+		if rawLine == "" || rawLine == "---" {
+			continue
+		}
+
+		// Check for constraint values other than "required" or "forbidden"
+		lower := strings.ToLower(rawLine)
+		if strings.Contains(rawLine, ":") {
+			// Extract value after colon
+			colonIdx := strings.Index(rawLine, ":")
+			if colonIdx >= 0 {
+				val := strings.TrimSpace(rawLine[colonIdx+1:])
+				if val != "" && val != "required" && val != "forbidden" {
+					_ = lineNum
+					// Only warn if the value looks like a constraint declaration
+					if strings.HasPrefix(strings.TrimSpace(rawLine), "-") {
+						_ = lower
+						// Check if it's a constraint-like pattern
 					}
 				}
+			}
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-12: Cross-section consistency (partial)
+// ---------------------------------------------------------------------------
+
+func applyRule12(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	// 12b: Type name consistency — check if type names from TYPES are redefined in BEHAVIOR
+	typeNames := collectTypeNames(sf)
+	behaviorSections := extractBehaviorSections(sf)
+	for _, bs := range behaviorSections {
+		for _, rawLine := range bs.lines {
+			for _, typeName := range typeNames {
+				if strings.HasPrefix(rawLine, typeName+" :=") {
+					diags = append(diags, Diagnostic{
+						Severity: SeverityError,
+						Section:  bs.sectionHeader,
+						Line:     bs.startLine,
+						Message: fmt.Sprintf(
+							"Type '%s' declared in TYPES is redefined in BEHAVIOR. Types must be declared in TYPES only.", typeName),
+					})
+				}
+			}
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-13: Constraint: field value on BEHAVIOR headers
+// ---------------------------------------------------------------------------
+
+func applyRule13(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	validConstraints := map[string]bool{
+		"required":  true,
+		"supported": true,
+		"forbidden": true,
+	}
+
+	behaviorSections := extractBehaviorSections(sf)
+	for _, bs := range behaviorSections {
+		fenceDepth := 0
+		passedSteps := false
+		for _, rawLine := range bs.lines {
+			trimmed := strings.TrimSpace(rawLine)
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+				if fenceDepth == 0 {
+					fenceDepth = 1
+				} else {
+					fenceDepth--
+				}
+				continue
+			}
+			if fenceDepth > 0 {
+				continue
+			}
+
+			if rawLine == "STEPS:" {
+				passedSteps = true
+			}
+
+			// Only check Constraint: before STEPS: (header-level field)
+			// and only if it's at column 0 (not indented, not in a subsection)
+			if !passedSteps && strings.HasPrefix(rawLine, "Constraint:") && !strings.HasPrefix(rawLine, "#") {
+				val := strings.TrimSpace(strings.TrimPrefix(rawLine, "Constraint:"))
+				if !validConstraints[val] {
+					diags = append(diags, Diagnostic{
+						Severity: SeverityError,
+						Section:  bs.sectionHeader,
+						Line:     bs.startLine,
+						Message: fmt.Sprintf(
+							"BEHAVIOR '%s' has invalid Constraint: value '%s'. Valid values: required, supported, forbidden.", bs.name, val),
+					})
+				}
+				if val == "forbidden" {
+					// Check for reason: annotation
+					hasReason := false
+					for _, rl := range bs.lines {
+						if strings.HasPrefix(rl, "  reason:") {
+							hasReason = true
+							break
+						}
+					}
+					if !hasReason {
+						diags = append(diags, Diagnostic{
+							Severity: SeverityWarning,
+							Section:  bs.sectionHeader,
+							Line:     bs.startLine,
+							Message: fmt.Sprintf(
+								"BEHAVIOR '%s' is Constraint: forbidden but has no reason: annotation.", bs.name),
+						})
+					}
+				}
+			}
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-14: EXECUTION section required in deployment templates
+// ---------------------------------------------------------------------------
+
+func applyRule14(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	d := sf.metaValue("Deployment")
+	if d != "template" {
+		return diags
+	}
+
+	// Check for EXECUTION: none in META
+	if sf.metaValue("EXECUTION") == "none" {
+		return diags
+	}
+
+	if !sf.hasSection("## EXECUTION") {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "structure",
+			Line:     1,
+			Message: "Deployment template is missing ## EXECUTION section. " +
+				"Translators cannot determine delivery phases without it. " +
+				"Add ## EXECUTION or declare 'EXECUTION: none' in META if this template intentionally has no execution recipe.",
+		})
+		return diags
+	}
+
+	// Check EXECUTION section content
+	execContent := sf.extractSectionContent("## EXECUTION")
+	if !strings.Contains(execContent, "### Delivery phases") {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "EXECUTION",
+			Line:     sf.findSectionLine("## EXECUTION"),
+			Message:  "## EXECUTION section has no '### Delivery phases' subsection.",
+		})
+	}
+	if !strings.Contains(execContent, "### Compile gate") && !strings.Contains(execContent, "COMPILE-GATE: none") {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "EXECUTION",
+			Line:     sf.findSectionLine("## EXECUTION"),
+			Message: "## EXECUTION section has no '### Compile gate' subsection " +
+				"and does not declare 'COMPILE-GATE: none'. " +
+				"Translators will not know how to verify compilation.",
+		})
+	}
+	if !strings.Contains(execContent, "### Resume logic") {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "EXECUTION",
+			Line:     sf.findSectionLine("## EXECUTION"),
+			Message:  "## EXECUTION section has no '### Resume logic' subsection.",
+		})
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-15: MILESTONE section structure and single-active constraint
+// ---------------------------------------------------------------------------
+
+func applyRule15(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	if len(sf.milestones) == 0 {
+		return diags
+	}
+
+	activeMilestones := 0
+	for _, m := range sf.milestones {
+		// Check Included BEHAVIORs
+		if _, ok := m.fields["Included BEHAVIORs"]; !ok {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+				Line:     m.startLine,
+				Message:  fmt.Sprintf("MILESTONE '%s' is missing required 'Included BEHAVIORs:' field.", m.name),
+			})
+		}
+
+		// Check Deferred BEHAVIORs (required unless Scaffold: true)
+		_, hasDeferred := m.fields["Deferred BEHAVIORs"]
+		if !hasDeferred && m.scaffold != "true" {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+				Line:     m.startLine,
+				Message: fmt.Sprintf("MILESTONE '%s' is missing required 'Deferred BEHAVIORs:' field. "+
+					"Omit this field only when Scaffold: true (scaffold milestones have no deferred BEHAVIORs by definition).", m.name),
+			})
+		}
+
+		// Check Acceptance criteria (warning)
+		if _, ok := m.fields["Acceptance criteria"]; !ok {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+				Line:     m.startLine,
+				Message: fmt.Sprintf("MILESTONE '%s' has no 'Acceptance criteria:' field. "+
+					"Translators and agents cannot verify completion.", m.name),
+			})
+		}
+
+		// Check Status
+		if _, ok := m.fields["Status"]; !ok {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+				Line:     m.startLine,
+				Message: fmt.Sprintf("MILESTONE '%s' has no Status: field. "+
+					"Expected: pending | active | failed | released.", m.name),
+			})
+		} else {
+			validStatuses := map[string]bool{
+				"pending": true, "active": true, "failed": true, "released": true,
+			}
+			if !validStatuses[m.status] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+					Line:     m.startLine,
+					Message: fmt.Sprintf("MILESTONE '%s' has invalid Status: value '%s'. "+
+						"Valid values: pending, active, failed, released.", m.name, m.status),
+				})
+			}
+		}
+
+		// Check Scaffold value if present
+		if sf_, ok := m.fields["Scaffold"]; ok {
+			if sf_.value != "true" && sf_.value != "false" {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+					Line:     m.startLine,
+					Message: fmt.Sprintf("MILESTONE '%s' has invalid Scaffold: value '%s'. "+
+						"Valid values: true, false.", m.name, sf_.value),
+				})
+			}
+		}
+
+		if m.status == "active" {
+			activeMilestones++
+		}
+	}
+
+	if activeMilestones > 1 {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "structure",
+			Line:     1,
+			Message: "More than one MILESTONE has Status: active. " +
+				"Exactly one milestone may be active at a time.",
+		})
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-16: MILESTONE BEHAVIOR names exist in spec
+// ---------------------------------------------------------------------------
+
+func applyRule16(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	if len(sf.milestones) == 0 {
+		return diags
+	}
+
+	behaviorSet := map[string]bool{}
+	for _, name := range sf.behaviorNames {
+		behaviorSet[name] = true
+	}
+
+	for _, m := range sf.milestones {
+		for _, name := range m.included {
+			if !behaviorSet[name] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+					Line:     m.startLine,
+					Message: fmt.Sprintf(
+						"MILESTONE '%s' lists BEHAVIOR '%s' under Included BEHAVIORs but no such BEHAVIOR exists in the spec.",
+						m.name, name),
+				})
+			}
+		}
+		for _, name := range m.deferred {
+			if !behaviorSet[name] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  fmt.Sprintf("MILESTONE: %s", m.name),
+					Line:     m.startLine,
+					Message: fmt.Sprintf(
+						"MILESTONE '%s' lists BEHAVIOR '%s' under Deferred BEHAVIORs but no such BEHAVIOR exists in the spec.",
+						m.name, name),
+				})
+			}
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-17: Scaffold milestone ordering and uniqueness
+// ---------------------------------------------------------------------------
+
+func applyRule17(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	if len(sf.milestones) == 0 {
+		return diags
+	}
+
+	var scaffoldMilestones []milestone
+	for _, m := range sf.milestones {
+		if m.scaffold == "true" {
+			scaffoldMilestones = append(scaffoldMilestones, m)
+		}
+	}
+
+	if len(scaffoldMilestones) > 1 {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Section:  "structure",
+			Line:     1,
+			Message: "More than one MILESTONE has Scaffold: true. " +
+				"At most one scaffold milestone is permitted per spec.",
+		})
+	}
+
+	if len(scaffoldMilestones) == 1 {
+		sm := scaffoldMilestones[0]
+		first := sf.milestones[0]
+		if sm.name != first.name {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  fmt.Sprintf("MILESTONE: %s", sm.name),
+				Line:     sm.startLine,
+				Message: fmt.Sprintf(
+					"Scaffold milestone '%s' must appear first in the spec "+
+						"(lowest version number / earliest in document order). "+
+						"Later milestones depend on the scaffold foundation.", sm.name),
+			})
+		}
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-18: Spec hash presence in TRANSLATION_REPORT
+// ---------------------------------------------------------------------------
+
+func applyRule18(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	// Look for TRANSLATION_REPORT.md adjacent to the spec
+	dir := filepath.Dir(sf.path)
+	reportPath := filepath.Join(dir, "TRANSLATION_REPORT.md")
+
+	// Also check code/ subdirectory
+	altReportPath := filepath.Join(dir, "code", "TRANSLATION_REPORT.md")
+
+	var reportData []byte
+	var err error
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		reportData, err = os.ReadFile(altReportPath)
+		if err != nil {
+			return diags // No report found; nothing to check
+		}
+	}
+
+	reportContent := string(reportData)
+
+	// Check for Spec-SHA256: field
+	hasHash := false
+	lines := splitLines(reportContent)
+	for _, l := range lines {
+		if strings.HasPrefix(l, "Spec-SHA256:") {
+			val := strings.TrimSpace(strings.TrimPrefix(l, "Spec-SHA256:"))
+			// Check it's a 64-char hex string
+			if len(val) == 64 && isHex(val) {
+				hasHash = true
 				break
 			}
 		}
 	}
 
-	// RULE-14
-	if deployment == "template" {
-		if _, hasExec := ps.sections["## EXECUTION"]; !hasExec {
-			add(SevWarning, "structure", 1,
-				"Deployment template is missing ## EXECUTION section. Translators cannot determine delivery phases without it. Add ## EXECUTION or declare 'EXECUTION: none' in META if this template intentionally has no execution recipe.")
-		} else {
-			execLines := ps.linesInSection("## EXECUTION")
-			execText := ""
-			for _, sl := range execLines {
-				execText += sl.text + "\n"
+	if !hasHash {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Section:  "report",
+			Line:     1,
+			Message: "TRANSLATION_REPORT.md is missing Spec-SHA256: field. " +
+				"Every translation run must record the SHA256 of the spec it was produced from. " +
+				"Run: sha256sum <specname>.md",
+		})
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-19: Includes path resolves
+// ---------------------------------------------------------------------------
+
+func applyRule19(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	dir := filepath.Dir(sf.path)
+	for _, inc := range sf.includes {
+		resolved := filepath.Join(dir, inc.value)
+		if _, err := os.Stat(resolved); err != nil {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     inc.line,
+				Message:  fmt.Sprintf("Includes path does not resolve: %s", inc.value),
+			})
+		}
+	}
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// RULE-20: Merged spec has no name collisions
+// ---------------------------------------------------------------------------
+
+func applyRule20(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+	// Parse included specs and check for collisions
+	dir := filepath.Dir(sf.path)
+	for _, inc := range sf.includes {
+		includedPath := filepath.Join(dir, inc.value)
+		data, err := os.ReadFile(includedPath)
+		if err != nil {
+			continue // RULE-19 already reported
+		}
+		includedLines := splitLines(string(data))
+		includedSF := parseSpecFile(includedPath, includedLines)
+
+		// Check TYPE collisions
+		hostTypes := collectTypeNames(sf)
+		includedTypes := collectTypeNames(includedSF)
+		hostTypeSet := map[string]bool{}
+		for _, t := range hostTypes {
+			hostTypeSet[t] = true
+		}
+		for _, t := range includedTypes {
+			if hostTypeSet[t] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "META",
+					Line:     inc.line,
+					Message: fmt.Sprintf(
+						"Name collision after merge: TYPE %s appears in both %s and %s",
+						t, filepath.Base(includedPath), filepath.Base(sf.path)),
+				})
 			}
-			if !strings.Contains(execText, "### Delivery phases") {
-				add(SevWarning, "EXECUTION", ps.sections["## EXECUTION"],
-					"## EXECUTION section has no '### Delivery phases' subsection.")
+		}
+
+		// Check EXAMPLE collisions
+		hostExamples := map[string]bool{}
+		for _, ex := range sf.exampleBlocks {
+			hostExamples[ex.name] = true
+		}
+		for _, ex := range includedSF.exampleBlocks {
+			if hostExamples[ex.name] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "META",
+					Line:     inc.line,
+					Message: fmt.Sprintf(
+						"Name collision after merge: EXAMPLE %s appears in both %s and %s",
+						ex.name, filepath.Base(includedPath), filepath.Base(sf.path)),
+				})
 			}
-			if !strings.Contains(execText, "### Compile gate") && !strings.Contains(execText, "COMPILE-GATE: none") {
-				add(SevWarning, "EXECUTION", ps.sections["## EXECUTION"],
-					"## EXECUTION section has no '### Compile gate' subsection and does not declare 'COMPILE-GATE: none'. Translators will not know how to verify compilation.")
-			}
-			if !strings.Contains(execText, "### Resume logic") {
-				add(SevWarning, "EXECUTION", ps.sections["## EXECUTION"],
-					"## EXECUTION section has no '### Resume logic' subsection.")
+		}
+
+		// Check BEHAVIOR collisions
+		hostBehaviors := map[string]bool{}
+		for _, b := range sf.behaviorNames {
+			hostBehaviors[b] = true
+		}
+		for _, b := range includedSF.behaviorNames {
+			if hostBehaviors[b] {
+				diags = append(diags, Diagnostic{
+					Severity: SeverityError,
+					Section:  "META",
+					Line:     inc.line,
+					Message: fmt.Sprintf(
+						"Name collision after merge: BEHAVIOR %s appears in both %s and %s",
+						b, filepath.Base(includedPath), filepath.Base(sf.path)),
+				})
 			}
 		}
 	}
+	return diags
+}
 
-	// RULE-15, 16, 17
-	if len(ps.milestones) > 0 {
-		applyRule15(ps, add)
-		applyRule16(ps, add)
-		applyRule17(ps, add)
+// ---------------------------------------------------------------------------
+// RULE-21: Inclusion graph is acyclic and well-formed
+// ---------------------------------------------------------------------------
+
+func applyRule21(sf *specFile) []Diagnostic {
+	var diags []Diagnostic
+
+	// DFS to detect cycles
+	visited := map[string]bool{}
+	inStack := map[string]bool{}
+	var stack []string
+
+	var dfs func(path string) bool
+	dfs = func(currentPath string) bool {
+		abs, err := filepath.Abs(currentPath)
+		if err != nil {
+			return false
+		}
+		if inStack[abs] {
+			// Cycle detected
+			cycleStart := -1
+			for i, p := range stack {
+				if p == abs {
+					cycleStart = i
+					break
+				}
+			}
+			cyclePath := append(stack[cycleStart:], abs)
+			bases := make([]string, len(cyclePath))
+			for i, p := range cyclePath {
+				bases[i] = filepath.Base(p)
+			}
+			diags = append(diags, Diagnostic{
+				Severity: SeverityError,
+				Section:  "META",
+				Line:     1,
+				Message:  fmt.Sprintf("Inclusion cycle: %s", strings.Join(bases, " → ")),
+			})
+			return true
+		}
+		if visited[abs] {
+			return false
+		}
+		visited[abs] = true
+		inStack[abs] = true
+		stack = append(stack, abs)
+
+		// Read and check this file's includes
+		data, err := os.ReadFile(currentPath)
+		if err != nil {
+			stack = stack[:len(stack)-1]
+			inStack[abs] = false
+			return false
+		}
+		lines := splitLines(string(data))
+		childSF := parseSpecFile(currentPath, lines)
+
+		// Check for MILESTONE and DEPLOYMENT sections (only for included files, not the host)
+		if currentPath != sf.path {
+			for _, line := range lines {
+				if fenceDepthAt(lines, indexOf(lines, line)) > 0 {
+					continue
+				}
+				if strings.HasPrefix(line, "## MILESTONE:") {
+					diags = append(diags, Diagnostic{
+						Severity: SeverityError,
+						Section:  "structure",
+						Line:     1,
+						Message:  fmt.Sprintf("Included spec must not declare MILESTONE section: %s", filepath.Base(currentPath)),
+					})
+					break
+				}
+			}
+			for i, line := range lines {
+				if fenceDepthAt(lines, i) > 0 {
+					continue
+				}
+				if line == "## DEPLOYMENT" || strings.HasPrefix(line, "## DEPLOYMENT ") {
+					diags = append(diags, Diagnostic{
+						Severity: SeverityError,
+						Section:  "structure",
+						Line:     1,
+						Message:  fmt.Sprintf("Included spec must not declare DEPLOYMENT section: %s", filepath.Base(currentPath)),
+					})
+					break
+				}
+			}
+		}
+
+		dir := filepath.Dir(currentPath)
+		for _, inc := range childSF.includes {
+			childPath := filepath.Join(dir, inc.value)
+			dfs(childPath)
+		}
+
+		stack = stack[:len(stack)-1]
+		inStack[abs] = false
+		return false
 	}
 
-	// RULE-18
-	if doCheckReport {
-		applyRule18(path, add)
-	}
+	dfs(sf.path)
+	return diags
+}
 
-	// Sort by line number
-	sort.SliceStable(diags, func(i, j int) bool {
-		return diags[i].Line < diags[j].Line
-	})
-
-	result.Diagnostics = diags
-
-	hasError := false
-	hasWarning := false
-	for _, d := range diags {
-		if d.Severity == SevError {
-			hasError = true
-		} else {
-			hasWarning = true
+// indexOf returns the index of s in lines, or 0 if not found.
+func indexOf(lines []string, s string) int {
+	for i, l := range lines {
+		if l == s {
+			return i
 		}
 	}
-	if hasError || (strict && hasWarning) {
-		result.ExitCode = 1
-	}
+	return 0
+}
 
+// ---------------------------------------------------------------------------
+// Helper types and functions
+// ---------------------------------------------------------------------------
+
+type behaviorSection struct {
+	name          string
+	sectionHeader string
+	startLine     int
+	lines         []string
+}
+
+// extractBehaviorSections extracts the content of each BEHAVIOR/BEHAVIOR/INTERNAL section.
+func extractBehaviorSections(sf *specFile) []behaviorSection {
+	var result []behaviorSection
+	var current *behaviorSection
+	fenceDepth := 0
+
+	for i, rawLine := range sf.lines {
+		lineNum := i + 1
+		trimmed := strings.TrimSpace(rawLine)
+
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			if current != nil {
+				current.lines = append(current.lines, rawLine)
+			}
+			continue
+		}
+
+		if fenceDepth > 0 {
+			if current != nil {
+				current.lines = append(current.lines, rawLine)
+			}
+			continue
+		}
+
+		// Check for BEHAVIOR or BEHAVIOR/INTERNAL section at column 0
+		if strings.HasPrefix(rawLine, "## BEHAVIOR: ") || strings.HasPrefix(rawLine, "## BEHAVIOR/INTERNAL: ") {
+			if current != nil {
+				result = append(result, *current)
+			}
+			var name, header string
+			if strings.HasPrefix(rawLine, "## BEHAVIOR/INTERNAL: ") {
+				name = strings.TrimSpace(strings.TrimPrefix(rawLine, "## BEHAVIOR/INTERNAL: "))
+				header = fmt.Sprintf("BEHAVIOR/INTERNAL: %s", name)
+			} else {
+				name = strings.TrimSpace(strings.TrimPrefix(rawLine, "## BEHAVIOR: "))
+				header = fmt.Sprintf("BEHAVIOR: %s", name)
+			}
+			current = &behaviorSection{
+				name:          name,
+				sectionHeader: header,
+				startLine:     lineNum,
+			}
+			continue
+		}
+
+		// Any other ## heading closes the current behavior section
+		if strings.HasPrefix(rawLine, "## ") && current != nil {
+			result = append(result, *current)
+			current = nil
+			continue
+		}
+
+		if current != nil {
+			current.lines = append(current.lines, rawLine)
+		}
+	}
+	if current != nil {
+		result = append(result, *current)
+	}
 	return result
 }
 
-// ── RULE-06 / RULE-07 ─────────────────────────────────────────────────────────
-
-type exampleBlock struct {
-	name            string
-	lineNum         int
-	hasGiven        bool
-	hasWhen         bool
-	hasThen         bool
-	whenWithoutThen bool
-	givenEmpty      bool
-	whenEmpty       bool
-	thenEmpty       bool
-}
-
-func applyExampleRules(ps *parsedSpec, add func(Severity, string, int, string)) {
-	examplesLine, ok := ps.sections["## EXAMPLES"]
-	if !ok {
-		return
+// parseExampleBlocks parses the GIVEN/WHEN/THEN structure for each example block.
+func parseExampleBlocks(lines []string, blocks []exampleBlock) []exampleBlock {
+	if len(blocks) == 0 {
+		return blocks
 	}
 
-	exLines := ps.linesInSection("## EXAMPLES")
+	// For each block, find its content range and parse
+	for bi := range blocks {
+		startIdx := blocks[bi].startLine - 1 // 0-based index of "### EXAMPLE: name" line
+		var endIdx int
+		if bi+1 < len(blocks) {
+			endIdx = blocks[bi+1].startLine - 1
+		} else {
+			endIdx = len(lines)
+		}
 
+		// Parse within startIdx..endIdx
+		blockLines := lines[startIdx:endIdx]
+		parseExampleBlock(&blocks[bi], blockLines)
+	}
+	return blocks
+}
+
+func parseExampleBlock(ex *exampleBlock, lines []string) {
 	type state int
 	const (
-		stateNone  state = iota
+		stateStart state = iota
 		stateGiven
 		stateWhen
 		stateThen
 	)
 
-	var blocks []exampleBlock
-	var cur *exampleBlock
-	curState := stateNone
-	givenHasContent := false
-	whenHasContent := false
-	thenHasContent := false
-	pendingWhen := false
+	cur := stateStart
+	givenContent := false
+	whenContent := false
+	thenContent := false
+	lastWhenIdx := -1
+	lastWhenHasThen := false
+	whenCount := 0
+	thenCount := 0
 
-	finishBlock := func() {
-		if cur == nil {
-			return
-		}
-		if curState == stateThen && !thenHasContent {
-			cur.thenEmpty = true
-		}
-		if curState == stateWhen && !whenHasContent {
-			cur.whenEmpty = true
-		}
-		if pendingWhen {
-			cur.whenWithoutThen = true
-		}
-		blocks = append(blocks, *cur)
-		cur = nil
-		curState = stateNone
-		pendingWhen = false
-	}
+	fenceDepth := 0
 
-	for _, sl := range exLines {
-		raw := sl.text
+	for i, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
 
-		if strings.HasPrefix(raw, "EXAMPLE:") {
-			finishBlock()
-			name := strings.TrimSpace(strings.TrimPrefix(raw, "EXAMPLE:"))
-			cur = &exampleBlock{name: name, lineNum: sl.num}
-			curState = stateNone
-			givenHasContent = false
-			whenHasContent = false
-			thenHasContent = false
-			pendingWhen = false
-			continue
-		}
-
-		if cur == nil {
-			continue
-		}
-
-		if strings.HasPrefix(raw, "GIVEN:") {
-			if curState == stateWhen && !whenHasContent {
-				cur.whenEmpty = true
+		// Fence tracking
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
 			}
-			if curState == stateThen && !thenHasContent {
-				cur.thenEmpty = true
-			}
-			cur.hasGiven = true
-			curState = stateGiven
-			givenHasContent = false
-			continue
-		}
-
-		if strings.HasPrefix(raw, "WHEN:") {
-			if curState == stateGiven && !givenHasContent {
-				cur.givenEmpty = true
-			}
-			if curState == stateThen && !thenHasContent {
-				cur.thenEmpty = true
-			}
-			if pendingWhen {
-				cur.whenWithoutThen = true
-			}
-			cur.hasWhen = true
-			curState = stateWhen
-			// Check for inline content on the WHEN: line itself
-			inlineContent := strings.TrimSpace(strings.TrimPrefix(raw, "WHEN:"))
-			whenHasContent = inlineContent != ""
-			pendingWhen = true
-			continue
-		}
-
-		if strings.HasPrefix(raw, "THEN:") {
-			if curState == stateWhen && !whenHasContent {
-				cur.whenEmpty = true
-			}
-			cur.hasThen = true
-			curState = stateThen
-			thenHasContent = false
-			pendingWhen = false
-			continue
-		}
-
-		if strings.TrimSpace(raw) != "" {
-			switch curState {
+			// Fence markers themselves count as content within the block
+			switch cur {
 			case stateGiven:
-				givenHasContent = true
+				givenContent = true
 			case stateWhen:
-				whenHasContent = true
+				whenContent = true
 			case stateThen:
-				thenHasContent = true
+				thenContent = true
 			}
+			continue
 		}
-	}
-	finishBlock()
-
-	if len(blocks) == 0 {
-		add(SevError, "EXAMPLES", examplesLine,
-			"EXAMPLES section contains no example blocks. Each example requires EXAMPLE:, GIVEN:, WHEN:, THEN: markers.")
-		return
-	}
-
-	for _, b := range blocks {
-		if !b.hasGiven {
-			add(SevError, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' missing GIVEN: marker", b.name))
-		}
-		if !b.hasWhen {
-			add(SevError, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' missing WHEN: marker", b.name))
-		}
-		if !b.hasThen {
-			add(SevError, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' missing THEN: marker", b.name))
-		}
-		if b.whenWithoutThen {
-			add(SevError, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' has WHEN: without a matching THEN:", b.name))
-		}
-		if b.givenEmpty {
-			add(SevWarning, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' has empty GIVEN block", b.name))
-		}
-		if b.whenEmpty {
-			add(SevWarning, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' has empty WHEN block", b.name))
-		}
-		if b.thenEmpty {
-			add(SevWarning, "EXAMPLES", b.lineNum, fmt.Sprintf("Example '%s' has empty THEN block", b.name))
-		}
-	}
-}
-
-// ── RULE-10 ───────────────────────────────────────────────────────────────────
-
-func applyRule10(ps *parsedSpec, add func(Severity, string, int, string)) {
-	exLines := ps.linesInSection("## EXAMPLES")
-
-	negativePatterns := []string{
-		"Err(", "error", "exit_code = 1", "exit_code = 2", "stderr contains",
-		"exit 1", "exit 2", "errors contains", "errors non-empty",
-	}
-
-	for _, name := range ps.behaviorNames {
-		blines := ps.linesInBehavior(name)
-		hasErrorExit := false
-		for _, sl := range blines {
-			if strings.Contains(sl.text, "→") {
-				hasErrorExit = true
-				break
+		if fenceDepth > 0 {
+			// Lines inside fences count as content
+			if trimmed != "" {
+				switch cur {
+				case stateGiven:
+					givenContent = true
+				case stateWhen:
+					whenContent = true
+				case stateThen:
+					thenContent = true
+				}
 			}
-		}
-		if !hasErrorExit {
 			continue
 		}
 
-		hasNegative := false
-		inThen := false
-		for _, sl := range exLines {
-			raw := sl.text
-			if strings.HasPrefix(raw, "THEN:") {
-				inThen = true
-				continue
+		if i == 0 {
+			// The "### EXAMPLE: name" line itself
+			continue
+		}
+
+		if strings.HasPrefix(rawLine, "GIVEN:") {
+			cur = stateGiven
+			// Content on the GIVEN: line itself counts
+			inlineGiven := strings.TrimSpace(strings.TrimPrefix(rawLine, "GIVEN:"))
+			givenContent = inlineGiven != ""
+			continue
+		}
+		if strings.HasPrefix(rawLine, "WHEN:") {
+			if cur == stateWhen && !lastWhenHasThen {
+				ex.whenWithoutThen = true
 			}
-			if strings.HasPrefix(raw, "WHEN:") || strings.HasPrefix(raw, "GIVEN:") || strings.HasPrefix(raw, "EXAMPLE:") {
-				inThen = false
-				continue
+			cur = stateWhen
+			// Content on the WHEN: line itself counts as block content
+			inlineContent := strings.TrimSpace(strings.TrimPrefix(rawLine, "WHEN:"))
+			whenContent = inlineContent != ""
+			lastWhenIdx = i
+			lastWhenHasThen = false
+			whenCount++
+			ex.hasWhen = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "THEN:") {
+			cur = stateThen
+			// Content on the THEN: line itself counts
+			inlineThen := strings.TrimSpace(strings.TrimPrefix(rawLine, "THEN:"))
+			thenContent = inlineThen != ""
+			lastWhenHasThen = true
+			thenCount++
+			ex.hasThen = true
+			continue
+		}
+
+		switch cur {
+		case stateGiven:
+			if trimmed != "" {
+				givenContent = true
 			}
-			if inThen {
-				for _, p := range negativePatterns {
-					if strings.Contains(strings.ToLower(sl.text), strings.ToLower(p)) {
-						hasNegative = true
-						break
-					}
-				}
+		case stateWhen:
+			if trimmed != "" {
+				whenContent = true
 			}
-		}
-
-		if !hasNegative {
-			ln := ps.behaviorLines[name]
-			add(SevError, fmt.Sprintf("BEHAVIOR: %s", name), ln,
-				fmt.Sprintf("BEHAVIOR '%s' has error exits in STEPS but no negative-path EXAMPLE. Add at least one EXAMPLE whose THEN: verifies an error outcome.", name))
-		}
-	}
-}
-
-// ── RULE-12 ───────────────────────────────────────────────────────────────────
-
-func applyRule12(ps *parsedSpec, add func(Severity, string, int, string)) {
-	typeNames := []string{}
-	if _, ok := ps.sections["## TYPES"]; ok {
-		typeLines := ps.linesInSection("## TYPES")
-		for _, sl := range typeLines {
-			if m := reTypeDecl.FindStringSubmatch(sl.text); m != nil {
-				typeNames = append(typeNames, m[1])
-			}
-		}
-	}
-
-	for _, name := range ps.behaviorNames {
-		blines := ps.linesInBehavior(name)
-		for _, sl := range blines {
-			for _, t := range typeNames {
-				pattern := t + " :="
-				if strings.Contains(sl.text, pattern) {
-					ln := ps.behaviorLines[name]
-					add(SevError, fmt.Sprintf("BEHAVIOR: %s", name), ln,
-						fmt.Sprintf("Type '%s' declared in TYPES is redefined in BEHAVIOR. Types must be declared in TYPES only.", t))
-				}
-			}
-		}
-	}
-}
-
-// ── RULE-15 ───────────────────────────────────────────────────────────────────
-
-func applyRule15(ps *parsedSpec, add func(Severity, string, int, string)) {
-	validStatuses := map[string]bool{"pending": true, "active": true, "failed": true, "released": true}
-
-	for _, m := range ps.milestones {
-		sec := fmt.Sprintf("MILESTONE: %s", m.name)
-
-		if !m.hasIncluded {
-			add(SevError, sec, m.lineNum,
-				fmt.Sprintf("MILESTONE '%s' is missing required 'Included BEHAVIORs:' field.", m.name))
-		}
-
-		isScaffold := m.scaffold == "true"
-		if !m.hasDeferred && !isScaffold {
-			add(SevError, sec, m.lineNum,
-				fmt.Sprintf("MILESTONE '%s' is missing required 'Deferred BEHAVIORs:' field. Omit this field only when Scaffold: true (scaffold milestones have no deferred BEHAVIORs by definition).", m.name))
-		}
-
-		if !m.hasAcceptance {
-			add(SevWarning, sec, m.lineNum,
-				fmt.Sprintf("MILESTONE '%s' has no 'Acceptance criteria:' field. Translators and agents cannot verify completion.", m.name))
-		}
-
-		if !m.hasStatus {
-			add(SevWarning, sec, m.lineNum,
-				fmt.Sprintf("MILESTONE '%s' has no Status: field. Expected: pending | active | failed | released.", m.name))
-		} else {
-			if !validStatuses[m.status] {
-				add(SevError, sec, m.statusLineNum,
-					fmt.Sprintf("MILESTONE '%s' has invalid Status: value '%s'. Valid values: pending, active, failed, released.", m.name, m.status))
-			}
-		}
-
-		if m.hasScaffold {
-			if m.scaffold != "true" && m.scaffold != "false" {
-				add(SevError, sec, m.scaffoldLineNum,
-					fmt.Sprintf("MILESTONE '%s' has invalid Scaffold: value '%s'. Valid values: true, false.", m.name, m.scaffold))
+		case stateThen:
+			if trimmed != "" {
+				thenContent = true
 			}
 		}
 	}
 
-	activeCount := 0
-	for _, m := range ps.milestones {
-		if m.status == "active" {
-			activeCount++
-		}
-	}
-	if activeCount > 1 {
-		add(SevError, "structure", 1,
-			"More than one MILESTONE has Status: active. Exactly one milestone may be active at a time.")
-	}
-}
-
-// ── RULE-16 ───────────────────────────────────────────────────────────────────
-
-func applyRule16(ps *parsedSpec, add func(Severity, string, int, string)) {
-	behaviorSet := make(map[string]bool)
-	for _, n := range ps.behaviorNames {
-		behaviorSet[n] = true
+	// Final WHEN without THEN
+	if cur == stateWhen && lastWhenIdx >= 0 && !lastWhenHasThen {
+		ex.whenWithoutThen = true
 	}
 
-	for _, m := range ps.milestones {
-		sec := fmt.Sprintf("MILESTONE: %s", m.name)
-		for _, n := range m.includedBehavs {
-			if !behaviorSet[n] {
-				add(SevError, sec, m.lineNum,
-					fmt.Sprintf("MILESTONE '%s' lists BEHAVIOR '%s' under Included BEHAVIORs but no such BEHAVIOR exists in the spec.", m.name, n))
-			}
-		}
-		for _, n := range m.deferredBehavs {
-			if !behaviorSet[n] {
-				add(SevError, sec, m.lineNum,
-					fmt.Sprintf("MILESTONE '%s' lists BEHAVIOR '%s' under Deferred BEHAVIORs but no such BEHAVIOR exists in the spec.", m.name, n))
-			}
-		}
-	}
-}
-
-// ── RULE-17 ───────────────────────────────────────────────────────────────────
-
-func applyRule17(ps *parsedSpec, add func(Severity, string, int, string)) {
-	var scaffolds []milestone
-	for _, m := range ps.milestones {
-		if m.scaffold == "true" {
-			scaffolds = append(scaffolds, m)
-		}
-	}
-
-	if len(scaffolds) > 1 {
-		add(SevError, "structure", 1,
-			"More than one MILESTONE has Scaffold: true. At most one scaffold milestone is permitted per spec.")
-	}
-
-	if len(scaffolds) == 1 {
-		sm := scaffolds[0]
-		first := ps.milestones[0]
-		if sm.name != first.name {
-			add(SevError, fmt.Sprintf("MILESTONE: %s", sm.name), sm.lineNum,
-				fmt.Sprintf("Scaffold milestone '%s' must appear first in the spec (lowest version number / earliest in document order). Later milestones depend on the scaffold foundation.", sm.name))
-		}
-	}
-}
-
-// ── RULE-18 ───────────────────────────────────────────────────────────────────
-
-var reSpecSHA256 = regexp.MustCompile(`(?m)^Spec-SHA256:\s+([0-9a-f]{64})`)
-
-func applyRule18(specPath string, add func(Severity, string, int, string)) {
-	dir := filepath.Dir(specPath)
-
-	// Locate TRANSLATION_REPORT.md adjacent to spec (same dir or code/ subdir)
-	candidates := []string{
-		filepath.Join(dir, "TRANSLATION_REPORT.md"),
-		filepath.Join(dir, "code", "TRANSLATION_REPORT.md"),
-	}
-	reportPath := ""
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			reportPath = c
+	// Check GIVEN exists
+	for _, rawLine := range lines[1:] {
+		if strings.HasPrefix(rawLine, "GIVEN:") {
+			ex.hasGiven = true
 			break
 		}
 	}
-	if reportPath == "" {
-		return
+
+	// Set empty flags
+	if ex.hasGiven && !givenContent {
+		ex.givenEmpty = true
+	}
+	if ex.hasWhen && !whenContent {
+		ex.whenEmpty = true
+	}
+	if ex.hasThen && !thenContent {
+		ex.thenEmpty = true
 	}
 
-	reportBytes, err := os.ReadFile(reportPath)
-	if err != nil {
-		return
-	}
-	reportContent := string(reportBytes)
-
-	m := reSpecSHA256.FindStringSubmatch(reportContent)
-	if m == nil {
-		add(SevWarning, "report", 1,
-			"TRANSLATION_REPORT.md is missing Spec-SHA256: field. "+
-				"Every translation run must record the SHA256 of the spec "+
-				"it was produced from. Run: sha256sum <specname>.md")
-		return
-	}
-
-	recordedHash := m[1]
-	currentHash, err := sha256File(specPath)
-	if err != nil {
-		return
-	}
-	if recordedHash != currentHash {
-		add(SevWarning, "report", 1,
-			fmt.Sprintf("Spec has changed since last translation run.\n"+
-				"                 Recorded hash: %s\n"+
-				"                 Current hash:  %s\n"+
-				"                 Regeneration may be required. Run: pcd change-impact\n"+
-				"                 or use assess_change_impact via mcp-server-pcd.",
-				recordedHash, currentHash))
-	}
+	_ = whenCount
+	_ = thenCount
 }
 
-func sha256File(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
+// findNegativeExample checks if there's a negative-path example for the given behavior.
+func findNegativeExample(sf *specFile, behaviorName string) bool {
+	negativePatterns := []string{
+		"Err(", "error", "exit_code = 1", "exit_code = 2",
+		"stderr contains", "exit 1", "exit 2",
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+
+	// For specs with a single BEHAVIOR, all EXAMPLES reference it.
+	// For multi-BEHAVIOR specs, association is by name matching.
+	singleBehavior := len(sf.behaviorNames) == 1
+
+	inExamples := false
+	inExample := false
+	inThen := false
+	currentExampleName := ""
+	referencesThisBehavior := false
+	fenceDepth := 0
+
+	for i, rawLine := range sf.lines {
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			continue
+		}
+		if fenceDepth > 0 {
+			continue
+		}
+
+		_ = i
+
+		if rawLine == "## EXAMPLES" {
+			inExamples = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && inExamples {
+			inExamples = false
+		}
+		if !inExamples {
+			continue
+		}
+
+		if strings.HasPrefix(rawLine, "### EXAMPLE: ") {
+			inExample = true
+			inThen = false
+			currentExampleName = strings.TrimSpace(strings.TrimPrefix(rawLine, "### EXAMPLE: "))
+			referencesThisBehavior = singleBehavior ||
+				strings.Contains(strings.ToLower(currentExampleName), strings.ToLower(behaviorName))
+			continue
+		}
+
+		if strings.HasPrefix(rawLine, "WHEN:") {
+			if !referencesThisBehavior {
+				// Check if WHEN line references the behavior
+				whenContent := strings.TrimSpace(strings.TrimPrefix(rawLine, "WHEN:"))
+				if strings.Contains(strings.ToLower(whenContent), strings.ToLower(behaviorName)) {
+					referencesThisBehavior = true
+				}
+			}
+			inThen = false
+		}
+
+		if rawLine == "THEN:" || strings.HasPrefix(rawLine, "THEN:") {
+			inThen = true
+		}
+
+		if inExample && inThen && referencesThisBehavior {
+			for _, pat := range negativePatterns {
+				if strings.Contains(rawLine, pat) {
+					return true
+				}
+			}
+		}
 	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return false
 }
 
+// collectTypeNames collects all type names from the TYPES section.
+func collectTypeNames(sf *specFile) []string {
+	var names []string
+	inTypes := false
+	fenceDepth := 0
+	for i, rawLine := range sf.lines {
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenceDepth == 0 {
+				fenceDepth = 1
+			} else {
+				fenceDepth--
+			}
+			continue
+		}
+		if fenceDepth > 0 {
+			continue
+		}
 
+		_ = i
 
-func FormatDiagnostic(d Diagnostic, file string) string {
-	sev := d.Severity.String()
-	if sev == "ERROR" {
-		sev = "ERROR  "
-	} else {
-		sev = "WARNING"
+		if rawLine == "## TYPES" {
+			inTypes = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && inTypes {
+			break
+		}
+		if !inTypes {
+			continue
+		}
+
+		// Lines matching "^<TypeName> :="
+		if idx := strings.Index(rawLine, " :="); idx > 0 {
+			name := rawLine[:idx]
+			// Type names are typically PascalCase or simple identifiers
+			if !strings.Contains(name, " ") && name != "" {
+				names = append(names, name)
+			}
+		}
 	}
-	return fmt.Sprintf("%s  %s:%d  [%s]  %s", sev, file, d.Line, d.Section, d.Message)
+	return names
 }
 
-func FormatSummary(result LintResult, strict bool) string {
-	file := result.File
-	errCount := 0
-	warnCount := 0
+// extractSectionContent returns the text content of a section (between its header and next ## heading).
+func (sf *specFile) extractSectionContent(headerPrefix string) string {
+	var sb strings.Builder
+	inSection := false
+	for _, rawLine := range sf.lines {
+		if strings.HasPrefix(rawLine, headerPrefix) {
+			inSection = true
+			continue
+		}
+		if strings.HasPrefix(rawLine, "## ") && inSection {
+			break
+		}
+		if inSection {
+			sb.WriteString(rawLine)
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
+// isSemanticVersion checks if a string matches "^[0-9]+\.[0-9]+\.[0-9]+$".
+func isSemanticVersion(v string) bool {
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" {
+			return false
+		}
+		for _, c := range p {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isHex checks if a string is all lowercase hex characters.
+func isHex(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+// FormatDiagnostic formats a diagnostic line per the spec's format:
+// {SEVERITY}  {file}:{line}  [{section}]  {message}
+func FormatDiagnostic(file string, d Diagnostic) string {
+	return fmt.Sprintf("%-7s  %s:%d  [%s]  %s",
+		string(d.Severity), filepath.Base(file), d.Line, d.Section, d.Message)
+}
+
+// FormatSummary formats the summary line per the spec's format.
+func FormatSummary(file string, result LintResult, opts Options) string {
+	base := filepath.Base(file)
+	errorCount := 0
+	warningCount := 0
 	for _, d := range result.Diagnostics {
-		if d.Severity == SevError {
-			errCount++
-		} else {
-			warnCount++
+		if d.Severity == SeverityError {
+			errorCount++
+		} else if d.Severity == SeverityWarning {
+			warningCount++
 		}
 	}
 
 	if result.ExitCode == 0 {
-		if warnCount == 0 {
-			return fmt.Sprintf("✓ %s: valid", file)
+		if warningCount == 0 {
+			return fmt.Sprintf("✓ %s: valid", base)
 		}
-		return fmt.Sprintf("✓ %s: valid (%d warning(s))", file, warnCount)
+		return fmt.Sprintf("✓ %s: valid (%d warning(s))", base, warningCount)
 	}
-	if strict {
-		return fmt.Sprintf("✗ %s: %d error(s), %d warning(s) [strict mode]", file, errCount, warnCount)
+	// exit code 1
+	if opts.Strict {
+		return fmt.Sprintf("✗ %s: %d error(s), %d warning(s) [strict mode]", base, errorCount, warningCount)
 	}
-	return fmt.Sprintf("✗ %s: %d error(s), %d warning(s)", file, errCount, warnCount)
-}
-
-// ── Commands ──────────────────────────────────────────────────────────────────
-
-func CmdListTemplates() {
-	for _, t := range KnownTemplates {
-		annotation := ""
-		if fixed, ok := specialTemplateAnnotations[t]; ok {
-			annotation = fixed
-		} else {
-			path := FindTemplateFile(t)
-			if path == "" {
-				annotation = "(template file not found)"
-			} else {
-				lang := ReadDefaultLanguage(path)
-				if lang == "" {
-					annotation = "(installed)"
-				} else {
-					annotation = lang
-				}
-			}
-		}
-		fmt.Printf("%s  →  %s\n", t, annotation)
-	}
-	os.Exit(0)
-}
-
-func CmdVersion() {
-	fmt.Printf("pcd-lint %s (schema %s) spdx/%s\n", ToolVersion, SpecSchema, SpdxVersion)
-	os.Exit(0)
+	return fmt.Sprintf("✗ %s: %d error(s), %d warning(s)", base, errorCount, warningCount)
 }

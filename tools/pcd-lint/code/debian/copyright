@@ -1,12 +1,13 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: pcd-lint
 Upstream-Contact: Matthias G. Eckermann <pcd@mailbox.org>
-Source: https://build.opensuse.org/package/show/home:pcd-tools/pcd-lint
+Source: https://github.com/mge1512/pcd/tools/pcd-lint
 
 Files: *
 Copyright: 2026 Matthias G. Eckermann <pcd@mailbox.org>
 License: GPL-2.0-only
 
 License: GPL-2.0-only
- SPDX-License-Identifier: GPL-2.0-only
- See https://spdx.org/licenses/GPL-2.0-only.html for the full license text.
+ SPDX-Identifier: GPL-2.0-only
+ Homepage: https://spdx.org/licenses/GPL-2.0-only.html
+ Full text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html

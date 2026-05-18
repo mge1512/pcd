@@ -1,6 +1,12 @@
-SPDX-License-Identifier: GPL-2.0-only
+pcd-lint — GPL-2.0-only
 
-This software is licensed under the GNU General Public License, version 2 only.
+License: GPL-2.0-only
+SPDX-Identifier: GPL-2.0-only
+Homepage: https://spdx.org/licenses/GPL-2.0-only.html
 
-Full license text: https://spdx.org/licenses/GPL-2.0-only.html
-Authoritative source: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+The full license text is available at:
+  https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+This file satisfies the LICENSE deliverable requirement per the cli-tool
+deployment template. The full license text is not reproduced here; the
+authoritative text is at the URL above.

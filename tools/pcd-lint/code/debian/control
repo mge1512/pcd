@@ -2,15 +2,17 @@ Source: pcd-lint
 Section: devel
 Priority: optional
 Maintainer: Matthias G. Eckermann <pcd@mailbox.org>
-Build-Depends: debhelper-compat (= 13), golang-go, pandoc
-Standards-Version: 4.6.2
-Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21), pandoc
+Standards-Version: 4.6.0
+Homepage: https://github.com/mge1512/pcd/tools/pcd-lint
+X-PCD-Spec-SHA256: 293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
 
 Package: pcd-lint
 Architecture: any
 Depends: ${misc:Depends}
-Description: Post-Coding Development specification linter
- pcd-lint validates Post-Coding Development (PCD) specification files
- against the structural rules defined in the PCD spec schema.
- It checks required sections, META fields, SPDX license identifiers,
- BEHAVIOR blocks, EXAMPLES structure, INVARIANTS tags, and more.
+Description: Validate Post-Coding Development specification files
+ pcd-lint validates specification files against the structural rules
+ defined in the pcd-lint specification (Spec-Schema 0.4.0).
+ .
+ It applies RULE-01 through RULE-21 and reports diagnostics on stderr
+ with a summary line on stdout.

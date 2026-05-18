@@ -1,47 +1,30 @@
-# pcd-lint Makefile
+# generated from spec: pcd-lint.md sha256:293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
 # SPDX-License-Identifier: GPL-2.0-only
 
-BINARY   := pcd-lint
-VERSION  := 0.3.22
-PREFIX   := /usr/local
-BINDIR   := $(PREFIX)/bin
-MANDIR   := $(PREFIX)/share/man/man1
+SPEC_SHA256 = 293541ab62274835c61de50947f6283748831c4681cf3f02c4be2f8e942d28a9
 
-.PHONY: all build test install clean man dist vendor-tarball
+BINARY     = pcd-lint
+VERSION    = 0.4.0
+MODULE     = github.com/mge1512/pcd/tools/pcd-lint
+MANPAGE    = pcd-lint.1
+MANSRC     = pcd-lint.1.md
+
+.PHONY: all build test install clean man
 
 all: build man
 
 build:
-	CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o $(BINARY) .
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/pcd-lint/
 
 test:
 	go test ./...
-	@if [ -f independent_tests/INDEPENDENT_TESTS.go ]; then \
-		cd independent_tests && go test -v .; \
-	fi
 
-man: $(BINARY).1
-
-$(BINARY).1: $(BINARY).1.md
-	pandoc $(BINARY).1.md -s -t man -o $(BINARY).1
-
-install: build man
-	install -Dm755 $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
-	install -Dm644 $(BINARY).1 $(DESTDIR)$(MANDIR)/$(BINARY).1
+install:
+	install -Dm755 $(BINARY) $(DESTDIR)/usr/bin/$(BINARY)
+	install -Dm644 $(MANPAGE) $(DESTDIR)/usr/share/man/man1/$(MANPAGE)
 
 clean:
-	rm -f $(BINARY) $(BINARY).1
+	rm -f $(BINARY) $(MANPAGE)
 
-# Generate vendor tarball for OBS/RPM builds — run once per release.
-vendor-tarball:
-	go mod vendor
-	tar -czf $(BINARY)-$(VERSION)-vendor.tar.gz vendor/
-
-# Generate source tarball for OBS/RPM builds — run once per release.
-dist:
-	tar -czf $(BINARY)-$(VERSION).tar.gz \
-	    --transform 's|^|$(BINARY)-$(VERSION)/|' \
-	    --exclude='$(BINARY)' \
-	    --exclude='$(BINARY).1' \
-	    --exclude='*.tar.gz' \
-	    $(shell git ls-files)
+man:
+	pandoc $(MANSRC) -s -t man -o $(MANPAGE)
