@@ -580,3 +580,11 @@ to skip milestones, so the assistant asks and the expert declines.]*
 ---
 
 *End of worked examples.*
+
+---
+
+## Begin now
+
+Ignore the worked examples above except as reference. The next message is from the expert.
+Ask the Option-choice question from line 27 and wait.
+
