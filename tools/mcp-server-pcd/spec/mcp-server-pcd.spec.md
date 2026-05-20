@@ -18,9 +18,8 @@ Safety-Level:      QM
 
 ```
 TemplateName := string
-// Known values: cli-tool, mcp-server, cloud-native, verified-library,
-// library-c-abi, python-tool, project-manifest, and any user-installed
-// template. Unknown names return TemplateNotFound.
+// See "Currently-shipped templates" below for the authoritative list at
+// this build. Unknown names return TemplateNotFound.
 
 TemplateVersion := string
 // Semantic version (MAJOR.MINOR.PATCH) or "latest".
@@ -111,6 +110,28 @@ ChangeImpactResult := {
 }
 
 ```
+
+### Currently-shipped templates
+
+The set of templates this build knows about. The list is mechanically
+derived from `templates/` by `make spec`; do not hand-edit between the
+markers.
+
+<!-- BEGIN AUTO: known-templates -->
+- `abap-report` — default language: —
+- `backend-service` — default language: Go
+- `cli-tool` — default language: Go
+- `cloud-native` — default language: Go
+- `cockpit-module` — default language: —
+- `gui-tool` — default language: CPP
+- `kubectl-style-cli` — default language: Go
+- `library-c-abi` — default language: C
+- `mcp-server` — default language: Go
+- `project-manifest` — default language: —
+- `python-tool` — default language: Python
+- `spack-package` — default language: —
+- `verified-library` — default language: C
+<!-- END AUTO: known-templates -->
 
 ---
 
@@ -1021,7 +1042,7 @@ EMBED-ASSETS:
       - interview-prompt.md  → "interview"
       - reverse-prompt.md    → "reverse"
     known-keys:
-      - translator      // spec → code translation prompt
+      - translator      // primary translation prompt
       - interview       // guided spec authoring → spec
       - reverse         // reverse-engineer code → spec
       - change-impact   // assess spec change impact → recommendation

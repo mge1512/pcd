@@ -112,6 +112,28 @@ sections of this specification. BEHAVIOR/INTERNAL sections describe
 implementation logic not directly exposed to the user; they are
 validated with identical structural rules to BEHAVIOR sections.
 
+### Currently-shipped templates
+
+The set of templates known to this build. The list is mechanically
+derived from `templates/` by `make spec`; do not hand-edit between the
+markers.
+
+<!-- BEGIN AUTO: known-templates -->
+- `abap-report` — default language: —
+- `backend-service` — default language: Go
+- `cli-tool` — default language: Go
+- `cloud-native` — default language: Go
+- `cockpit-module` — default language: —
+- `gui-tool` — default language: CPP
+- `kubectl-style-cli` — default language: Go
+- `library-c-abi` — default language: C
+- `mcp-server` — default language: Go
+- `project-manifest` — default language: —
+- `python-tool` — default language: Python
+- `spack-package` — default language: —
+- `verified-library` — default language: C
+<!-- END AUTO: known-templates -->
+
 ---
 
 ## BEHAVIOR: lint
@@ -237,8 +259,13 @@ STEPS:
 
 POSTCONDITIONS:
 - exit_code = 0 always
-- stdout contains exactly 17 lines, one per known DeploymentTemplate value
+- stdout line count matches the count phrase below
 - each line format: "<template-name>  →  <default-language>"
+
+<!-- BEGIN AUTO: known-templates-count -->
+exactly 13 lines, one per known DeploymentTemplate value
+<!-- END AUTO: known-templates-count -->
+
 - for enhance-existing: "<template-name>  →  (declare Language: in META)"
 - for manual:           "<template-name>  →  (declare Target: in META)"
 - for template:         "<template-name>  →  (template definition file, not translatable)"

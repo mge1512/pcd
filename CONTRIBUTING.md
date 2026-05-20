@@ -235,6 +235,49 @@ the GitHub web UI; PR reviewers should read the spec diff and the new
 
 ---
 
+## Derived Spec Content
+
+Specifications under `tools/*/spec/` are human-authored, with one
+exception: small sections that enumerate filesystem state — such as the
+list of templates currently shipped — are mechanically derived by the
+top-level `make spec` target, not written by hand. The same target also
+regenerates the bundled translation inputs (`tools/pcd-lint/spec/cli-tool.template.md`,
+`tools/pcd-lint/spec/prompt.md`) and their `.sha256` sidecars, so the
+audit chain captures the exact upstream versions used for a translation.
+
+Derived sections inside a spec file are delimited by HTML-comment
+markers:
+
+```
+<!-- BEGIN AUTO: <name> -->
+... content owned by `make spec` ...
+<!-- END AUTO: <name> -->
+```
+
+Content strictly between these markers is overwritten on every
+`make spec`. Hand-edits inside auto-blocks are caught by `make check-spec`
+in CI, which fails if `make spec` produces any diff against the
+committed tree. Content outside the markers — including the markers'
+surrounding prose — is human-authored as usual.
+
+The assembled spec, derivations included, is what gets hashed by the
+translator and recorded in `TRANSLATION_REPORT.md`. Adding a new
+template under `templates/` therefore changes the spec hash of every
+tool whose spec discovers templates from that directory; this is the
+intended behaviour and means a new template triggers a re-translation
+of the affected tools. Treat such changes as a normal regeneration
+(baseline / generation / fixes commits, per the previous section).
+
+Hand-authored content should remain the majority of every spec. The
+auto-block mechanism is a tool for sweeping up mechanical enumerations
+that mirror directory listings — not a path toward fully-generated
+specs. A reviewer should be able to tell at a glance which parts of a
+spec express semantics (BEHAVIOR, TYPES, INVARIANTS, EXAMPLES) and
+which parts are derived listings; the markers exist to make that
+distinction visible.
+
+---
+
 ## Licensing
 
 | Artifact | License |

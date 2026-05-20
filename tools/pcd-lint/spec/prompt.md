@@ -3,13 +3,13 @@
 I am providing the following input files, all present in the same
 input directory alongside this prompt:
 
-1. cli-tool.template.md — the deployment template defining
+1. `cli-tool.template.md` — the deployment template defining
    conventions, constraints, defaults, and the full execution recipe for
    this component type.
 
-2. pcd-lint.md — the specification for the component to implement.
+2. `pcd-lint.md` — the specification for the component to implement.
 
-3. ROLE.md` — a small directive file selecting the role for this run.
+3. *(optional)* `ROLE.md` — a small directive file selecting the role for this run.
    See **Role** below. If absent, the role is `translator`.
 
 Additional files may be present if listed in the spec's DEPENDENCIES section
