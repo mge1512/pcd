@@ -169,6 +169,8 @@ upstream file is not touched.
 
 | File | Kind | Scope |
 |---|---|---|
+| [`abap-report.abap.milestones.hints.md`](abap-report.abap.milestones.hints.md) | Milestone | `abap-report` template, ABAP language |
+| [`abap-report.abap.style.hints.md`](abap-report.abap.style.hints.md) | Style | `abap-report` template, ABAP language |
 | [`cli-tool.go.milestones.hints.md`](cli-tool.go.milestones.hints.md) | Milestone | `cli-tool` template, Go target |
 | [`cli-tool.rs.milestones.hints.md`](cli-tool.rs.milestones.hints.md) | Milestone | `cli-tool` template, Rust target |
 | [`kubectl-style-cli.go.milestones.hints.md`](kubectl-style-cli.go.milestones.hints.md) | Milestone | `kubectl-style-cli` template, Go target |

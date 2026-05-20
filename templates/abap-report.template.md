@@ -4,6 +4,45 @@ This document is the authoritative reference for translating a PCD spec into
 an `abap-report` package. The AI translator follows these rules; deviations
 are bugs in the translator.
 
+A PCD deployment template that translates a spec into an abapGit-compatible
+ABAP package suitable for execution on a modern SAP application server.
+
+Targets
+
+- SAP S/4HANA (on-premise, private cloud, public cloud)
+- SAP BTP ABAP Environment ("Steampunk")
+- Any NetWeaver 7.57+ system reachable via the ABAP Cloud development model
+
+When to use this template
+
+- The behaviour belongs on the SAP application server itself: it operates on
+  SAP master data, business objects, or other ABAP-resident state.
+- The customer wants delivery via `abapGit pull` from a Git repository.
+- The component runs in customer namespace (`Z*`, `Y*`, or a registered SAP
+  namespace `/COMPANY/`).
+- The component is invocable as an executable program (transaction code
+  optional), a function module, or a class method exposed via RFC/OData.
+
+When NOT to use this template
+
+| Situation                                                | Use instead          |
+|----------------------------------------------------------|----------------------|
+| Frontend / SAPUI5 / Fiori Elements                       | (future) `fiori-app` |
+| Linux-side CLI tool talking to SAP via RFC or OData      | `cli-tool` with SAP as INTERFACE |
+| Pure HANA-side computation (CDS, AMDP) with no ABAP entry | (future) `cds-view`  |
+| Modification of SAP standard objects                     | not in scope — violates clean core |
+
+## META
+
+Deployment:  template
+Version:     0.3.29
+Spec-Schema: 0.4.0
+Author:      Matthias G. Eckermann <pcd@mailbox.org>
+License:     CC-BY-4.0
+Verification: none
+Safety-Level: QM
+Template-For: abap-report
+
 ---
 
 ## 1. Naming

@@ -15,7 +15,8 @@ Rust binary in 2045 by changing only the template, not the spec.
 
 | Template | Default language | Alternatives | Use when... |
 |---|---|---|---|
-| [`cli-tool`](cli-tool.template.md) | Go | Rust, C, C++, C# | A single-binary command-line tool with `--flag` style arguments |
+| [`abap-report`](abap-report.template.md) | ABAP | — | Translate a spec into an abapGit-compatible ABAP package |
+| [`cli-tool`](cli-tool.template.md) | Go | Rust, C, C++, C# | A single-binary command-line tool with `flag` and `option=value` style arguments |
 | [`kubectl-style-cli`](kubectl-style-cli.template.md) | Go | Rust | A multi-verb CLI in the `kubectl` or `git` style: `<bin> verb resource --flag` with shell completions |
 | [`mcp-server`](mcp-server.template.md) | Go | Python, Rust | A Model Context Protocol server with stdio and/or streamable-HTTP transports |
 | [`backend-service`](backend-service.template.md) | Go | Rust | A 12-factor application running as a daemon under systemd or in a container |
