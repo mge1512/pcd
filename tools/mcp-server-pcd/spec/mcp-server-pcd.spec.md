@@ -969,6 +969,7 @@ THEN:
   response contains pcd://prompts/reverse
   response contains pcd://prompts/change-impact
   response contains pcd://prompts/reviewer
+  response contains pcd://prompts/security-reviewer
   response contains pcd://prompts/tiebreaker
 
 ### EXAMPLE: read_resource_change_impact_prompt
@@ -987,6 +988,15 @@ WHEN:
   tool read_resource called with uri="pcd://prompts/reviewer"
 THEN:
   response.content begins with "# PCD Translation Review Prompt"
+  response.mime_type = "text/markdown"
+
+### EXAMPLE: read_resource_security_reviewer_prompt
+GIVEN:
+  AssetStore contains the security-reviewer prompt
+WHEN:
+  tool read_resource called with uri="pcd://prompts/security-reviewer"
+THEN:
+  response.content begins with "# PCD Security Review Prompt"
   response.mime_type = "text/markdown"
 
 ### EXAMPLE: read_resource_tiebreaker_prompt
@@ -1046,7 +1056,8 @@ EMBED-ASSETS:
       - interview       // guided spec authoring → spec
       - reverse         // reverse-engineer code → spec
       - change-impact   // assess spec change impact → recommendation
-      - reviewer        // single-translation review → REVIEW_REPORT.md
+      - reviewer          // single-translation review → REVIEW_REPORT.md
+      - security-reviewer // independent security review → SECURITY_REVIEW_REPORT.md
       - tiebreaker      // dual-translation divergence → TIEBREAK_REPORT.md
 ```
 

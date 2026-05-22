@@ -1191,6 +1191,7 @@ infallible — the spec is your responsibility, not the model's.
 | `prompts/reverse-prompt.md`   | Existing code: reverse-engineer → spec           | `pcd://prompts/reverse`       |
 | `prompts/change-impact.md`    | Assess impact of a spec change                   | `pcd://prompts/change-impact` |
 | `prompts/reviewer.md`         | Independent review of a translation run          | `pcd://prompts/reviewer`      |
+| `prompts/security-reviewer.md`| Independent security review of a translation run | `pcd://prompts/security-reviewer` |
 | `prompts/tiebreaker.md`       | Adjudicate ambiguous test-author-test failures     | `pcd://prompts/tiebreaker`    |
 
 ---
