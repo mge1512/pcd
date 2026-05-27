@@ -28,11 +28,12 @@ For the paradigm's goals, evidence, and strategic context, see `doc/whitepaper.m
 11. The Decisions Hints File: Implementation Memory Without Spec Contamination
 12. Spec Hash Embedding: Cryptographic Chain of Custody
 13. Large Specifications: Why the Milestone Mechanism Exists
-14. Formal Verification: When and Why
-15. Dual-LLM Verification
-16. License Compliance and Software Composition Analysis
-17. Related Work and What Is Genuinely Novel
-18. Empirical Testing Record
+14. Spec Composition: Sharing Behaviours Across Components
+15. Formal Verification: When and Why
+16. Dual-LLM Verification
+17. License Compliance and Software Composition Analysis
+18. Related Work and What Is Genuinely Novel
+19. Empirical Testing Record
 
 ---
 
@@ -958,10 +959,29 @@ AWS Kiro (2025) is a proprietary, IDE-integrated, AWS-hosted product built
 around writing specifications before AI generates code. It does not define a
 portable, lintable specification format, has no deployment template abstraction,
 no formal verification path, no supply chain or packaging conventions, and no
-pathway to regulated-domain certification. The paradigms are complementary. The
-convergence of Werner Vogels' re:Invent 2025 keynote with the core thesis of
-this work — independently developed — is external validation of the problem
-framing.
+pathway to regulated-domain certification. The paradigms are complementary. 
+
+AI Unified Process (AIUP, 2026) is Simon Martinelli's spec-driven, AI-native
+methodology inspired by the Rational Unified Process. It uses Use Case
+specifications (`UC-XXX-*.md`), four RUP-derived phases, and Claude Code
+marketplace plugins — a stack-agnostic core plugin plus a technology-specific
+Vaadin/jOOQ implementation plugin. Its *Determinism Fallacy* section argues
+against exhaustive specifications in favour of iterative refinement plus
+test-protected regeneration; PCD takes the opposite stance for regulated and
+long-lived components. AIUP does not define a language-neutral specification
+format, a deployment template abstraction, a formal verification path, or
+supply-chain provenance conventions. The paradigms are complementary.
+
+Structured-Prompt-Driven Development (SPDD, Thoughtworks, 2026) treats
+prompts as version-controlled, reviewable engineering artefacts organised
+through a seven-part REASONS Canvas, with an open-source CLI (`openspdd`)
+orchestrating the workflow. SPDD permits hand-editing of generated code
+under a refactor-then-sync path that flows changes back to the prompt;
+PCD does not. SPDD specifies method signatures and parameter types in its
+Operations section, making the prompt language-bound; PCD specifications
+are language-neutral by rule. The paradigms are complementary: SPDD
+targets enterprise IT delivery; PCD targets regulated and long-lived
+components.
 
 What is genuinely novel: natural language as the translator artifact (structured
 Markdown, not a programming language or formal language); deployment templates
