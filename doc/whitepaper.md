@@ -1926,6 +1926,9 @@ The GIVEN/WHEN/THEN structure used in the EXAMPLES section of this paradigm is d
 **TLA+ and Alloy**
 Formal specification languages used in industry for system design. Amazon Web Services has used TLA+ extensively for distributed systems (DynamoDB, S3). Alloy is used in security protocol design. Both provide mathematical rigour over system behaviour. Key differences: humans write TLA+ and Alloy directly — these are programming languages for specifications, not natural language. There is no AI translation layer, no deployment template concept, and no pathway from specification to deployable code.
 
+**Quint (Informal Systems, 2026)**
+Informal Systems — the team behind formal verification work on Cosmos and Tendermint — develops Quint, an executable specification language in the TLA+ family with modern, typed syntax, an integrated simulator and REPL, and the Apalache model checker as backend. The marketing tagline *"AI Generates Code. Quint Generates Confidence."* makes the positioning explicit: Quint sits alongside AI-generated code as a verification artefact. The Quint Connect component generates ITF traces that can be replayed against generated implementations; Quint Studio (closed-source, in private preview) extends the language toolchain with a design-to-production workflow; the Quint LLM Kit packages AI-agent integration. Key differences from PCD: humans write Quint directly — it remains a programming language for specifications, not natural language. The Quint spec lives beside the implementation as a separate artefact; in PCD the specification *is* the artefact and the implementation is its regenerable derivative. Quint provides built-in model checking as the primary verification mechanism; PCD treats formal verification as an optional, pluggable layer (Lean 4 / F* / Dafny). The convergence — Quint and PCD diagnose the same AI-codegen trust gap and reach for structured behavioural artefacts as the answer — is independent confirmation of the problem framing. The paradigms are complementary, and Quint is a credible candidate for the meta-language slot in PCD's optional verification path alongside the established theorem provers \[Quint2026\].
+
 **F* and HACL\***
 Microsoft Research's F* has been used to produce formally verified C code for cryptographic primitives. The HACL* library (used in Firefox, the Linux kernel, and WireGuard) was produced this way. This is the closest existing work to our verified path. Key difference: humans write F* directly. The paradigm's contribution is placing AI as the translator so domain experts — not formal methods specialists — author the translator artifact.
 
@@ -1981,6 +1984,7 @@ throughout the tooling and documentation.
 | OpenAPI / AsyncAPI | Structured schema | Code-gen tools | No | No | No |
 | Gherkin / BDD | Natural language tests | No | No | No | No |
 | TLA+ / Alloy | Formal spec language | No | Yes (model checking) | Partial | No |
+| Quint (Informal Systems) | Typed executable spec language | Yes (companion to AI codegen) | Yes (Apalache model checker) | No | No |
 | F* / HACL* | F* code | No | Yes (dependent types) | Yes (crypto) | No |
 | Dafny | Dafny code | No | Yes (SMT) | No | No |
 | LLM code generation | Prompts + code | Yes | No | **Prohibited** | No |
@@ -3177,6 +3181,8 @@ comparison report. This is itself a candidate for specification under PCD
 
 - \[Martinelli2026\] Simon Martinelli, *"AI Unified Process: Spec-Driven Development with AI"*, https://unifiedprocess.ai/, 2026.
 
+- \[Quint2026\] Gabriela Moreira et al., *"Quint, an executable specification language for reliable systems"*, Informal Systems, https://quint.sh/, 2026. Open-source language: https://github.com/informalsystems/quint
+
 ---
 
 ## Changelog
@@ -3518,6 +3524,7 @@ rule definitions (RULE-19, RULE-20, RULE-21), worked example — is in
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.4.2 | 2026-05-27 | A.12: Quint (Informal Systems, 2026) added to *Closest Existing Approaches* (between TLA+/Alloy and F*/HACL*) and to *Comparative Summary*. New reference \[Quint2026\]. Mirror update applied to `doc/technical-reference.md` §18 Related Work section and References. |
 | 0.4.1 | 2026-05-22 | A.12: AIUP (Simon Martinelli, 2026) added to *Closest Existing Approaches* and *Comparative Summary*. SPDD entry closing convergence list extended to include AIUP. New reference \[Martinelli2026\]. Mirror update applied to `doc/technical-reference.md` Related Work section. |
 | 0.4.0 | 2026-05-18 | Spec composition mechanism: `Includes:` META field allows host specs to declare other specs as merged inputs. Merged spec hash, three new pcd-lint rules (RULE-19/20/21), new TRANSLATION_REPORT and TEST_REPORT fields for inclusion provenance. Language-neutral, packaging-neutral; each consuming host produces a self-contained implementation. Migration is opt-in; v0.3.x specs without `Includes:` are valid v0.4.0 specs and behave unchanged. Design: doc/spec-composition.md. Driving motivation: the duplicated lint rule set in pcd-lint and mcp-server-pcd, slated for migration to a shared `tools/shared/spec/lint-rules.md` after v0.4.0 framework changes are stable. |
 | 0.3.25 | 2026-05-18    | Structural enforcement for tests-first and test-author syntax-check. Translator prompt halts before writing any non-test source file if `independent_tests/<llm-name>/` is empty; the test-author flow halts before writing `TEST_REPORT.md` if the language-specific syntax check (per-template: `go vet`/`gofmt`, `cargo check --tests`, `python -m py_compile` + `flake8`) fails. Six templates restructured to place the translator test suite in Phase 1, eliminating the historical prompt-vs-template ordering conflict. New required fields: `Test-Compile-Gate` in `TEST_REPORT.md`, `Tests-First-Compliance` in `TRANSLATION_REPORT.md`. |

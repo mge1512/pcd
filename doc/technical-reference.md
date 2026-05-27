@@ -948,7 +948,15 @@ provided the GIVEN/WHEN/THEN example structure used in PCD EXAMPLES sections —
 a direct borrowing from a twenty-year-old tradition with proven value. TLA+
 and Alloy are formal specification languages used in industry, but humans write
 them directly; there is no AI translation layer and no pathway from specification
-to deployable code. F*/HACL* is the closest existing work to PCD's verified path:
+to deployable code. Quint (Informal Systems, 2026) is a modern, typed executable
+specification language in the TLA+ family with the Apalache model checker as
+backend and an explicit positioning as a companion to AI code generation
+(*"AI Generates Code. Quint Generates Confidence."*); humans still write Quint
+directly, and the Quint spec lives beside the implementation as a verification
+artefact rather than as the durable source from which the implementation is
+regenerated. Quint is a candidate meta-language for PCD's optional verification
+path, not a competing paradigm. F*/HACL* is the closest existing work to PCD's
+verified path:
 HACL* (used in Firefox, the Linux kernel, and WireGuard) was produced from F*
 specifications. The difference is that humans write F* directly; PCD places AI
 as the translator so domain experts author the translator artifact. Dafny compiles
@@ -1049,6 +1057,9 @@ without any specification change.
 
 - Vogels2025: Werner Vogels, AWS re:Invent 2025 keynote. "Specifications are the
   new code." December 2025.
+- Quint2026: Gabriela Moreira et al., Quint — an executable specification
+  language for reliable systems. Informal Systems, https://quint.sh/, 2026.
+  Open-source language: https://github.com/informalsystems/quint
 - REUSE: FSFE REUSE Specification v3.3 — standardised method for declaring
   copyright and licensing in software projects using SPDX identifiers.
   https://reuse.software/
