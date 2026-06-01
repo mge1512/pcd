@@ -94,6 +94,20 @@ Required deliverables will include:
 - spec-hash embedded in: source file header comments, RPM `.spec` comment,
   DEB `control` `X-PCD-Spec-SHA256:` field, `Makefile` `SPEC_SHA256` variable,
   shared library SONAME comment. Computed once before any output is written.
+- `TRANSLATION_REPORT.md` translation inputs (provenance): beyond the spec
+  hash, the report must record a labelled SHA256 for every other file consumed
+  as a translation input - one labelled line per file, mandatory on every run
+  for every language, recorded in the report only (never embedded in
+  artefacts, which carry the spec hash alone). Required: `Spec-SHA256:`
+  (as above; host and merged where the spec uses includes),
+  `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`),
+  `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`),
+  `Template-SHA256:` `<filename>` `<hash>`, and one further labelled line per
+  any other guidance file (e.g. `Style-Hints-SHA256:`, `Library-Hints-SHA256:`;
+  `none` where absent). Separate per-file hashes, never one combined hash, of
+  the exact file contents as read at translation time (post include-resolution).
+  Canonical format: `prompts/prompt.md` `## Reports` and
+  `doc/technical-reference.md` section 12.
 
 ---
 

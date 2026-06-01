@@ -380,6 +380,27 @@ LANGUAGE, and PLATFORM set. The following logical components apply:
 | report | always | TRANSLATION_REPORT.md — always last. Must include `Spec-SHA256:` header field. |
 | spec-hash | required | embedded in all artifacts | SHA256 of the spec file embedded in: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
 
+**TRANSLATION_REPORT.md - Translation Inputs (provenance):**
+
+Beyond the spec hash recorded above, the report must record a labelled SHA256
+for every other file consumed as a translation input, one labelled line per
+file. Mandatory on every run for every language, exactly as the spec hash is
+mandatory. Recorded in the report only; never embedded in the built artefacts
+or in source file headers, which carry the spec hash alone. Required lines:
+
+- `Spec-SHA256:` `<hash>` - the spec hash as recorded above (host and merged
+  where the spec uses includes; see `prompts/prompt.md`)
+- `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
+- `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
+- `Template-SHA256:` `<filename>` `<hash>`
+- one further labelled line per any other guidance file consumed, e.g.
+  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent)
+
+Hash the exact file contents as read at translation time (post
+include-resolution). Record separate per-file hashes, never one combined hash.
+Canonical format and rationale: `prompts/prompt.md` `## Reports` and
+`doc/technical-reference.md` section 12.
+
 ### Deliverable Content Requirements
 
 **CMakeLists.txt (Qt6):**

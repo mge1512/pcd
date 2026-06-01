@@ -756,6 +756,27 @@ Produce a `TRANSLATION_REPORT.md` covering:
 
 - **LLM-Name:** `<llm-name>` — from `ROLE.md` or placeholder
 - **Mode:** `translator`
+- **Translation Inputs (provenance):** a labelled SHA256 for every file
+  consumed as a translation input, one labelled line per file. Recorded here
+  only; not embedded in the binary or in source file headers (the binary
+  embeds the spec hash alone). Mandatory on every run for every language,
+  exactly as the spec hash is mandatory. Record separate per-file hashes;
+  never collapse them into a single combined hash - the diagnostic value is
+  being able to see at a glance which single input changed. Each hash is of
+  the exact file contents as read at translation time (post include-resolution
+  where a file has includes, mirroring the spec host/merged distinction
+  above). Required lines:
+  - `Spec-SHA256 (merged):` `<hash>` - as above; the hash embedded in artefacts
+  - `Spec-SHA256 (host):` `<hash>` - as above
+  - `Decisions-Hints-SHA256:` `<filename>` `<hash>` - the language-specific
+    decisions hints file consumed, or `none`
+  - `Milestones-Hints-SHA256:` `<filename>` `<hash>` - the milestones hints
+    file consumed, or `none`
+  - `Template-SHA256:` `<filename>` `<hash>` - the deployment template consumed
+  - one further labelled line for any other file fed to the translator as
+    guidance, e.g. `Style-Hints-SHA256:` `<filename>` `<hash>` (one per style
+    hints file) or `Library-Hints-SHA256:` `<filename>` `<hash>` (one per
+    library hints file); use `none` for a category that is genuinely absent
 - **Tests-First-Compliance:** `yes` or `no` (with explanation). `yes`
   requires that every file in `independent_tests/<llm-name>/` was written
   before any implementation source file. If `no`, every test that passed
@@ -865,6 +886,19 @@ Produce a `TEST_REPORT.md` covering:
 
 - **LLM-Name:** `<llm-name>`
 - **Mode:** `test-author` (or `test-author-rebind`)
+- **Translation Inputs (provenance):** a labelled SHA256 for every file
+  consumed as a translation input, one labelled line per file, recorded here
+  so the translator can verify the test-author consumed the same inputs.
+  Mandatory on every run for every language. Record separate per-file hashes;
+  never collapse them into a single combined hash. Each hash is of the exact
+  file contents as read at translation time (post include-resolution,
+  mirroring the spec host/merged distinction above). Required lines:
+  - `Spec-SHA256 (merged):` `<hash>` and `Spec-SHA256 (host):` `<hash>` - as above
+  - `Decisions-Hints-SHA256:` `<filename>` `<hash>` - or `none`
+  - `Milestones-Hints-SHA256:` `<filename>` `<hash>` - or `none`
+  - `Template-SHA256:` `<filename>` `<hash>`
+  - one further labelled line for any other guidance file consumed, e.g.
+    `Style-Hints-SHA256:` or `Library-Hints-SHA256:`; `none` where absent
 - **Deployment-Template:** template filename and version (e.g.
   `cli-tool.template.md v0.3.21`)
 - **Preset-Resolution:** any preset overrides that affected the run,
@@ -894,6 +928,7 @@ Produce a `TEST_REPORT.md` covering:
   translator's deliverables.
 
 The `Spec-SHA256`, `Deployment-Template`, `Preset-Resolution`,
-`Hints-Files-Read`, and `Test-Compile-Gate` fields are mandatory because
-translator will verify them against its own scope before running test-author's
-tests. Mismatch on any of these aborts translator's run.
+`Hints-Files-Read`, `Test-Compile-Gate`, and the Translation Inputs provenance
+hashes are mandatory because translator will verify them against its own scope
+before running test-author's tests. Mismatch on any of these aborts
+translator's run.

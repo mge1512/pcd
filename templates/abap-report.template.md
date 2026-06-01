@@ -542,6 +542,16 @@ This constant is declared on the application class. It is referenced by:
 Drift detection (RULE-18 in pcd-lint) compares the embedded hash against
 the on-disk spec at audit time.
 
+Beyond embedding the spec hash, the TRANSLATION_REPORT must record a labelled
+SHA256 for every file consumed as a translation input - the two companion
+hints files (`abap-report.abap.style.hints.md`,
+`abap-report.abap.milestones.hints.md`) and this template - one labelled line
+per file, `none` where a category is absent. These hashes are recorded in the
+report only, never embedded in the package. The package and the synthesized
+`version` operation continue to carry the spec hash alone. Canonical format:
+`prompts/prompt.md` `## Reports`; rationale: `doc/technical-reference.md`
+section 12.
+
 ---
 
 ## 14. Companion files

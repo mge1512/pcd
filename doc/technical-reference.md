@@ -636,6 +636,77 @@ the current specification's hash, `pcd-lint check-report=true` emits a warning.
 This surfaces the "spec has changed since last translation" condition before
 the developer starts a new translation run.
 
+**The reproducible unit is the tuple, not the spec alone.** The embedded spec
+hash answers "what behaviour was this artifact intended to implement?" - the
+spec is language-neutral and defines what the tool must do. It does not, by
+itself, determine the binary that was produced. Translation also consumes
+per-language inputs: a decisions-hints file, a milestones-hints file, the
+deployment template, and any further guidance (style hints, library hints)
+fed to the translator. These inputs materially shape the realisation. The
+reproducible unit is therefore the tuple `(spec, resolved language,
+hints/template set)`, every element of which is recorded by hash. The spec
+remains the single normative source of truth; the hints are the per-language
+record of how that source was realised.
+
+**Recording all translation inputs: the TRANSLATION_REPORT provenance block.**
+A conformant `TRANSLATION_REPORT.md` records a labelled SHA256 for every file
+consumed as a translation input, each on its own line, each labelled with its
+filename. This is mandatory on every run for every language, exactly as the
+spec hash is mandatory; it is not optional or best-effort. The same block is
+required in `TEST_REPORT.md`, so the translator can confirm the test-author
+consumed the same inputs. The canonical form is:
+
+```
+Spec-SHA256 (merged):     <hash>
+Spec-SHA256 (host):       <hash>
+Decisions-Hints-SHA256:   <filename> <hash>   (or: none)
+Milestones-Hints-SHA256:  <filename> <hash>   (or: none)
+Template-SHA256:          <filename> <hash>
+Style-Hints-SHA256:       <filename> <hash>   (one line per file; none if absent)
+Library-Hints-SHA256:     <filename> <hash>   (one line per file; none if absent)
+```
+
+The hashes are separate, labelled, per-file values - never one combined blob.
+The diagnostic value, the thing the report exists to give an auditor, is being
+able to see at a glance "spec same, decisions-hints changed, milestones same";
+a single combined hash tells you something changed but not what. Each hash is
+of the exact file contents as read at translation time (post include-resolution
+where a file has includes, mirroring the host-versus-merged distinction the
+spec hash already uses). A category that is genuinely absent for a given run
+is recorded explicitly as `none`, not omitted; the rule for the translator
+implementer is "hash every file consumed as translation input and record it,
+labelled - spec (host and merged), decisions-hints, milestones-hints,
+template, and anything else fed in; `none` where a category does not apply."
+
+**The binary-embedding boundary.** The binary and the source-file headers
+embed the spec hash alone - the normative contract. The hints and template
+hashes are recorded in the report only - the per-language realisation record.
+There is no combined "build-inputs" hash anywhere, and none is embedded in any
+artifact. This is a deliberate decision: the artifact's embedded identity is
+the behaviour it was meant to implement, and that identity stays stable and
+independently verifiable against `sha256sum <specname>.md`, while the fuller
+provenance needed to reproduce a specific realisation lives in the report that
+accompanies the audit bundle.
+
+**Why this rule exists.** The amendment is empirically motivated, not
+theoretical. Builds carrying an identical spec hash were observed to behave
+materially differently because the language-specific hints file differed
+between them while the spec did not. "Reproducible from recorded inputs" is
+only true if all inputs are recorded; before this rule the hints were a second
+material input that was invisible in the provenance record. Future maintainers
+should not "simplify" the rule back to a spec-hash-only record: the spec hash
+alone does not capture what produced a given binary, and PCD does not claim it
+does.
+
+**Consistency checks must cover all inputs.** RULE-18 above compares the
+report's recorded `Spec-SHA256` against the current spec. A complete currency
+check must compare every recorded input hash against its current on-disk file -
+not the spec hash alone - so that a changed hints file or template is surfaced
+as "an input has changed since last translation" in the same way a changed
+spec is. The currency check for the non-spec inputs is documented follow-up
+work; the recording of those inputs (this section) is mandatory now and is the
+prerequisite for it.
+
 ---
 
 ## 13. Large Specifications: Why the Milestone Mechanism Exists

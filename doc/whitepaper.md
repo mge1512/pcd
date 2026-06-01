@@ -1328,7 +1328,7 @@ Track and surface translator confidence:
 
 - **Pin AI model versions** in CI configuration (e.g., `translator: claude-sonnet-4-20250514`).
 - **Lock translation cache:** Store generated IR in version control; regenerate only when specification changes.
-- **Reproducible builds:** Audit bundles include translator version, model identifier, timestamp, and specification hash.
+- **Reproducible builds:** Audit bundles include translator version, model identifier, timestamp, the specification hash, and a labelled SHA256 of every other translation input (the per-language hints files and the deployment template), recorded in the TRANSLATION_REPORT.
 
 #### 4. Ensemble Translation for Critical Paths
 
@@ -3476,6 +3476,42 @@ A consumer reading the artefact's embedded hash can verify the artefact
 against the merged spec; a reviewer tracing provenance can follow the
 recorded inclusion table back to each contributing source.
 
+### The Reproducible Unit: Specification Plus Translation Inputs
+
+The embedded spec hash attests what behaviour an artefact was intended to
+implement. It does not, on its own, determine the binary. Translation also
+consumes per-language inputs - a decisions-hints file, a milestones-hints
+file, the deployment template, and any further style or library hints - and
+these materially shape how the spec is realised in a given language. The
+reproducible unit is therefore the tuple (spec, resolved language,
+hints/template set), not the spec alone. The specification remains the single
+normative source of truth (language-neutral, defining required behaviour); the
+hints are per-language translation inputs (how a given language realises that
+behaviour). Reproducibility requires pinning both, and PCD does not claim the
+spec hash alone reproduces a binary.
+
+To make this verifiable, the TRANSLATION_REPORT (and the TEST_REPORT) records
+a labelled SHA256 of every file consumed as a translation input - the spec
+(merged and host), each per-language hints file, and the deployment template -
+one labelled line per file, with `none` where a category is genuinely absent.
+The hashes are separate and per-file, never one combined blob, so an auditor
+can see at a glance which single input changed between two builds. This is
+recorded in the report only: the binary and the source-file headers embed the
+spec hash alone, and there is no combined build-inputs hash in any artefact.
+
+For supply-chain assurance this is a cleaner and more honest claim than the
+original. "We hash and record every translation input" is true and verifiable;
+"the spec alone reproduces the binary" was not. The motivation was empirical:
+builds carrying an identical spec hash were observed to behave differently
+because the language-specific hints differed, so provenance must cover the
+hints. This ties directly to the EAL4+/EUCC supply-chain posture used
+elsewhere in this document: reproducible-from-recorded-inputs is only true if
+all inputs are recorded. It also reinforces the cross-implementation-diff-as-
+oracle argument rather than weakening it - per-language hints are independent
+inputs, and recording them per-language strengthens the "N independent
+implementations from one shared spec, here are all the hashes" provenance
+picture.
+
 ### Worked Example: `lint-rules.md`
 
 The first real use of the mechanism — and the design's driving
@@ -3524,6 +3560,7 @@ rule definitions (RULE-19, RULE-20, RULE-21), worked example — is in
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.4.3 | 2026-06-01 | Translation-input provenance: TRANSLATION_REPORT (and TEST_REPORT) now records a labelled SHA256 of every file consumed as a translation input - spec (merged + host), per-language decisions/milestones/style/library hints, and the deployment template - not the spec hash alone. Corrected reproducibility unit: the tuple (spec, resolved language, hints/template set); the spec hash attests intended behaviour but does not by itself determine the binary. Report-only (binary and source headers still embed the spec hash alone); no combined build-inputs hash. Motivation: same-spec-hash builds diverged because language-specific hints differed. Applied to prompt.md ## Reports, all deployment templates with a report contract, and technical-reference section 12. |
 | 0.4.2 | 2026-05-27 | A.12: Quint (Informal Systems, 2026) added to *Closest Existing Approaches* (between TLA+/Alloy and F*/HACL*) and to *Comparative Summary*. New reference \[Quint2026\]. Mirror update applied to `doc/technical-reference.md` §18 Related Work section and References. |
 | 0.4.1 | 2026-05-22 | A.12: AIUP (Simon Martinelli, 2026) added to *Closest Existing Approaches* and *Comparative Summary*. SPDD entry closing convergence list extended to include AIUP. New reference \[Martinelli2026\]. Mirror update applied to `doc/technical-reference.md` Related Work section. |
 | 0.4.0 | 2026-05-18 | Spec composition mechanism: `Includes:` META field allows host specs to declare other specs as merged inputs. Merged spec hash, three new pcd-lint rules (RULE-19/20/21), new TRANSLATION_REPORT and TEST_REPORT fields for inclusion provenance. Language-neutral, packaging-neutral; each consuming host produces a self-contained implementation. Migration is opt-in; v0.3.x specs without `Includes:` are valid v0.4.0 specs and behave unchanged. Design: doc/spec-composition.md. Driving motivation: the duplicated lint rule set in pcd-lint and mcp-server-pcd, slated for migration to a shared `tools/shared/spec/lint-rules.md` after v0.4.0 framework changes are stable. |
