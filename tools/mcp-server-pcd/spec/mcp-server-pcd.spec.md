@@ -5,12 +5,13 @@
 
 ## META
 Deployment:        mcp-server
-Version:           0.3.2
-Spec-Schema:       0.3.21
+Version:           0.4.0
+Spec-Schema:       0.4.0
 Author:            Matthias G. Eckermann <pcd@mailbox.org>
 License:           GPL-2.0-only
 Verification:      none
 Safety-Level:      QM
+Includes:          ../../shared/spec/lint-rules.md
 
 ---
 
@@ -45,13 +46,9 @@ ResourceURI := string
 //   pcd://hints/cloud-native.go.go-libvirt
 //   pcd://hints/cli-tool.go.milestones
 
-Diagnostic := {
-  severity:  "error" | "warning"
-  line:      integer       // 1-based; 1 for file-level diagnostics
-  section:   string        // e.g. "META", "BEHAVIOR", "structure"
-  message:   string
-  rule:      string        // e.g. "RULE-01", "RULE-08", "RULE-17"
-}
+// Diagnostic and Severity are provided by the included lint-rules.md spec
+// (shared rule-domain types). The lint_content and lint_file tools serialise
+// Diagnostic.severity as the lowercase JSON strings "error" and "warning".
 
 LintResult := {
   valid:        boolean
@@ -72,12 +69,6 @@ ResourceRecord := {
   name:     string
   content:  string
 }
-
-MilestoneStatus := "pending" | "active" | "failed" | "released"
-// Pipeline state for ## MILESTONE sections.
-// Transitions: pending → active → released (pass) or failed (fail).
-// Exactly one milestone may be active at any time (RULE-15).
-// Status is managed by the agent pipeline, not by the spec author.
 
 SetMilestoneResult := {
   spec_path:        string          // path of the modified spec file
@@ -328,8 +319,9 @@ ERRORS:
 ## BEHAVIOR: lint_content
 Constraint: required
 
-Validates a PCD specification given as a string. Applies all rules
-RULE-01 through RULE-17, identical to the pcd-lint CLI.
+Validates a PCD specification given as a string. Applies the
+lint-validation-rules BEHAVIOR (from the included lint-rules.md spec),
+RULE-01 through RULE-21, identical to the pcd-lint CLI.
 
 INPUTS:
 ```
@@ -345,7 +337,8 @@ STEPS:
 1. If filename does not end in ".md" →
    MCP error -32602 with message "filename must have .md extension: {filename}".
 2. Run the embedded lint engine on content with filename.
-   The lint engine applies RULE-01 through RULE-17 in order.
+   The lint engine applies the lint-validation-rules BEHAVIOR (from the
+   included lint-rules.md spec), RULE-01 through RULE-21, in order.
    All rules run regardless of earlier failures.
 3. Return LintResult.
 
@@ -632,7 +625,7 @@ ERRORS:
 - Server never makes outbound network calls.
 - Server never reads environment variables for behaviour control.
 - lint_content and lint_file produce identical output to pcd-lint CLI
-  for identical input, including RULE-01 through RULE-17.
+  for identical input, including RULE-01 through RULE-21.
 - assess_change_impact applies the decision rules from whitepaper A.19
   deterministically — same inputs always produce the same recommendation.
 - All MCP responses are valid JSON-RPC 2.0.
@@ -643,7 +636,7 @@ ERRORS:
 
 - [observable]      stdio transport: stdout contains only MCP JSON-RPC messages
 - [observable]      lint_content result is identical to pcd-lint CLI on same input
-                    for RULE-01 through RULE-17
+                    for RULE-01 through RULE-21
 - [observable]      set_milestone_status never modifies any content in the spec
                     other than the Status: line of the named milestone
 - [observable]      set_milestone_status with new_status=active fails if any other
@@ -654,7 +647,7 @@ ERRORS:
                     returns recommendation=full-regeneration
 - [observable]      verify_spec_hash with matching hashes always returns
                     status="current" and match=true
-- [implementation]  rule execution order: RULE-01 through RULE-17, same as pcd-lint
+- [implementation]  rule execution order: RULE-01 through RULE-21, same as pcd-lint
 - [implementation]  resource URIs follow pcd://<type>/<n> scheme exactly
 - [implementation]  all assets (templates, hints, prompts) are embedded into the
                     binary at build time using a single unified asset embedding
@@ -1081,7 +1074,7 @@ COMPONENT: implementation
   files: main.go, internal/lint/*.go, internal/store/*.go, internal/milestone/*.go
   notes: >
     Split into packages: main (transport wiring), internal/lint
-    (rule engine applying RULE-01 through RULE-17, shared with pcd-lint),
+    (rule engine applying RULE-01 through RULE-21, shared with pcd-lint),
     internal/store (unified AssetStore — templates, hints, prompts),
     internal/milestone (set_milestone_status file editing logic),
     internal/changeimpact (assess_change_impact analysis logic).
@@ -1179,11 +1172,34 @@ mcpServers:
     args: [stdio]
 ```
 
+The same configuration as JSON (for clients that use a JSON config file):
+```json
+{
+  "mcpServers": {
+    "pcd": {
+      "command": "mcp-server-pcd",
+      "args": ["stdio"]
+    }
+  }
+}
+```
+
 mcphost config (http, if running as service):
 ```yaml
 mcpServers:
   pcd:
     url: http://127.0.0.1:8080/mcp
+```
+
+The same configuration as JSON:
+```json
+{
+  "mcpServers": {
+    "pcd": {
+      "url": "http://127.0.0.1:8080/mcp"
+    }
+  }
+}
 ```
 
 Version in preset hierarchy:
