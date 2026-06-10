@@ -6,7 +6,7 @@
 
 ## META
 Deployment:   template
-Version:      0.1.0
+Version:      0.2.1
 Spec-Schema:  0.3.21
 Author:       François-Xavier Houard <fx.houard@gmail.com>
 License:      CC-BY-4.0
@@ -169,7 +169,7 @@ Resolution order (last writer wins):
 
 | Key | Value | Constraint | Notes |
 |-----|-------|------------|-------|
-| VERSION | MAJOR.MINOR.PATCH | required | Semantic versioning. Spec author increments on every meaningful change. |
+| VERSION | MAJOR.MINOR.PATCH or YYYY.MM.DD.VV | required | Semantic versioning (MAJOR.MINOR.PATCH) or dated versioning (YYYY.MM.DD.VV). Spec author increments on every meaningful change. |
 | SPEC-SCHEMA | MAJOR.MINOR.PATCH | required | Version of the Post-Coding spec schema this file was written against. |
 | AUTHOR | name <email> | required | At least one Author: line required. Repeating key; multiple authors permitted. |
 | LICENSE | SPDX identifier | required | Must be a valid SPDX license identifier or compound expression. |
@@ -507,7 +507,7 @@ the translator derives them from this section.
 ### Delivery Order
 
 Deliverables must be produced in the following order:
-1. Core implementation files (source, go.mod / Cargo.toml, Makefile, README.md, LICENSE)
+1. Core implementation files (source, go.mod / Cargo.toml, `VERSION` file, Makefile, README.md, LICENSE)
 2. Help text and completion scripts (validated by ad-hoc test)
 3. Man pages (root + per-subcommand)
 4. Required packaging artifacts (RPM, DEB) in table order
@@ -519,20 +519,20 @@ Deliverables must be produced in the following order:
 | PACKAGE-FORMAT | Constraint | Required Deliverable Files | Notes |
 |---|---|---|---|
 | source | required | `main.go` or `cmd/<n>/main.go`, plus `internal/` packages per subcommand. `go.mod`. For Rust: `src/main.rs`, `Cargo.toml`. | Subcommand-per-package layout strongly recommended. Translator documents chosen structure in translation report. |
-| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man`, `completions` targets. `build` must set `CGO_ENABLED=0` for Go. `man` target: pandoc-based generation for each `.1.md` source. `completions` target: invokes the binary to produce bash, zsh, fish completion scripts. |
+| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man`, `completions`, `dist` targets. `build` must set `CGO_ENABLED=0` for Go. `man` target: pandoc-based generation for each `.1.md` source. `completions` target: invokes the binary to produce bash, zsh, fish completion scripts. `dist` target: produces `<n>-X.Y.Z.tar.gz` with a single top-level directory `<n>-X.Y.Z/` (version read from the top-level `VERSION` file; build artifacts and VCS directories excluded) and, for vendoring languages (Go `vendor/`, Rust `cargo vendor`), a separate companion tarball `<n>-X.Y.Z-vendor.tar.<extension>` containing only the vendored dependencies. Version single source: the one-line `VERSION` file feeds the RPM `Version:`, the tarball naming, and the binary's version output, exactly as in the cli-tool template. |
 | docs | required | `README.md` | Must document: installation via OBS (zypper, apt, dnf), installation via Homebrew if supported, quick start, link to man pages, subcommand tree overview. Must not document curl-based installation. |
 | man-root | required | `<n>.1.md`, `<n>.1` | Root man page. Markdown source converted to troff via `pandoc`. |
 | man-subcommand | required | `<n>-<verb>.1.md`, `<n>-<verb>.1` | One man page per top-level subcommand declared in the spec's BEHAVIOR blocks. |
 | completions | required | Generated at runtime by the binary itself | `<bin> completion bash` etc. No file deliverable; verified at build time by running the binary and asserting non-empty output + exit 0. |
 | license | required | `LICENSE` | SPDX identifier from spec META + authoritative URL to the full license text. Never reproduce the full license text. |
-| RPM | required | `<n>.spec` | OBS RPM spec file. Name, Version, License (SPDX), Summary, BuildRequires (must include pandoc), %build, %install, %files sections. %files must include man pages and bash completion at `/etc/bash_completion.d/<n>`. |
+| RPM | required | `<n>.spec` | OBS RPM spec file. Name, Version, License (SPDX), Summary, BuildRequires (must include pandoc), %build, %install, %files sections. %files must include man pages and bash completion at `/etc/bash_completion.d/<n>`. `Source0:` references the `make dist` source tarball; where the language vendors dependencies, `Source1:` references the companion vendor tarball and `%prep` unpacks it before the build. |
 | DEB | required | `debian/control`, `debian/changelog`, `debian/rules`, `debian/copyright` | Standard Debian source package layout. `debian/copyright` must use DEP-5 machine-readable format with SPDX license identifier. `Build-Depends` must include pandoc. |
 | OCI | supported | `Containerfile` | OCI-compliant container build file. Named `Containerfile`. Multi-stage build required. Builder stage: `FROM registry.suse.com/bci/golang:latest AS builder` for Go. Final stage: `FROM registry.suse.com/bci/bci-micro:latest` (not scratch — CLI tools may need a shell for debugging). Must not expose ports. |
 | PKG | supported | `<n>.pkgbuild` | macOS installer package descriptor. Required when PLATFORM includes macOS and binary not chosen. |
 | MSI | supported | `<n>.wxs` | WiX Toolset source for Windows installer. Required when PLATFORM includes Windows and binary not chosen. |
 | binary | supported | none | Raw binary only. No packaging descriptor required. |
 | report | required | `TRANSLATION_REPORT.md` | AI translator self-evaluation. Must include: language resolution rationale, delivery mode, template constraints compliance table, subcommand tree produced, ambiguities, deviations, per-example confidence levels, help system verification, completion script verification, man page enumeration. Written last after all other files verified on disk. |
-| spec-hash | required | embedded in all artifacts | SHA256 of the spec file embedded as in cli-tool template: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` / `version` subcommand output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
+| spec-hash | required | embedded in all artifacts | SHA256 of the merged spec text (equals the host spec file hash when the spec declares no `Includes:`), embedded as in cli-tool template: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` / `version` subcommand output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
 
 **TRANSLATION_REPORT.md - Translation Inputs (provenance):**
 
@@ -540,15 +540,21 @@ Beyond the spec hash recorded above, the report must record a labelled SHA256
 for every other file consumed as a translation input, one labelled line per
 file. Mandatory on every run for every language, exactly as the spec hash is
 mandatory. Recorded in the report only; never embedded in the built artefacts
-or in source file headers, which carry the spec hash alone. Required lines:
+or in source file headers, which carry the spec hash alone. Together with the
+spec these files form the reproducible translation-input tuple:
+(spec, resolved language, hints and template set, prompt). Required lines:
 
 - `Spec-SHA256:` `<hash>` - the spec hash as recorded above (host and merged
   where the spec uses includes; see `prompts/prompt.md`)
 - `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
 - `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
 - `Template-SHA256:` `<filename>` `<hash>`
+- `Prompt-SHA256:` `<filename>` `<hash>` - the translator prompt consumed
 - one further labelled line per any other guidance file consumed, e.g.
-  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent)
+  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent).
+  Canonical labels for further input classes: `Upgrade-Brief-SHA256:` (a KIT
+  change brief consumed by an incremental run) and `Directive-SHA256:` (one
+  line per `*.directive.md` consumed)
 
 Hash the exact file contents as read at translation time (post
 include-resolution). Record separate per-file hashes, never one combined hash.
@@ -699,7 +705,7 @@ For Rust: `cargo fetch`
 
 **Step 2 — Compilation**
 
-For Go: `go build ./...`
+For Go: `go build ./...` then `go vet ./...` (both must pass)
 For Rust: `cargo build --release`
 
 If compilation fails, fix only the identified errors and re-run.

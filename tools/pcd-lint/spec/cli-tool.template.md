@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.29
+Version:     0.4.1
 Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -36,7 +36,7 @@ Platform := Linux | macOS | Windows
 OutputFormat := RPM | DEB | OCI | PKG | binary
 // binary = raw executable, no packaging
 
-Language := Go | Rust | C | CPP | CSharp
+Language := Go | Rust | C | CPP | CSharp | Java | Lean4
 ```
 
 ---
@@ -129,7 +129,7 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 
 | Key | Value | Constraint | Notes |
 |-----|-------|------------|-------|
-| VERSION | MAJOR.MINOR.PATCH | required | Semantic versioning. Spec author increments on every meaningful change. |
+| VERSION | MAJOR.MINOR.PATCH or YYYY.MM.DD.VV | required | Semantic versioning (MAJOR.MINOR.PATCH) or dated versioning (YYYY.MM.DD.VV). Spec author increments on every meaningful change. |
 | SPEC-SCHEMA | MAJOR.MINOR.PATCH | required | Version of the Post-Coding spec schema this file was written against. |
 | AUTHOR | name <email> | required | At least one Author: line required. Repeating key; multiple authors permitted. |
 | LICENSE | SPDX identifier | required | Must be a valid SPDX license identifier or compound expression. Example: Apache-2.0. |
@@ -144,8 +144,14 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | LANGUAGE-ALTERNATIVES | C | supported | May be selected via preset or project override. |
 | LANGUAGE-ALTERNATIVES | C++ | supported | May be selected via preset or project override. |
 | LANGUAGE-ALTERNATIVES | C# | supported | Primary use case: Windows platform. Requires .NET runtime. |
+| LANGUAGE-ALTERNATIVES | Java | supported | May be selected via preset or project override. Use jlink-based custom runtime image for the final CLI binary; avoid a JRE dependency (see LANGUAGE: Java). |
+| LANGUAGE-ALTERNATIVES | Lean4 | supported | May be selected via preset or project override. Capability warning applies (see LANGUAGE: Lean4): only with a model known to be capable of agentic Lean 4 software engineering; most Lean 4 specs belong under verified-library. |
 | BINARY-TYPE | static | default | Default: single static binary. No shared library dependencies at runtime. |
-| BINARY-TYPE | dynamic | supported | Permitted for C, C++, and C# only. Dynamic linking may be preferable when system libraries are large, versioned independently, or required by platform conventions. Not permitted for Go or Rust (use static). |
+| BINARY-TYPE | dynamic | supported | Supported for every language. For C and C++, dynamic linking against the platform's packaged shared libraries is the conventional preference. For Go, Rust, and C#: permitted when a declared PERSISTENCE or FFI capability binds to a platform-packaged, signed shared library - the library is then a tracked, centrally patched, separately signed package dependency rather than a vendored static blob; absent such a binding, static (the default) applies. |
+| PERSISTENCE | none | default | The component keeps no persistent local state. |
+| PERSISTENCE | sqlite-local | supported | Primary state in a local SQLite database. Interacts with BINARY-TYPE (an FFI driver may justify dynamic linking against the platform's packaged SQLite; see BINARY-TYPE: dynamic) and with packaging (dynamic linking adds the platform SQLite runtime package to RPM Requires: / DEB Depends:). |
+| PERSISTENCE | json-local | supported | Persistent state in local JSON files. |
+| PERSISTENCE | toml-local | supported | Persistent state in local TOML files. |
 | SOURCE-PARTITIONING | modular | required | Implementation source must be partitioned into multiple modules. A single monolithic source file containing all logic is not permitted. The partitioning unit follows the target language's package/module/namespace convention (Go: packages under `internal/`; Rust: modules under `src/`; C: separate header and source files per logical unit; C#: namespaces with one type per file). |
 | SOURCE-PARTITIONING | one-entry-one-implementation | required | At minimum: one entry-point module containing only CLI dispatch (argument parsing, top-level error reporting, calling into the implementation), and at least one implementation module containing the spec's behaviours. The entry-point module does not implement behaviours directly. |
 | SOURCE-PARTITIONING | by-behaviour-domain | supported | Implementation may be further partitioned by behavioural domain when the spec defines multiple distinct BEHAVIORs. Example: a linter may partition into parsing, rule-application, and formatting modules. The partitioning is the translator's choice, constrained only by the minimum above. |
@@ -158,9 +164,10 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | BINARY-COUNT | 1 | required | Exactly one binary per spec. Multi-binary tools require separate specs. |
 | BINARY-LOCATION | project-root | required | The translator builds the binary at the project root (the directory containing `go.mod` / `Cargo.toml` / the equivalent root manifest). Relative to test files at `independent_tests/<llm-name>/`, this is `../../<binary-name>`. This is the single canonical location both the translator's tests and the test-author's tests use to invoke the binary. The translator does not build the binary at any other location, and test-author tests do not search for the binary at any other path. |
 | BINARY-LOCATION | source-path-coordination | required | The test-author's `TestMain` (or equivalent setup) may build the binary from a source path expected to exist after translation. If TEST_REPORT.md declares such a path (e.g. `cmd/<name>/main.go`), the translator must place the entry point at exactly that path. The translator's continuity check verifies the path exists in its planned layout before proceeding. |
-| RUNTIME-DEPS | none | required | No runtime dependencies permitted. All dependencies linked statically. |
+| RUNTIME-DEPS | none | required | No runtime dependencies beyond platform-packaged shared libraries that the packaging explicitly declares (RPM Requires:, DEB Depends:). A statically linked binary declares none. |
 | CLI-ARG-STYLE | key=value | required | Argument parsing uses key=value pairs. POSIX --flag style is forbidden for new options. v2 note: relax to default= and add supported alternatives (POSIX, subcommand) when real use cases require it. |
 | CLI-ARG-STYLE | bare-words | supported | Bare word commands (e.g. list-templates) are permitted alongside key=value. |
+| CLI-ARG-STYLE | subcommand | supported | Positional subcommands (the git/systemctl pattern) combined with key=value options. Bare-word global commands (version, help) and key=value overrides apply within each subcommand. POSIX --flag style remains forbidden for new options. |
 | EXIT-CODE-OK | 0 | required | Success exit code is always 0. |
 | EXIT-CODE-ERROR | 1 | required | Logical error (validation failure, lint error) exits 1. |
 | EXIT-CODE-INVOCATION | 2 | required | Invocation error (bad arguments, missing file) exits 2. |
@@ -179,6 +186,7 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 | PLATFORM | macOS | supported | macOS support is optional. If declared, PKG output format is required. |
 | PLATFORM | Windows | supported | Windows support is not targeted in v1 templates. |
 | CONFIG-ENV-VARS | forbidden | forbidden | Behaviour must not be controlled via environment variables. Use key=value args or preset files. |
+| TEST-INJECTION | single-declared-env-var | supported | A spec may declare exactly one named environment variable whose sole purpose is hermetic test isolation (redirecting host identity or the configuration root into a test sandbox). It must be named in the spec and documented in the man page. It is not a configuration channel: CONFIG-ENV-VARS stays forbidden for behaviour configuration. |
 | NETWORK-CALLS | forbidden | forbidden | Tool must not make network calls at runtime. |
 | FILE-MODIFICATION | input-files | forbidden | Tool must not modify its input files. |
 | IDEMPOTENT | true | required | Running the tool twice on the same input must produce identical output. |
@@ -191,10 +199,10 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 - This template is applied only when spec META declares Deployment: cli-tool
 - Preset files must be valid TOML
 - If PLATFORM includes macOS, OUTPUT-FORMAT must include PKG
-- LANGUAGE value in resolved output must be one of: Go, Rust, C, C++, C#
+- LANGUAGE value in resolved output must be one of: Go, Rust, C, C++, C#, Java, Lean4
 - If LANGUAGE is C#, PLATFORM must include Windows (C# targets .NET runtime)
-- If BINARY-TYPE is dynamic, LANGUAGE must be one of: C, C++, C#
-- If LANGUAGE is Go or Rust, BINARY-TYPE must be static
+- If BINARY-TYPE is dynamic for Go or Rust, the spec declares a PERSISTENCE
+  or FFI capability that binds to a platform-packaged shared library
 
 ---
 
@@ -217,10 +225,13 @@ emit Error: "Key <K> is forbidden in cli-tool specs."
 - [observable]  a spec declaring Deployment: cli-tool inherits all required constraints
   whether or not the spec author is aware of them
 - [observable]  template version is recorded in every audit bundle that references it
-- [observable]  BINARY-TYPE=dynamic is only valid when LANGUAGE ∈ {C, C++, C#}
-- [observable]  BINARY-TYPE=static is the only valid value when LANGUAGE ∈ {Go, Rust}
-- [observable]  every generated artifact embeds the SHA256 of the spec file
-  it was produced from; an artifact without an embedded spec hash is incomplete
+- [observable]  BINARY-TYPE=static is the default for every LANGUAGE
+- [observable]  BINARY-TYPE=dynamic for Go or Rust is valid only with a
+  declared PERSISTENCE or FFI binding to a platform-packaged shared library
+- [observable]  every generated artifact embeds the SHA256 of the merged
+  specification it was produced from (equal to the host spec file hash when
+  no Includes are declared); an artifact without an embedded spec hash is
+  incomplete
 
 ---
 
@@ -434,7 +445,7 @@ the translator derives them from this section.
 ### Delivery Order
 
 Deliverables must be produced in the following order:
-1. Core implementation files (source files, module/dependency manifest per target language, Makefile, README.md, LICENSE)
+1. Core implementation files (source files, module/dependency manifest per target language, `VERSION` file, Makefile, README.md, LICENSE)
 2. Required packaging artifacts (RPM, DEB) in table order
 3. Supported packaging artifacts if preset active (OCI, PKG, binary)
 4. TRANSLATION_REPORT.md last, after all other files are written and verified
@@ -445,7 +456,7 @@ Deliverables must be produced in the following order:
 |---|---|---|---|
 | source | required | An entry-point file + at least one implementation file in a separate module/package + the language's module/dependency manifest. See per-language details under "Per-language source layout" below. | Per `SOURCE-PARTITIONING: modular` and `one-entry-one-implementation`, a single-file implementation is not permitted. The entry-point file contains only CLI dispatch; behaviour implementation lives in a separate package or namespace. Translator documents the chosen partitioning in the translation report. |
 | public-api | required | `TRANSLATION_REPORT.md` section `## Public API Surface` | Per `PUBLIC-API-SURFACE: recorded-in-report`. One row per exported symbol, with full signature, grouped by module. The next translation reads this section to verify continuity. |
-| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man` targets. The `build` target's invocation of the language toolchain is per-language (see "Per-language build invocation" below). The `test` target must be **executable** — it actually runs the test suite when invoked, not a documentation placeholder pointing the user at a manual command. If the target language requires build-system wiring before tests can run (e.g. a Lean 4 `lean_exe` declaration in `lakefile.lean`, a Java `surefire-plugin` configuration in `pom.xml`, a Rust `[[test]]` section in `Cargo.toml`), the translator must produce that wiring so that `make test` succeeds against the produced artefact. `make test` invoked from a clean checkout (after `make build`) must exercise the suite and exit non-zero on any test failure. `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. |
+| build | required | `Makefile` | Must include: `build`, `test`, `install`, `clean`, `man`, `dist` targets. The `build` target's invocation of the language toolchain is per-language (see "Per-language build invocation" below). The `test` target must be **executable** — it actually runs the test suite when invoked, not a documentation placeholder pointing the user at a manual command. If the target language requires build-system wiring before tests can run (e.g. a Lean 4 `lean_exe` declaration in `lakefile.lean`, a Java `surefire-plugin` configuration in `pom.xml`, a Rust `[[test]]` section in `Cargo.toml`), the translator must produce that wiring so that `make test` succeeds against the produced artefact. `make test` invoked from a clean checkout (after `make build`) must exercise the suite and exit non-zero on any test failure. `man` target: `pandoc <n>.1.md -s -t man -o <n>.1`. `dist` target: produces the release source tarball (and, for vendoring languages, the companion vendor tarball) as specified under "Release tarballs (make dist)" below. |
 | docs | required | `README.md` | Must document: installation via OBS (zypper, apt, dnf), usage, flags, exit codes. Must not document curl-based installation. |
 | man | required | `<n>.1.md`, `<n>.1` | Markdown source converted to troff via `pandoc`. Section 1 (user commands). Install to `%{_mandir}/man1/` (RPM) and `debian/<n>/usr/share/man/man1/` (DEB). |
 | license | required | `LICENSE` | SPDX identifier from spec META + authoritative URL to the full license text. Never reproduce the full license text. |
@@ -455,7 +466,34 @@ Deliverables must be produced in the following order:
 | PKG | supported | `<n>.pkgbuild` | macOS installer package descriptor. Required when PLATFORM includes macOS. Minimal skeleton acceptable; document in translation report. |
 | binary | supported | none | Raw binary only. No packaging descriptor required. |
 | report | required | `TRANSLATION_REPORT.md` | AI translator self-evaluation. Must be Markdown. Must include: language resolution rationale, delivery mode, template constraints compliance table, ambiguities, deviations, per-example confidence levels with reasoning, parsing approach, signal handling approach. Written last after all other files verified on disk. |
-| spec-hash | required | embedded in all artifacts | SHA256 of the spec file embedded in: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
+| spec-hash | required | embedded in all artifacts | SHA256 of the merged spec text (equals the host spec file hash when the spec declares no `Includes:`) embedded in: source file header comments, `TRANSLATION_REPORT.md` `Spec-SHA256:` field, binary `--version` output, RPM `.spec` comment, DEB `control` `X-PCD-Spec-SHA256:` field, `Containerfile` `LABEL pcd.spec.sha256=`, `Makefile` `SPEC_SHA256` variable. Computed once before any output is written. |
+
+**TRANSLATION_REPORT.md - Translation Inputs (provenance):**
+
+Beyond the spec hash recorded above, the report must record a labelled SHA256
+for every other file consumed as a translation input, one labelled line per
+file. Mandatory on every run for every language, exactly as the spec hash is
+mandatory. Recorded in the report only; never embedded in the built artefacts
+or in source file headers, which carry the spec hash alone. Together with the
+spec these files form the reproducible translation-input tuple:
+(spec, resolved language, hints and template set, prompt). Required lines:
+
+- `Spec-SHA256:` `<hash>` - the spec hash as recorded above (host and merged
+  where the spec uses includes; see `prompts/prompt.md`)
+- `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
+- `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
+- `Template-SHA256:` `<filename>` `<hash>`
+- `Prompt-SHA256:` `<filename>` `<hash>` - the translator prompt consumed
+- one further labelled line per any other guidance file consumed, e.g.
+  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent).
+  Canonical labels for further input classes: `Upgrade-Brief-SHA256:` (a KIT
+  change brief consumed by an incremental run) and `Directive-SHA256:` (one
+  line per `*.directive.md` consumed)
+
+Hash the exact file contents as read at translation time (post
+include-resolution). Record separate per-file hashes, never one combined hash.
+Canonical format and rationale: `prompts/prompt.md` `## Reports` and
+`doc/technical-reference.md` section 12.
 
 ### Naming Convention
 
@@ -519,6 +557,30 @@ for languages requiring a minimal runtime (C# self-contained, Java jlink image).
 Never use unqualified names such as `golang:1.24` or `docker.io/openjdk`. This
 is a supply chain security requirement, not a preference.
 
+**Version single source (`VERSION` file):**
+- A one-line top-level `VERSION` file is the sole version authority for the
+  built artefact set.
+- The RPM spec reads it for `Version:` (e.g.
+  `Version: %(cat %{_sourcedir}/VERSION)`, or injected when the tarball is
+  built); `make dist` derives the tarball name and top-level directory from
+  it; and the build embeds it, so the binary's version output, the RPM
+  `Version:`, and the tarball directory `<n>-X.Y.Z/` are guaranteed
+  identical.
+
+**Release tarballs (`make dist`):**
+- The `Makefile` must define a `dist` target. It produces
+  `<n>-X.Y.Z.tar.gz` containing a single top-level directory `<n>-X.Y.Z/`,
+  where `X.Y.Z` is read from the `VERSION` file, so `rpmbuild`'s default
+  `%setup`/`%autosetup` finds the expected directory. Build artifacts
+  (`build/`, `target/`) and VCS directories are excluded.
+- For languages with dependency vendoring (Go `vendor/`, Rust
+  `cargo vendor`), the vendored tree is not part of the source tarball. The
+  same `dist` target produces a second tarball
+  `<n>-X.Y.Z-vendor.tar.<extension>` containing only the vendored
+  dependencies; packaging references it as `Source1:` and unpacks it in
+  `%prep`. This keeps the source tarball reviewable and the dependency
+  payload separately checksummed.
+
 **RPM spec (`<n>.spec`):**
 - `License:` field must use the SPDX identifier from the spec META
 - `BuildRequires:` must not include curl or any network fetch tool
@@ -530,7 +592,12 @@ is a supply chain security requirement, not a preference.
 - `%files` must include: `%{_mandir}/man1/<n>.1*`
 - `%build` section invokes the language's build command as in the
   per-language build invocation table above
-- `Source0:` must reference a local tarball, not a URL
+- `Source0:` must reference the local tarball produced by `make dist`
+  (`<n>-X.Y.Z.tar.gz`), not a URL
+- where the language vendors dependencies (Go, Rust), `Source1:` references
+  the companion vendor tarball `<n>-X.Y.Z-vendor.tar.<extension>` produced by
+  the same `make dist`, and `%prep` unpacks it into the source tree before
+  the build
 
 **debian/copyright:**
 - Must use DEP-5 machine-readable format
@@ -564,7 +631,8 @@ is a supply chain security requirement, not a preference.
 
 **TRANSLATION_REPORT.md:**
 - Must be a Markdown file (not .txt or other format)
-- Must include a `Spec-SHA256:` field in the header (SHA256 of the spec file as provided)
+- Must include a `Spec-SHA256:` field in the header (the merged spec hash;
+  equals the host spec file hash when no `Includes:` are declared)
 - Must include a template constraints compliance table
 - Must include per-example confidence levels with reasoning
 - Must document parsing approach chosen
@@ -589,7 +657,7 @@ Versioning:
   Breaking changes to a template increment the minor version.
   Additions of supported rows are non-breaking.
   Changes to required or forbidden rows are breaking.
-  Current version: 0.3.13
+  Current version: see META Version above.
 
 
 
@@ -766,7 +834,7 @@ If dependency resolution cannot be run:
 
 | LANGUAGE | Command |
 |---|---|
-| Go | `go build ./...` |
+| Go | `go build ./...` then `go vet ./...` (both must pass) |
 | Rust | `cargo build --release` |
 | C / C++ | `make` (or `meson compile -C build`) |
 | C# | `dotnet build -c Release` |

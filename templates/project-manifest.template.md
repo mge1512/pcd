@@ -3,7 +3,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.19
+Version:     0.3.21
 Spec-Schema: 0.3.19
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -58,7 +58,7 @@ SystemInvariant := string where non-empty
 
 | Key | Value | Constraint | Notes |
 |-----|-------|------------|-------|
-| VERSION | MAJOR.MINOR.PATCH | required | Version of this project manifest. |
+| VERSION | MAJOR.MINOR.PATCH or YYYY.MM.DD.VV | required | Version of this project manifest. |
 | SPEC-SCHEMA | MAJOR.MINOR.PATCH | required | |
 | AUTHOR | name <email> | required | Repeating field. Project architect(s). |
 | LICENSE | SPDX identifier | required | License covering the manifest and interface specs. |
@@ -92,15 +92,21 @@ Beyond the spec hash recorded above, the report must record a labelled SHA256
 for every other file consumed as a translation input, one labelled line per
 file. Mandatory on every run for every language, exactly as the spec hash is
 mandatory. Recorded in `TRANSLATION_REPORT.md` only; not added to
-`metadata.json`, which carries the spec hash alone. Required lines:
+`metadata.json`, which carries the spec hash alone. Together with the
+spec these files form the reproducible translation-input tuple:
+(spec, resolved language, hints and template set, prompt). Required lines:
 
 - `Spec-SHA256:` `<hash>` - the spec hash as recorded above (host and merged
   where the spec uses includes; see `prompts/prompt.md`)
 - `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
 - `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`)
 - `Template-SHA256:` `<filename>` `<hash>`
+- `Prompt-SHA256:` `<filename>` `<hash>` - the translator prompt consumed
 - one further labelled line per any other guidance file consumed, e.g.
-  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent)
+  `Style-Hints-SHA256:` or `Library-Hints-SHA256:` (`none` where absent).
+  Canonical labels for further input classes: `Upgrade-Brief-SHA256:` (a KIT
+  change brief consumed by an incremental run) and `Directive-SHA256:` (one
+  line per `*.directive.md` consumed)
 
 Hash the exact file contents as read at translation time (post
 include-resolution). Record separate per-file hashes, never one combined hash.

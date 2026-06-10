@@ -176,7 +176,8 @@ single-LLM is a fully supported invocation.
    (`go test`, `cargo test`, `pytest`, JUnit, etc.) — not a custom
    in-tree harness. The tests assert on every EXAMPLE in the spec,
    on declared error paths, on INVARIANTS, and on boundary conditions
-   implied by the TYPES refinement predicates.
+   implied by the TYPES refinement predicates. The suite must satisfy
+   every rule in **Test discipline (all roles)** below.
 3. **Verify that `independent_tests/<llm-name>/` exists in the output
    directory and contains at least one test file.** If not, halt with
    the diagnostic: "Error: Tests-First discipline requires a test suite
@@ -268,30 +269,10 @@ For a **test-author** run:
    `independent_tests/<llm-name>/`, in the language declared by the
    deployment template (resolve the same way translator would).
 
-   **Test methodology.** The test suite is a black-box test of the
-   implementation through the interface the spec declares.
-
-   - For a `cli-tool` or `kubectl-style-cli` deployment, the interface
-     is a CLI binary. Tests invoke it via the language's standard
-     subprocess mechanism (Go: `exec.Command`; Rust:
-     `std::process::Command`; Python: `subprocess.run`) and assert on
-     stdout, stderr, and exit code.
-   - For an `mcp-server` deployment, the interface is the MCP tool
-     surface. Tests invoke MCP tools through a real client and assert
-     on responses.
-   - For a `backend-service` deployment, the interface is the HTTP API
-     declared in the spec's INTERFACES section. Tests invoke HTTP
-     endpoints and assert on status codes and response bodies.
-   - For a `library-c-abi` deployment, the interface is the exported
-     C ABI. Tests link against the built shared library and call
-     exported functions.
-
-   Tests must NOT import the implementation's source packages, call
-   internal functions of the implementation, simulate the spec'd
-   interface through wrapper code, or mock the binary, server, or
-   library under test. The test suite verifies that the spec's
-   externally-observable behaviour is correct; it cannot verify
-   implementation internals, and must not try.
+   **Test methodology.** The suite is a black-box test and must
+   satisfy every rule in **Test discipline (all roles)** below:
+   black-box methodology, hermetic isolation, no hollow tests, clean
+   runs, and the long-running-EXAMPLE timeout policy.
 
    **Binary discovery.** Tests for CLI deployments must locate the
    binary under test using the path the deployment template's
@@ -355,29 +336,17 @@ For a **test-author** run:
       header is incomplete, and the spec's other rules will fire on
       it.
 
-      For `pcd-lint` specifically:
-      - META with all required fields (Deployment, Version,
-        Spec-Schema, Author, License, Verification, Safety-Level)
-      - TYPES (may be empty body)
-      - BEHAVIOR sections with non-empty STEPS lists. A `## BEHAVIOR: foo`
-        header with nothing under it fires RULE-08; if your test
-        expects a specific warning and the binary instead emits the
-        warning *plus* a RULE-08 error, the test fails for the wrong
-        reason.
-      - PRECONDITIONS (may be empty body)
-      - POSTCONDITIONS (may be empty body)
-      - INVARIANTS with at least one entry carrying an
-        `[observable]` or `[implementation]` tag (RULE-09 warns
-        otherwise)
-      - EXAMPLES with at least one negative-path EXAMPLE if any
-        BEHAVIOR in the fixture has error exits in its STEPS list
-        (RULE-10)
+      Where the component under test is itself a tool that consumes
+      structured input (a linter, a validator, a converger), its
+      project-scoped hints file enumerates the sections and fields a
+      structurally complete fixture requires. Read that hints file
+      before writing fixtures.
 
       Before writing the test, mentally run the binary against your
-      fixture and predict which rules fire. The expected diagnostic
-      set is what the test asserts on. If your fixture would trigger
-      structural rules you don't intend to test, complete the
-      structure first.
+      fixture and predict which diagnostics fire. The expected
+      diagnostic set is what the test asserts on. If your fixture
+      would trigger structural rules you don't intend to test,
+      complete the structure first.
    4. Add the specific feature under test (deprecated field, empty
       block, etc.) to the otherwise-complete fixture.
 
@@ -418,6 +387,148 @@ For a **test-author** run:
 6. Stop. Do not write code. Do not write packaging. Do not write a
    `TRANSLATION_REPORT.md` — write a `TEST_REPORT.md` instead (see
    **Reports** below).
+
+---
+
+## Test discipline (all roles)
+
+The rules in this section bind every test suite produced under this
+prompt - the translator's own suite and the test-author's suite alike -
+for every deployment type. The role-specific flows above reference
+them; they are stated once here.
+
+### Black-box methodology
+
+The test suite is a black-box test of the implementation through the
+interface the spec declares.
+
+- For a `cli-tool` or `kubectl-style-cli` deployment, the interface
+  is a CLI binary. Tests invoke it via the language's standard
+  subprocess mechanism (Go: `exec.Command`; Rust:
+  `std::process::Command`; Python: `subprocess.run`) and assert on
+  stdout, stderr, and exit code.
+- For an `mcp-server` deployment, the interface is the MCP tool
+  surface. Tests invoke MCP tools through a real client and assert
+  on responses.
+- For a `backend-service` deployment, the interface is the HTTP API
+  declared in the spec's INTERFACES section. Tests invoke HTTP
+  endpoints and assert on status codes and response bodies.
+- For a `library-c-abi` deployment, the interface is the exported
+  C ABI. Tests link against the built shared library and call
+  exported functions.
+
+Tests must NOT import the implementation's source packages, call
+internal functions of the implementation, simulate the spec'd
+interface through wrapper code, or mock the binary, server, or
+library under test. The test suite verifies that the spec's
+externally-observable behaviour is correct; it cannot verify
+implementation internals, and must not try.
+
+### Hermetic test isolation
+
+A black-box test must be hermetic. Every side effect - every file or
+directory the test or the unit under test creates, writes, truncates,
+or removes - must be confined to that test's own temporary directory.
+The suite must pass identically on a developer laptop, in CI, and
+inside a packaging build, under any user and from any working
+directory, without reading or writing a real system path or the
+user's real configuration or database.
+
+This is mandatory because fixtures and spec EXAMPLE data routinely
+carry real absolute paths as illustrative values (for example a VM
+image directory such as `/var/lib/libvirt/images/...`). These are
+illustrative, never filesystem targets. A generated test helper once
+took such a path verbatim from an EXAMPLE, created the directory, and
+wrote a stub file there so the command under test would proceed -
+which truncated a real disk image when the suite ran on the
+maintainer's host. A test must never be able to damage the machine it
+runs on.
+
+Rules:
+
+1. Redirect HOME (and any configuration-root variable or option the
+   tool honours) to a fresh per-test temporary directory, so the
+   database and all configuration live in the sandbox.
+2. Every filesystem location the unit under test reads or writes
+   during the test - data directories, disk images and stubs, input
+   trees, socket, runtime, and pidfile directories - must resolve to
+   a subdirectory of that temporary directory.
+3. When a fixture or EXAMPLE supplies an absolute path, do not use it
+   as a write target. Before the test materialises anything, rewrite
+   that value in the seeded state to a sandbox subdirectory, and
+   create files there.
+4. Compute every assertion about an absolute path in the unit's
+   output from the sandbox path, not from the EXAMPLE's literal
+   value.
+5. Defence in depth: any helper that creates a file on disk must
+   assert the target lies within the test's sandbox and fail the
+   test otherwise. A test that would write outside the sandbox must
+   fail loudly; it must never silently touch the host.
+
+Acceptance test for this rule: if the whole suite were run as an
+unprivileged user on a fresh machine with no access to any path named
+in any fixture, every test must still pass. A test that would create
+or modify a path outside its temporary directory is non-conforming
+and must be regenerated.
+
+### No hollow tests
+
+A test generated for an EXAMPLE must assert that EXAMPLE's THEN
+conditions - the specific stdout/stderr content, exit code, file or
+state outcome the EXAMPLE declares - not merely that the unit exited
+successfully. A test whose only assertion is `exit_code == 0` is
+forbidden: it passes even when the behaviour under test is completely
+broken, and it is worse than no test because it manufactures false
+confidence. Do not emit "fallback" or generic auto-generated test
+bodies; a suite where most tests are such stubs is a failed run, not
+a passing one.
+
+If an EXAMPLE needs a fixture to be testable, build the fixture; do
+not fall back to a bare run. The EXAMPLE's GIVEN describes what to
+construct: an input document, a baseline record, a synthetic
+directory tree, specific filesystem objects. Create them in the
+test's sandbox, point the unit at them, run, and assert the THEN.
+
+If a behaviour genuinely cannot be exercised at test time - it
+requires a live system, real privileged operations, or hardware the
+build user lacks - the test must be explicitly marked skipped and
+counted as such, never emitted as a passing stub. Skipped is not
+passed: the reports record pass/fail/skip separately, and a suite's
+green status must reflect only behaviours actually verified.
+
+### Clean runs
+
+Both roles must leave no stray artefacts behind. A run that litters
+the build host or the source tree with temporary files, scratch
+directories, or half-written outputs is not a clean run, even if it
+compiles and passes.
+
+- Tests create their fixtures (temp files, scratch directories,
+  input documents, synthetic trees) in a per-test temporary location
+  and delete them when the test finishes, including on the failure
+  path. No fixture is written to a fixed shared path or left in
+  `/tmp`, the source tree, or the working directory after the suite
+  exits. The suite must be re-runnable any number of times with no
+  residue and no dependence on leftovers from a prior run.
+- The translator does not leave scratch files, generated
+  intermediates, or editor backups in the source tree as
+  deliverables. Build output goes under the build directory and is
+  excluded from the release tarball. Temporary files created during
+  generation or self-checks are removed before the run is considered
+  done.
+
+The test of a clean run: after it finishes, version-control status
+shows only intended files, and a second identical run starts from
+the same clean state and behaves identically.
+
+### Long-running EXAMPLEs
+
+Some EXAMPLEs drive operations whose cost scales with the host (a
+package-database scan, a full filesystem traversal); these can take
+minutes on a large system. The test harness must allow a generous
+per-test timeout for such tests and must not kill a still-running
+long EXAMPLE. Spec authors may annotate an EXAMPLE as expected-long;
+test authors must honour the annotation when configuring timeouts.
 
 ---
 
@@ -465,6 +576,16 @@ If you deviate from the default, state why explicitly in the translation report.
 the test language are the same. This is a production constraint: minimal
 runtime environments (Common Criteria images, OBS builders, container
 images) carry the toolchain for one language only.
+
+**Build steps run unprivileged.**
+Every dependency fetch, vendoring, build, test, and packaging step runs
+as an unprivileged user: OBS builders and CI runners do not grant root,
+and no Makefile target may invoke `sudo`. Language notes: Go resolves
+modules into the build user's cache under `$HOME`; Rust vendors via
+`cargo vendor` and builds offline. A deployment context may explicitly
+grant elevated privileges (for example an ephemeral build VM whose
+overlay is discarded after the run); absent such an explicit grant,
+assume none.
 
 **Read the template's `## EXECUTION` section and follow it.**
 The EXECUTION section specifies the delivery phases, their order, resume
@@ -677,9 +798,14 @@ across to translator's run without persistent storage.
 
 ## Spec hash embedding
 
-**Every generated artifact must embed the SHA256 checksum of the spec file.**
+**Every generated artifact must embed the SHA256 checksum of the specification.**
 
-Compute `sha256sum <specname>.md` immediately before generating any output.
+The embedded hash is the SHA256 of the merged spec text - the host spec
+plus all recursively-resolved `Includes:`, exactly as defined in
+**Spec Composition - Hash computation** above. When the spec declares no
+`Includes:`, the merged text is byte-identical to the host spec file as
+provided, and the embedded hash equals that file's hash. Compute it
+immediately before generating any output.
 Embed the result in every generated artifact as follows:
 
 - **Source files:** a comment near the top of each file:
@@ -695,10 +821,12 @@ Embed the result in every generated artifact as follows:
 - **`Containerfile`:** a `LABEL pcd.spec.sha256="<hash>"` instruction
 - **`Makefile`:** a `SPEC_SHA256` variable set to the hash
 
-The hash is the SHA256 of the spec file *as provided as input* — not of any
-transformed or post-processed version. If the spec file changes between runs,
-the embedded hash in the new artifacts will differ from the old artifacts,
-making the version boundary cryptographically verifiable.
+The hash is computed over the merged spec text exactly as resolved at
+translation time; no other transformation or post-processing is applied.
+If the host spec or any included spec changes between runs, the embedded
+hash in the new artifacts will differ from the old artifacts, making the
+version boundary cryptographically verifiable across the whole inclusion
+graph.
 
 This is an invariant: any artifact that does not embed the spec hash is
 incomplete, regardless of whether all other deliverables are present.
@@ -765,7 +893,9 @@ Produce a `TRANSLATION_REPORT.md` covering:
   being able to see at a glance which single input changed. Each hash is of
   the exact file contents as read at translation time (post include-resolution
   where a file has includes, mirroring the spec host/merged distinction
-  above). Required lines:
+  above). Together these files form the reproducible translation-input
+  tuple: (spec, resolved language, hints and template set, prompt).
+  Required lines:
   - `Spec-SHA256 (merged):` `<hash>` - as above; the hash embedded in artefacts
   - `Spec-SHA256 (host):` `<hash>` - as above
   - `Decisions-Hints-SHA256:` `<filename>` `<hash>` - the language-specific
@@ -773,10 +903,15 @@ Produce a `TRANSLATION_REPORT.md` covering:
   - `Milestones-Hints-SHA256:` `<filename>` `<hash>` - the milestones hints
     file consumed, or `none`
   - `Template-SHA256:` `<filename>` `<hash>` - the deployment template consumed
+  - `Prompt-SHA256:` `<filename>` `<hash>` - the translator prompt consumed
+    for this run (this prompt, as read from the input directory)
   - one further labelled line for any other file fed to the translator as
     guidance, e.g. `Style-Hints-SHA256:` `<filename>` `<hash>` (one per style
     hints file) or `Library-Hints-SHA256:` `<filename>` `<hash>` (one per
-    library hints file); use `none` for a category that is genuinely absent
+    library hints file); use `none` for a category that is genuinely absent.
+    The canonical labels for further input classes are
+    `Upgrade-Brief-SHA256:` (a KIT change brief consumed by an incremental
+    run) and `Directive-SHA256:` (one line per `*.directive.md` consumed)
 - **Tests-First-Compliance:** `yes` or `no` (with explanation). `yes`
   requires that every file in `independent_tests/<llm-name>/` was written
   before any implementation source file. If `no`, every test that passed
@@ -892,13 +1027,20 @@ Produce a `TEST_REPORT.md` covering:
   Mandatory on every run for every language. Record separate per-file hashes;
   never collapse them into a single combined hash. Each hash is of the exact
   file contents as read at translation time (post include-resolution,
-  mirroring the spec host/merged distinction above). Required lines:
+  mirroring the spec host/merged distinction above). Together these files
+  form the reproducible translation-input tuple: (spec, resolved language,
+  hints and template set, prompt). Required lines:
   - `Spec-SHA256 (merged):` `<hash>` and `Spec-SHA256 (host):` `<hash>` - as above
   - `Decisions-Hints-SHA256:` `<filename>` `<hash>` - or `none`
   - `Milestones-Hints-SHA256:` `<filename>` `<hash>` - or `none`
   - `Template-SHA256:` `<filename>` `<hash>`
+  - `Prompt-SHA256:` `<filename>` `<hash>` - the translator prompt consumed
+    for this run (this prompt, as read from the input directory)
   - one further labelled line for any other guidance file consumed, e.g.
-    `Style-Hints-SHA256:` or `Library-Hints-SHA256:`; `none` where absent
+    `Style-Hints-SHA256:` or `Library-Hints-SHA256:`; `none` where absent.
+    The canonical labels for further input classes are
+    `Upgrade-Brief-SHA256:` and `Directive-SHA256:` (one line per
+    `*.directive.md` consumed)
 - **Deployment-Template:** template filename and version (e.g.
   `cli-tool.template.md v0.3.21`)
 - **Preset-Resolution:** any preset overrides that affected the run,

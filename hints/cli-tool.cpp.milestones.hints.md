@@ -105,6 +105,28 @@ gcc15-c++` and build with g++-15; on SLE 16, the default toolchain suffices.
 
 ---
 
+## Build-system selection and external API feature detection
+
+- **Build system: prefer CMake.** Meson is an acceptable option where the
+  project context already uses it; autotools (automake) only in exceptional
+  cases (e.g. integrating into an existing autotools tree). Record the choice
+  in `TRANSLATION_REPORT.md`.
+- **Feature-detect external library API versions in the build system, never by
+  guessing header macros.** The build system already knows each library's
+  version: CMake captures it from `pkg_check_modules`, Meson from
+  `dependency()`. When the detected version crosses an API boundary, define a
+  project compile definition (CMake:
+  `target_compile_definitions(<target> PRIVATE <PROJ>_<FEATURE>)`) and branch
+  in code with `#if defined(<PROJ>_<FEATURE>)`. This keeps the version logic
+  in one place, makes both branches compilable, and survives library updates.
+  Record the detected version and which branch was compiled in
+  `TRANSLATION_REPORT.md`.
+- If an operation has no stable API across the supported library versions,
+  raise that in the report as a spec or hints concern; do not paper over it
+  with runtime guesses.
+
+---
+
 ## Dynamic linking (NOT static)
 
 This C++ tool links its dependencies DYNAMICALLY against the distribution's
@@ -117,6 +139,21 @@ libraries this tool links and any per-SP soname or API differences among them.
 
 (This is the deliberate difference from the Go sibling, which builds a single
 static `CGO_ENABLED=0` binary. C++ here is dynamic by design.)
+
+---
+
+## SLE BuildRequires naming (devel vs runtime packages)
+
+- `BuildRequires:` names development packages, which on SLE 15 AND 16 follow
+  the `<name>-devel` convention with NO `lib` prefix: the jsoncpp devel
+  package is `jsoncpp-devel` (NOT `libjsoncpp-devel`), the yaml-cpp devel
+  package is `yaml-cpp-devel` (NOT `libyaml-cpp-devel`).
+- The `lib<name><soname>` packages with soname digits (e.g. `libyaml-cpp0_8`)
+  are the RUNTIME shared-library packages; they never belong in
+  `BuildRequires:`. The RPM shared-library dependency generator derives the
+  runtime `Requires:` from the linked sonames automatically.
+- A build that fails to resolve a `lib<name>-devel` BuildRequires is almost
+  always this naming defect, not a missing repository.
 
 ---
 
@@ -263,6 +300,61 @@ contract, not left to the author's discretion:
 A "simplified" command-runner that uses `std::system` with shared `/tmp/out` and
 `/tmp/err` is NOT acceptable even though it compiles; it is the exact shortcut to
 avoid.
+
+### Every test must assert the EXAMPLE's actual outcome (no hollow tests)
+
+A test generated for an `### EXAMPLE:` MUST assert that example's THEN conditions,
+the specific stdout/stderr content, exit code, file or scope state the example
+declares, NOT merely that the binary exited 0. A test whose only assertion is
+`exit_code == 0` is FORBIDDEN: it is "green theater", it passes even when the
+behaviour under test is completely broken, and it is worse than no test because it
+manufactures false confidence. Do NOT emit "fallback" or "auto-generated generic"
+test bodies; that pattern (a single exit-code check standing in for a real
+behavioural assertion) is exactly what must not happen, and a suite where most
+tests are such stubs is a failed test-authoring run, not a passing one.
+
+If an EXAMPLE needs a FIXTURE to be testable, BUILD the fixture; do not fall back
+to a bare run. The example's GIVEN tells you what to construct: a manifest file (a
+specific JSON/YAML document), an applied-record baseline, a synthetic root or `/etc`
+subtree, or specific filesystem objects (a symlink, a special file, a ghost). Create
+them in a per-test temporary directory, point the tool at them (via the relevant
+`*-path` / root option the spec defines), run the verb, and assert the THEN. Offline
+modes (comparing a manifest against a captured state dump, where the spec provides
+them) let many behaviours be asserted without a live system; prefer them for
+fixture-based tests.
+
+If a behaviour GENUINELY cannot be exercised at test time, because it requires a
+live transactional root, real snapshot creation, or root privilege the build user
+lacks, the test MUST be explicitly marked deferred/skipped and counted as such (the
+report distinguishes tested from deferred), NOT emitted as a passing exit-0 stub. An
+honest "skipped: needs a live transactional target" is correct; a fake-green stub is
+not. Mark such a case clearly (e.g. print a SKIP line and do not count it as a
+pass), so the suite's green status reflects only behaviours actually verified.
+
+---
+
+## Clean up after yourself (test-author and translator)
+
+Both roles MUST leave no stray artifacts behind. A run that litters the build host
+or the source tree with temporary files, scratch directories, or half-written
+outputs is not a clean run, even if it compiles and passes.
+
+- The TEST-AUTHOR: every test creates its fixtures (temp files, scratch dirs,
+  manifests, synthetic roots) in a per-test temporary location and DELETES them
+  when the test finishes, including on the failure path (use RAII or an explicit
+  cleanup at every return). Capture temp files (`mkstemp`) are `unlink`ed after use.
+  No fixture is written to a fixed shared path or left in `/tmp`, the source tree,
+  or the working directory after the suite exits. The suite must be re-runnable any
+  number of times with no residue and no dependence on leftovers from a prior run.
+- The TRANSLATOR: do not leave scratch files, generated intermediates, editor
+  backups, or `build/` contents in the source tree as deliverables. Build output
+  goes under the build directory and is excluded from `make dist` (the tarball
+  contains only sources, not artifacts). Temporary files created during generation
+  or self-checks are removed before the run is considered done. The committed tree
+  is the sources plus the generated code, nothing extraneous.
+
+The test of a clean run: after it finishes, `git status` shows only intended files,
+and a second identical run starts from the same clean state and behaves identically.
 
 ---
 

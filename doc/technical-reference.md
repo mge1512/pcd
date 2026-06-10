@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.4.0
+**Version:** 0.4.4
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-18
+**Date:** 2026-06-10
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -612,16 +612,18 @@ in the artifact itself — in a source file comment, in the version subcommand o
 a Containerfile `LABEL`, in RPM metadata — means any single artifact can be
 verified independently, without access to the audit bundle.
 
-The hash is computed once, before any output is written, from the specification
-file as provided. All artifacts from the same translation run carry the same
-hash. If the specification changes and a new translation run produces new
+The hash is computed once, before any output is written, from the merged
+specification text - the host file plus all recursively resolved `Includes:`,
+equal to the host file as provided when the spec declares no `Includes:`. All
+artifacts from the same translation run carry the same hash. If the specification changes and a new translation run produces new
 artifacts, the new artifacts carry a different hash. The version boundary is
 cryptographically visible without inspecting build logs or commit history.
 
 For regulated domain compliance, this answers the audit question "was this
 binary produced from the certified specification?" without depending on human
 attestation or trusting the build pipeline. The hash embedded in the binary
-either matches `sha256sum <specname>.md` or it does not. There is no middle
+either matches the merged specification's SHA256 (the host file's `sha256sum`
+when no `Includes:` are declared) or it does not. There is no middle
 ground.
 
 For the 4-eyes principle: the reviewer signs off on the specification. The
@@ -641,10 +643,12 @@ hash answers "what behaviour was this artifact intended to implement?" - the
 spec is language-neutral and defines what the tool must do. It does not, by
 itself, determine the binary that was produced. Translation also consumes
 per-language inputs: a decisions-hints file, a milestones-hints file, the
-deployment template, and any further guidance (style hints, library hints)
-fed to the translator. These inputs materially shape the realisation. The
+deployment template, the translator prompt itself, and any further guidance
+(style hints, library hints, change briefs, directives) fed to the
+translator. These inputs materially shape the realisation. The
 reproducible unit is therefore the tuple `(spec, resolved language,
-hints/template set)`, every element of which is recorded by hash. The spec
+hints and template set, prompt)`, every element of which is recorded by
+hash. The spec
 remains the single normative source of truth; the hints are the per-language
 record of how that source was realised.
 
@@ -662,8 +666,11 @@ Spec-SHA256 (host):       <hash>
 Decisions-Hints-SHA256:   <filename> <hash>   (or: none)
 Milestones-Hints-SHA256:  <filename> <hash>   (or: none)
 Template-SHA256:          <filename> <hash>
+Prompt-SHA256:            <filename> <hash>
 Style-Hints-SHA256:       <filename> <hash>   (one line per file; none if absent)
 Library-Hints-SHA256:     <filename> <hash>   (one line per file; none if absent)
+Upgrade-Brief-SHA256:     <filename> <hash>   (when a KIT change brief was consumed)
+Directive-SHA256:         <filename> <hash>   (one line per *.directive.md consumed)
 ```
 
 The hashes are separate, labelled, per-file values - never one combined blob.
@@ -676,7 +683,8 @@ spec hash already uses). A category that is genuinely absent for a given run
 is recorded explicitly as `none`, not omitted; the rule for the translator
 implementer is "hash every file consumed as translation input and record it,
 labelled - spec (host and merged), decisions-hints, milestones-hints,
-template, and anything else fed in; `none` where a category does not apply."
+template, prompt, and anything else fed in; `none` where a category does not
+apply."
 
 **The binary-embedding boundary.** The binary and the source-file headers
 embed the spec hash alone - the normative contract. The hints and template
@@ -684,7 +692,8 @@ hashes are recorded in the report only - the per-language realisation record.
 There is no combined "build-inputs" hash anywhere, and none is embedded in any
 artifact. This is a deliberate decision: the artifact's embedded identity is
 the behaviour it was meant to implement, and that identity stays stable and
-independently verifiable against `sha256sum <specname>.md`, while the fuller
+independently verifiable against the merged spec hash (the host file's
+`sha256sum` when no `Includes:` are declared), while the fuller
 provenance needed to reproduce a specific realisation lives in the report that
 accompanies the audit bundle.
 

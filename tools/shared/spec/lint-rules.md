@@ -2,7 +2,7 @@
 
 ## META
 Deployment:   none
-Version:      0.4.0
+Version:      0.4.2
 Spec-Schema:  0.4.0
 Author:       Matthias G. Eckermann <pcd@mailbox.org>
 License:      CC-BY-4.0
@@ -58,7 +58,14 @@ SPDXIdentifier := string where matches SPDX license identifier list
 // pcd-lint validates against the current SPDX license list embedded at build time
 
 SemanticVersion := string where matches "^[0-9]+\.[0-9]+\.[0-9]+$"
-// MAJOR.MINOR.PATCH — no pre-release suffixes in v1
+// MAJOR.MINOR.PATCH - no pre-release suffixes in v1. Governs Spec-Schema
+// (RULE-02d); the spec's own Version field uses SpecVersion below.
+
+SpecVersion := string where matches
+  "^([0-9]+\.[0-9]+\.[0-9]+|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2})$"
+// Spec META Version: semantic MAJOR.MINOR.PATCH (e.g. 0.6.10) or dated
+// YYYY.MM.DD.VV with a two-digit per-day counter (e.g. 2026.06.09.03).
+// Accepted per maintainer decision D-8 (2026-06-10).
 
 DeploymentTemplate := one_of(
   "wasm" | "ebpf" | "kernel-module" | "verified-library" |
@@ -227,10 +234,12 @@ For each Author: line A in META section:
 ### RULE-02c: Version format
 
 Let V = value of META field "Version"
-if V does not match SemanticVersion pattern "^[0-9]+\.[0-9]+\.[0-9]+$":
+if V does not match SpecVersion pattern
+  "^([0-9]+\.[0-9]+\.[0-9]+|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2})$":
   emit Error, section="META",
-    message="Version '{V}' is not valid semantic versioning. \
-             Required format: MAJOR.MINOR.PATCH (e.g. 0.1.0)"
+    message="Version '{V}' is not a valid version string. \
+             Accepted formats: MAJOR.MINOR.PATCH (e.g. 0.1.0) \
+             or YYYY.MM.DD.VV (e.g. 2026.06.09.03)"
 
 ### RULE-02d: Spec-Schema version
 
@@ -656,12 +665,14 @@ if TRANSLATION_REPORT.md exists adjacent to spec:
   if TRANSLATION_REPORT.md does not contain line matching /^Spec-SHA256:\s+[0-9a-f]{64}/:
     emit Warning, section="report", line=1,
       message="TRANSLATION_REPORT.md is missing Spec-SHA256: field.
-               Every translation run must record the SHA256 of the spec
-               it was produced from. Run: sha256sum <specname>.md"
+               Every translation run must record the SHA256 of the merged
+               spec it was produced from (host plus resolved Includes;
+               equals the host file hash when no Includes are declared)."
 
   if Spec-SHA256 field present:
     let recorded_hash = value of Spec-SHA256 field
-    let current_hash  = sha256(<specname>.md)
+    let current_hash  = sha256(merged spec text of <specname>; equals
+                        sha256 of the host file when no Includes are declared)
     if recorded_hash ≠ current_hash:
       emit Warning, section="report", line=1,
         message="Spec has changed since last translation run.
@@ -778,6 +789,18 @@ is no depth cap; practical specs are expected to have inclusion depth of
 
 ## CHANGELOG
 
+- 2026.06.10.02 - RULE-02c accepts dated versions (maintainer decision D-8,
+  consistency-check task T-29): spec META Version may be semantic
+  MAJOR.MINOR.PATCH or dated YYYY.MM.DD.VV. New SpecVersion type carries the
+  alternation; SemanticVersion stays semver-only and continues to govern
+  Spec-Schema (RULE-02d unchanged). The VERSION rows of all ten deployment
+  templates were updated in the same batch.
+- 2026.06.10.01 - RULE-18 message and hash definition aligned with the
+  merged-spec hash semantics (consistency-check task T-24): the recorded
+  and recomputed hash is the SHA256 of the merged spec text (host plus
+  recursively resolved Includes), equal to the host file hash when the
+  spec declares no Includes. No rule logic change beyond the recomputation
+  definition; diagnostics text updated accordingly.
 - 2026.06.09.01 - Initial extraction. RULE-01 through RULE-21, the
   lint-validation-rules orchestration BEHAVIOR, the code-fence-tracking
   BEHAVIOR/INTERNAL, and the rule-domain TYPES (Section, MetaField,

@@ -3,7 +3,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.20
+Version:     0.3.22
 Spec-Schema: 0.3.20
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -48,7 +48,7 @@ SafetyLevel := one_of(
 
 | Key | Value | Constraint | Notes |
 |-----|-------|------------|-------|
-| VERSION | MAJOR.MINOR.PATCH | required | |
+| VERSION | MAJOR.MINOR.PATCH or YYYY.MM.DD.VV | required | |
 | SPEC-SCHEMA | MAJOR.MINOR.PATCH | required | |
 | AUTHOR | name <email> | required | Repeating field permitted. |
 | LICENSE | SPDX identifier | required | |
@@ -102,10 +102,15 @@ Required deliverables will include:
   (as above; host and merged where the spec uses includes),
   `Decisions-Hints-SHA256:` `<filename>` `<hash>` (or `none`),
   `Milestones-Hints-SHA256:` `<filename>` `<hash>` (or `none`),
-  `Template-SHA256:` `<filename>` `<hash>`, and one further labelled line per
-  any other guidance file (e.g. `Style-Hints-SHA256:`, `Library-Hints-SHA256:`;
-  `none` where absent). Separate per-file hashes, never one combined hash, of
-  the exact file contents as read at translation time (post include-resolution).
+  `Template-SHA256:` `<filename>` `<hash>`,
+  `Prompt-SHA256:` `<filename>` `<hash>` (the translator prompt consumed), and
+  one further labelled line per any other guidance file (e.g.
+  `Style-Hints-SHA256:`, `Library-Hints-SHA256:`; `none` where absent;
+  canonical further labels: `Upgrade-Brief-SHA256:` for a KIT change brief,
+  `Directive-SHA256:` one per `*.directive.md` consumed). Separate per-file hashes, never one combined hash, of
+  the exact file contents as read at translation time (post include-resolution). Together with the spec these files form the
+  reproducible translation-input tuple: (spec, resolved language, hints and
+  template set, prompt).
   Canonical format: `prompts/prompt.md` `## Reports` and
   `doc/technical-reference.md` section 12.
 
