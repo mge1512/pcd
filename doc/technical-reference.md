@@ -1,7 +1,7 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.5.1
+**Version:** 0.5.2
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-09-01
 **License:** CC-BY-4.0
@@ -1081,28 +1081,31 @@ targets enterprise IT delivery; PCD targets regulated and long-lived
 components.
 
 Spec Kitty (Robert Douglass, 2026) is an open-source workflow and governance
-layer for AI coding agents, originated as a fork of GitHub Spec Kit. It is
-the one entry in this section that rejects PCD's central premise rather than
-converging on it, and its author argues the rejection in print: the code is
-what compiles and what runs, so the code is the source of truth for what the
-software is, and the specification is a change request, a decision ledger and
-a guardrail for where the software is going. Every other difference follows.
-The merged code stays the audited artefact; provenance is the git history and
-the decision ledger rather than an attestation of derivation; the target
-language is a property of the existing repository, so language neutrality
-does not arise. The cross-review instinct is shared but placed differently:
-Spec Kitty's reviewer reads a diff and may patch it, while PCD's second model
-authors an independent test suite from EXAMPLES before the translator writes
-anything and may only propose changes to specification, hints, template or
-prompt. On certification both routes are open and distribute the evidence
-differently - hand-maintained code with an agent in the development
-environment is the provable arrangement whose cost is that every change
-re-enters
-code-level review scope, whereas PCD trades that review effort for provenance
-and pipeline evidence. The paradigms address different starting conditions:
-Spec Kitty answers the brownfield case where behaviour cannot be written down
-in full, which is where PCD has no answer. Full treatment in
-`doc/comparisons/PCD-vs-Spec-Kitty.md`.
+layer for AI coding agents, originated as a fork of GitHub Spec Kit. It agrees
+with PCD on the destination - humans express intent, machines implement it -
+and like PCD it expresses that intent in structured natural language. Its
+shipped specification template for software-development missions sets out
+prioritised user stories, acceptance scenarios in GIVEN / WHEN / THEN, typed
+requirement, non-functional and constraint tables with a measurable-threshold
+rule, key entities and identified success criteria. The difference is the
+completeness bar, and it follows from the intended reader: a Spec Kitty
+specification describes what should change and is read by an agent that also
+reads the codebase, while a PCD specification describes what the component is
+and must be sufficient for a translator that has never seen the code. Spec
+Kitty specifies the requirement; PCD specifies the component. The consequences
+follow from that. A requirements document cannot be the audit point for a
+component it does not describe, so the merged code stays the audited artefact;
+it cannot be hashed as a claim about behaviour, because it does not determine
+behaviour; and it has no target language to be neutral about. On certification
+both routes are open and distribute the evidence differently - hand-maintained
+code with an agent in the development environment is the provable arrangement
+whose cost is that every change re-enters code-level review scope, whereas PCD
+trades that review effort for provenance and pipeline evidence. The two are
+complementary and composable: Spec Kitty resolves specification templates and
+step contracts per mission kind and ships an activatable doctrine pack for the
+Thoughtworks REASONS Canvas, so a PCD mission kind with a lint-plus-translation
+accept gate is the same kind of addition it has already made once for a
+foreign format. Full treatment in `doc/comparisons/PCD-vs-Spec-Kitty.md`.
 
 What is genuinely novel: natural language as the translator artifact (structured
 Markdown, not a programming language or formal language); deployment templates

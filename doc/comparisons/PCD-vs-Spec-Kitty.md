@@ -1,6 +1,6 @@
 # PCD vs Spec Kitty
 
-Version: 2026.09.01.01
+Version: 2026.09.01.02
 Date:    2026-09-01
 Author:  Matthias G. Eckermann <pcd@mailbox.org>
 Status:  Draft, intended for public use
@@ -14,19 +14,18 @@ This is the second entry in `doc/comparisons/`. It positions PCD against
 Spec Kitty, an open-source workflow and governance layer for agentic
 coding.
 
-The first entry compared PCD with a project that agrees with it on the
-paradigm and optimizes a different end of it. This entry does the opposite.
-Spec Kitty's author read the spec-driven literature, understood the
-spec-as-source-of-truth premise, and rejected it in print. His conclusion is
-that the code is the software and the specification is a change request plus
-a decision ledger. That is the premise PCD inverts.
+The two projects agree on where software development is going: humans express
+intent, machines implement it. They disagree about what a specification has to
+contain today, and that disagreement is the subject of this document. It is a
+difference of completeness and of intended reader, not of philosophy, and the
+two formats can compose.
 
-A comparison set that lists only projects converging on PCD's thesis is a
-selection artifact. Spec Kitty states the opposite position in print and gives
-reasons for it, from inside the same movement, so answering it does more for
-the paradigm than agreeing with a third project would. It also has more users
-than the other entries in this directory, so a reader may already know
-its argument.
+An earlier revision of this entry framed the difference as a disagreement
+about which artifact is authoritative. That framing came from the published
+article and was too strong; section 3 records what replaced it and why.
+
+Spec Kitty also has more users than the other entries in this directory, so a
+reader may already know its arguments.
 
 Sources are listed in section 8. Claims that rest on a single article or a
 single repository read are flagged in section 7 as "to verify" before any
@@ -63,8 +62,17 @@ agent, and a corresponding command in the CLI.
 Three constructs account for most of the design.
 
 The **mission** is the unit of work: a purpose-specific workflow with defined
-inputs, process, outcomes and states. Coding is one mission kind;
-research and documentation are others.
+inputs, process, outcomes and states. Release 3.2.5 ships four mission kinds -
+software development, research, documentation and planning - each with its own
+specification template, task template and step contracts, resolved through a
+mission-type repository. Mission kinds are an extension point rather than a
+fixed list.
+
+A second extension point sits beside it. Release 3.2.5 ships a **doctrine
+pack** implementing the Thoughtworks REASONS Canvas, activatable per project,
+with its own activation and charter-context contracts and a template renderer.
+A foreign specification format has already been added to Spec Kitty this way
+once.
 
 The **charter** is a per-project governance document that records what an
 agent cannot infer from the code. The published example includes which of two
@@ -91,49 +99,83 @@ execution.
 
 ---
 
-## 3. The disagreement
+## 3. What each project means by "specification"
 
-Spec Kitty exists because of a disagreement with Spec Kit, and its author
-states it plainly. On his reading, Spec Kit places the specification at the
-center as the source of truth for what the software is, with code downstream
-as a generated artifact faithful to that source. He rejects that. The code is
-what compiles, what runs in production, and what customers experience;
-changing the code changes the software whether or not any specification
-agrees.
+### 3.1 The agreement
 
-In his model the specification is a different object: a change request, a
-history of how the team arrived here, a ledger of decisions with the
-reasoning attached, and a guardrail for future work. It is the source of
-truth for where the software is going, not for what it is. He declines to
-place his tool between the agent and the codebase, on the argument that
-agents read code well; the failure he set out to fix is intent translation
-and lost project memory, not code comprehension.
+Both projects agree that the future of software is humans expressing intent
+and machines implementing it. Spec Kitty's author states this in his founding
+article, before the argument that follows from it, and PCD is built on the
+same premise. The agreement is recorded first because the published
+disagreement is easy to read as a disagreement about the destination, when it
+is a disagreement about what is achievable in an existing codebase now.
 
-PCD asserts the inverse. The specification is the sole durable human
-artifact, generated code is a build output, and a defect is fixed in the
-specification and the code regenerated.
+His position on that second question is that for brownfield work - millions of
+lines, decisions made years ago by people who have moved on, constraints
+written down nowhere - intent alone is not yet enough, so the code remains the
+authority on what the system currently does and the specification states the
+intended change. PCD's target is a component whose behavior can be written
+down in full, where that constraint does not bind.
 
-The two positions sit at opposite ends of one axis, and the axis is which
-artifact answers the question *what is this software*:
+### 3.2 Both formats are structured
 
-```
-Spec Kitty            Spec Kit / Kiro      SPDD / Plain          PCD
-code is truth,        spec-anchored,       spec-first with       spec-only,
-spec is a change      code maintained      sync back to spec     code is a
-request and ledger                                               build output
-```
+A comparison that calls one format formal and the other informal does not
+survive contact with the files. Spec Kitty's specification template for
+software-development missions, shipped in release 3.2.5, is a structured
+requirements document with mandatory sections and typed identifiers:
 
-Stated as one sentence for talks: Spec Kitty makes the specification the
-source of truth for where the software is going, PCD makes it the source of
-truth for what the software is, and everything else in this table follows
-from that one choice.
+- User stories with explicit priorities, each required to be independently
+  testable and independently deliverable
+- Acceptance Scenarios written as GIVEN / WHEN / THEN, the same
+  behavior-driven-development lineage from which PCD took its EXAMPLES section
+- Functional requirements, non-functional requirements and constraints in
+  three separate tables with unique typed identifiers and a status column
+- A rule that every non-functional requirement states a measurable threshold
+- A constraints table with a regulatory category
+- Key entities, described without implementation
+- Success criteria with their own identifiers, required by the template to be
+  technology-agnostic and measurable
 
----
+PCD specifications are also structured Markdown with mandatory sections: META,
+TYPES, INTERFACES, BEHAVIOR blocks with ordered STEPS, PRECONDITIONS,
+POSTCONDITIONS, INVARIANTS, EXAMPLES, DEPENDENCIES and DEPLOYMENT, validated
+by a linter against a published rule set.
+
+Both are constrained natural language. The difference lies elsewhere.
+
+### 3.3 The completeness bar
+
+What separates the two formats is how much has to be written down before the
+document is finished, and that follows from who reads it.
+
+| | Spec Kitty | PCD |
+|---|---|---|
+| Describes | What should change, and how you know it worked | What the component is |
+| Contains | User stories, requirement and constraint tables, entities, success criteria | Types, interfaces, operations with ordered steps, pre- and postconditions, invariants, examples, deployment |
+| Reader | A team, plus an agent that also reads the codebase | A translator with no codebase to read |
+| Finished when | The team agrees what done means and the criteria are measurable | A machine that has never seen the code can produce the binary from it |
+| Status of the document | The record of a decision | The certified artifact |
+
+Stated as one sentence: **Spec Kitty specifies the requirement, PCD specifies
+the component.** A Spec Kitty specification is sufficient for a team to agree
+and for an agent to act against code that already exists. A PCD specification
+is sufficient on its own, which is the property that makes it signable.
+
+That single difference explains the rest of this document. A requirements
+document cannot be the audit point, because it does not describe the
+component (4.1). It cannot be hashed into an artifact as a claim about
+behavior, because it does not determine behavior (4.2). It has no language to
+be neutral about, because the language is a property of the repository it
+describes (4.4).
+
+It also explains the reverse: a component specification is expensive, and
+buying that completeness is only rational where the component is small enough
+to describe and durable enough to repay the cost.
 
 ## 4. Where PCD differs
 
-The differences all descend from section 3. They are listed in the order a
-skeptical reader will raise them.
+The differences all descend from the completeness bar in 3.3. They are listed
+in the order a skeptical reader will raise them.
 
 ### 4.1 The audited object
 
@@ -146,8 +188,10 @@ with every mission.
 Under PCD the specification is the object under examination and the binary is
 its derivative. The specification changes when behavior changes and not
 otherwise, which makes the reviewed object stable in a way a codebase is not.
-PCD's assurance argument rests on this, and 4.2 to 4.6 are its
-consequences.
+PCD's assurance argument rests on this. Neither project chose its position
+carelessly: a requirements document cannot serve as the audit point for a
+component it does not describe, so Spec Kitty keeps the audit at the code
+because that is where the description sits.
 
 ### 4.2 Reproducibility and attestation
 
@@ -254,8 +298,13 @@ Stated plainly, so the comparison stays honest.
 - Brownfield work. Spec Kitty is built for a codebase with twenty years of
   decisions in it, most of them undocumented. PCD assumes a component whose
   behavior can be written down in full, which is a much narrower starting
-  condition. Where a specification cannot be written, Spec Kitty has an
-  answer and PCD does not.
+  condition. Where a component specification cannot be written, Spec Kitty
+  has an answer and PCD does not.
+- Format plurality. Spec Kitty treats the specification format as a property
+  of the mission kind and of the active doctrine pack, so more than one format
+  can coexist in one repository. PCD has one format and a linter that enforces
+  it, which is the right choice for a certifiable artifact and the wrong one
+  for a team that wants to adopt gradually.
 - The charter as a named artifact. Project policy that the agent reads, kept
   separate from the specification and from the framework's own rules, is a
   construct PCD lacks under any name. PCD has hints, templates, prompts and
@@ -287,63 +336,98 @@ Stated plainly, so the comparison stays honest.
 
 ## 6. Net positioning
 
-PCD and Spec Kitty disagree about which artifact is authoritative, and they
-are right about different situations.
+The two projects sit at different points on one scale, and the scale is how
+completely a component can be described.
 
-- Spec Kitty optimizes for a large existing codebase whose behavior nobody
-  can write down, where the achievable win is that agents stop misreading
-  intent and the team stops losing its decisions. It keeps human
-  accountability at the code, which is the conservative and currently
-  provable position.
-- PCD optimizes for components whose behavior can be specified completely and
-  must stay verifiable for a decade, where the achievable win is that the
-  binary remains a checkable function of a certified specification produced
-  by a pipeline the operator can run.
+- Spec Kitty addresses systems that cannot be described in full. The
+  achievable win is that agents stop misreading intent and the team stops
+  losing its decisions, with human accountability kept at the code. That is
+  the conservative position and the currently provable one.
+- PCD addresses components that can be described in full and have to stay
+  verifiable for a decade. The achievable win is that the binary remains a
+  checkable function of a certified specification, produced by a pipeline the
+  operator can run.
 
-One-line framing for talks: both projects agree that intent has to be written
-down; they disagree about whether writing it down replaces the code or
-governs the people who change it, and the answer depends on whether the
-component can be specified in full.
+Most systems contain both kinds of component: a long-lived, specifiable core
+and a large periphery of integration code that nobody will ever describe
+completely. Nothing forces a team to choose one approach for an entire system.
 
-The related question is where the boundary lies. A system usually contains
-both kinds of component: a long-lived, specifiable core and a large body of
-integration code that nobody will ever specify completely. Nothing prevents
-the two approaches from meeting at that boundary, and the open design
-question is what the interface between them looks like.
+### 6.1 A named integration point
 
----
+Spec Kitty's architecture already accepts additional specification formats, in
+two ways described in section 2: each mission kind has its own specification
+template and step contracts, and doctrine packs can be activated per project,
+as the shipped REASONS Canvas pack demonstrates.
+
+That makes the composition concrete rather than aspirational. A mission kind
+whose specification template is the PCD format, whose plan step is a milestone
+design rather than a task breakdown, and whose accept gate is a linter run
+plus a translation producing a passing binary, is the same kind of addition
+Spec Kitty has already made once for a foreign format.
+
+The mapping at the front is close to direct. Acceptance Scenarios in
+GIVEN / WHEN / THEN are PCD EXAMPLES. The requirement, constraint and success
+criteria tables are the rationale and acceptance layer that PCD
+specifications lack, and that a reviewer of a PCD specification currently has
+to reconstruct. What a PCD mission would add is the back half of
+the table in 3.3: types, interfaces, ordered steps, pre- and postconditions,
+invariants and deployment.
+
+Whether the mission-kind mechanism admits a third-party validator and a
+programmatic accept gate, rather than only a template and prose contracts, is
+the question that decides whether this is a weekend or a project. It is listed
+in section 7.
+
+### 6.2 Framing for talks
+
+Both projects agree that intent has to be written down and that machines will
+do the implementing. They differ on how complete the writing has to be before
+the machine can be trusted with it, and the honest answer depends on whether
+the component can be described in full. Where it can, a specification can be
+signed and the binary checked against it. Where it cannot, a requirement plus
+a governed agent is the better available answer, and saying so costs PCD
+nothing.
 
 ## 7. Open questions and claims to verify
 
-Before section 4 is used publicly, confirm the following against the
-documentation and a working trial rather than against the article and the
-repository page alone.
+Confirm the following against the documentation, the source distribution and a
+working trial rather than against the founding article and the repository page
+alone.
 
+- Does the mission-kind mechanism admit a third-party specification format
+  with its own validator and a programmatic accept gate, or only a template
+  and prose contracts? This decides the size of the integration in 6.1 and is
+  the first question to put to the project.
 - Does any part of the pipeline record model identity, prompt version and
-  specification revision per work package in a form that survives the merge?
-  Absence in the documentation is not proof of absence, and this single
+  specification revision per work package, in a form that survives the merge?
+  Absence from the documentation is not proof of absence, and this single
   answer decides 4.2.
-- Is the charter machine-checkable, or is it text placed in an agent's
-  context and honored at the model's discretion? The distinction decides how
-  much of 4.6 stands.
-- For a greenfield component, does the specification ever grow into a
-  description of the component in full, or does it stay a change request by
-  construction? This is where the two paradigms would touch.
+- How much of the charter is mechanically enforced? The source distribution
+  ships term-neutrality lists, a language-scoped allowlist and an error-code
+  catalog beside the charter defaults, so part of it clearly is. The split
+  between the enforced part and the advisory part decides how much of 4.6
+  stands.
 - Are there users under regulated audit, and what do they present in place of
   code-level review evidence?
 - Is the hosted workspace available self-hosted, with a choice of model and
   jurisdiction? This affects 4.5 and nothing else.
-- Confirm the fork lineage from GitHub Spec Kit from a primary source. Three
+- Confirm the fork lineage from GitHub Spec Kit from a primary source. Several
   secondary sources agree, which is suggestive rather than conclusive.
 - Confirm the release and version figures at the time of use. They were read
   on 2026-09-01 and this project changes weekly.
 
----
-
 ## 8. Sources
 
-- Robert Douglass, "Why I Built Spec Kitty", Medium, 2026-04-27. The
-  statement of the disagreement in section 3 comes from here.
+- Robert Douglass, "Why I Built Spec Kitty", Medium, 2026-04-27. The shared
+  premise in 3.1 and the brownfield argument come from here.
+- Direct conversation between the author of this document and the project's
+  founder, 2026-09. The agreement recorded in 3.1 was confirmed there.
+- `spec-kitty-cli` 3.2.5 source distribution, read 2026-09-01. Specification
+  template facts in 3.2 come from
+  `src/doctrine/missions/software-dev/templates/spec-template.md`; the mission
+  kinds and the REASONS doctrine pack in section 2 and 6.1 from
+  `src/doctrine/missions/` and `src/doctrine/spdd_reasons/`; the charter
+  enforcement material in section 7 from `src/charter/`.
 - github.com/Priivacy-ai/spec-kitty - README, `SECURITY-POSITION.md`
   (dated 2026-02-18), repository structure. Read 2026-09-01.
 - docs.spec-kitty.ai - documentation index and glossary, version 3.2.
@@ -357,20 +441,38 @@ repository page alone.
 
 ## 9. Follow-up actions (non-normative)
 
+- Put the first question in section 7 to the project directly. The answer
+  decides whether 6.1 is a prototype or a design discussion.
 - Decide whether PCD wants a named per-project governance artifact in the
   sense of section 5, distinct from hints and templates, or whether the
   existing layers already cover it under different names.
+- Consider adopting a rationale and acceptance layer in PCD specifications,
+  in the spirit of the requirement and success-criteria tables in 3.2. A
+  reviewer signing a PCD specification currently reconstructs the why from
+  the what.
 - Complete section 7 verification before citing 4.x publicly.
-- Add the axis sentence from section 3 to the conference talk. It positions
-  PCD without attacking a project whose author argued his case in public and
-  argued it well.
-- Consider whether the boundary question at the end of section 6 deserves its
-  own note: which components in a mixed system are specifiable, and what the
-  interface between a specified core and an unspecified periphery looks like.
+- Use the one-sentence framing from 3.3 and the closing paragraph of 6.2 in
+  the conference talk. Both position PCD by scope rather than by claim.
+- Write the boundary note the end of section 6 points at: which components in
+  a mixed system are specifiable, and what the interface between a specified
+  core and an unspecified periphery looks like.
 
 ---
 
 ## Changelog
+
+- 2026.09.01.02 - Section 3 rewritten. The first revision framed the
+  difference as a disagreement about which artifact is authoritative, taken
+  from the founding article. A direct conversation with the project's founder
+  established that both projects share the same view of where software
+  development is going, and a read of the shipped specification template
+  established that both formats are structured natural language with
+  mandatory sections and typed identifiers. The accurate axis is the
+  completeness bar: Spec Kitty specifies the requirement, PCD specifies the
+  component. Section 6 rewritten from opposition to complementarity and given
+  a named integration point, grounded in the mission-kind and doctrine-pack
+  mechanisms the project already ships. Sections 1, 2, 4 intro, 4.1, 5, 7, 8
+  and 9 adjusted to match. No claim in 4.2 to 4.6 changed.
 
 - 2026.09.01.01 - Initial draft. Based on the founder's article of 2026-04-27,
   the repository README and security position document, the documentation

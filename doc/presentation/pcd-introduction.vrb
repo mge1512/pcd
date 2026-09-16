@@ -1,0 +1,20 @@
+\frametitle{The workflow, updated}
+\protect\hypertarget{the-workflow-updated}{}
+\includegraphics[width=1\textwidth,height=\textheight]{pcd-workflow-full.png}
+
+\begin{enumerate}
+\tightlist
+\item
+  Domain expert writes the spec, or an AI interview produces it
+\item
+  \texttt{pcd-lint} validates: 25 rules, before any translation
+\item
+  \texttt{pcd-slice} derives the preamble and the per-BEHAVIOR bundles
+\item
+  The deployment template resolves language, packaging, conventions
+\item
+  Translator and test-author produce code, tests, and the audit bundle
+\end{enumerate}
+
+If the output is wrong: fix the spec and regenerate. The code is never
+touched.
