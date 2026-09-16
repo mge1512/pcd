@@ -1,6 +1,6 @@
 # PCD vs Spec Kitty
 
-Version: 2026.09.01.02
+Version: 2026.09.01.03
 Date:    2026-09-01
 Author:  Matthias G. Eckermann <pcd@mailbox.org>
 Status:  Draft, intended for public use
@@ -171,6 +171,42 @@ describes (4.4).
 It also explains the reverse: a component specification is expensive, and
 buying that completeness is only rational where the component is small enough
 to describe and durable enough to repay the cost.
+
+### 3.4 What the two designs share
+
+The completeness bar is one difference against a wide base of agreement. The
+following moves appear in both projects, arrived at independently.
+
+| Shared move | In Spec Kitty | In PCD |
+|---|---|---|
+| Intent is written down before any code exists | Charter, then an interview that presses until boundaries and contracts are settled, then specify, plan, tasks | Specification authored and linted before a translator is invoked |
+| The durable artifact is plain text in the repository | Mission artifacts, charter, work packages and review state under `kitty-specs/` and `.kittify/` | Specification, hints, templates and prompts, all diffable and reviewable |
+| Explicit project memory against session amnesia | Charter, doctrine layer, decision trail, per-mission retrospectives | Decisions and milestone hints files, deployment template, translator prompt |
+| The author of an implementation may not be its reviewer | A second model, or the same model with its context stripped, reviews what was produced | A second model authors the test suite from EXAMPLES before the translator writes anything |
+| Large work is decomposed into bounded units | Work packages with lifecycle lanes, one isolated worktree each | MILESTONE blocks, per-behavior slicing, specification composition through `Includes:` |
+| Done is defined in advance as observable criteria | Acceptance scenarios and success criteria required to be measurable, checked at the accept gate | EXAMPLES as an executable oracle, plus a compile gate and an independent test run |
+| No lock-in at the model layer | Roughly fifteen agent front ends, selectable per project | Any model, including one hosted in a chosen jurisdiction or air-gapped |
+| The framework is built with itself | Spec Kitty is planned, implemented and reviewed through Spec Kitty | The PCD tools are generated from their own specifications |
+| A human stays accountable; autonomy is not the default | Autonomous orchestration is a separate component that policy can disallow | A human certifies the specification, and the reviewer step is a required gate |
+
+Three qualifications, so the table is not read as more than it is.
+
+Project memory is the same instinct pointed at different targets. A hints file
+exists so a translator does not re-derive realization choices; a charter exists
+so an agent does not violate team policy. Neither file would work in the other
+system unchanged.
+
+Fix it in the artifact rather than in the code is only a partial match, which
+is why it is absent from the table. PCD makes it absolute. Spec Kitty routes
+the decision back into the ledger and the charter, while the fix itself lands
+in the code.
+
+Shared design moves are evidence that the two systems can compose, not
+evidence that they are the same system. What they share is the discipline
+around the artifact. What they do not share is how complete the artifact has
+to be, which is 3.3 and the rest of this document.
+
+---
 
 ## 4. Where PCD differs
 
@@ -388,6 +424,8 @@ signed and the binary checked against it. Where it cannot, a requirement plus
 a governed agent is the better available answer, and saying so costs PCD
 nothing.
 
+---
+
 ## 7. Open questions and claims to verify
 
 Confirm the following against the documentation, the source distribution and a
@@ -407,6 +445,11 @@ alone.
   catalog beside the charter defaults, so part of it clearly is. The split
   between the enforced part and the advisory part decides how much of 4.6
   stands.
+- Does the project enforce a rule against an agent reporting command output it
+  did not obtain by running the command? A third-party extension built on Spec
+  Kitty states one; no equivalent was found in the project's own material. PCD
+  has this as the black-box rule. If both arrived at it independently, that is
+  a row for 3.4 and a sentence for the talk.
 - Are there users under regulated audit, and what do they present in place of
   code-level review evidence?
 - Is the hosted workspace available self-hosted, with a choice of model and
@@ -415,6 +458,8 @@ alone.
   secondary sources agree, which is suggestive rather than conclusive.
 - Confirm the release and version figures at the time of use. They were read
   on 2026-09-01 and this project changes weekly.
+
+---
 
 ## 8. Sources
 
@@ -460,6 +505,16 @@ alone.
 ---
 
 ## Changelog
+
+- 2026.09.01.03 - Added 3.4, a table of the design moves both projects made
+  independently, with three qualifications so it is not read as more than it
+  is. Reason: a document that tabulates differences and leaves the agreement
+  in prose reads as tilted even where the prose is fair, and the shared moves
+  are supporting evidence for the composability argument in 6.1. Rows are
+  restricted to claims sourced in section 8; the open question about an
+  anti-simulation rule is in section 7 rather than in the table. Restored
+  three horizontal rules dropped by the 2026.09.01.02 rewrite. Mirror updates
+  applied to the whitepaper and the technical reference.
 
 - 2026.09.01.02 - Section 3 rewritten. The first revision framed the
   difference as a disagreement about which artifact is authoritative, taken

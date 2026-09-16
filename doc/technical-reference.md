@@ -1,7 +1,7 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.5.2
+**Version:** 0.5.3
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-09-01
 **License:** CC-BY-4.0
@@ -1087,7 +1087,10 @@ and like PCD it expresses that intent in structured natural language. Its
 shipped specification template for software-development missions sets out
 prioritised user stories, acceptance scenarios in GIVEN / WHEN / THEN, typed
 requirement, non-functional and constraint tables with a measurable-threshold
-rule, key entities and identified success criteria. The difference is the
+rule, key entities and identified success criteria. Both also write intent down before any code
+exists, keep the durable artefact as plain text in the repository, forbid the
+author of an implementation from reviewing it, decompose large work into
+bounded units, and are built with themselves. The difference is the
 completeness bar, and it follows from the intended reader: a Spec Kitty
 specification describes what should change and is read by an agent that also
 reads the codebase, while a PCD specification describes what the component is
