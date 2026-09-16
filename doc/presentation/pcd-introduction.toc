@@ -1,8 +1,0 @@
-\babel@toc {american}{}
-\beamer@sectionintoc {1}{What}{2}{0}{1}
-\beamer@sectionintoc {2}{Why}{6}{0}{2}
-\beamer@sectionintoc {3}{How}{13}{0}{3}
-\beamer@sectionintoc {4}{The specification}{18}{0}{4}
-\beamer@sectionintoc {5}{Templates and translation}{23}{0}{5}
-\beamer@sectionintoc {6}{Tooling}{28}{0}{6}
-\beamer@sectionintoc {7}{Update: April to September 2026}{33}{0}{7}
