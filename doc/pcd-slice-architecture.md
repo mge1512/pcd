@@ -12,7 +12,7 @@ reviewer. Harnesses read files in mechanical windows - kit's read tool
 returns line ranges capped at 2000 lines or 50KB, and the model
 chooses the offsets - so a window that cuts a behavior in half or
 lacks the types it references forces another window or a guess.
-Measured on a production corpus (the METEORA planner: 273K bytes, 41
+Measured on a production corpus (a planner spec: 273K bytes, 41
 behaviors, 46K of changelog, 36K of examples), a full-context pass is
 on the order of 70K tokens, multiplied by passes and roles. The
 generated code has an irreducible size; the reading does not.
@@ -83,7 +83,7 @@ Five stages, one pass over the input:
    an example that rides in the preamble instead of its bundle, with
    nothing saying so, is the silent-degradation class this project spends review
    rounds hunting. The first translation of 0.1.0 proved the need on
-   the target corpus itself - 66 of the METEORA planner's top-level
+   the target corpus itself - 66 of its top-level
    examples were unattributable under the two-rung grammar - and the
    suffix is the escape hatch for genuinely cross-behavior
    narratives.
