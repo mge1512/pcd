@@ -3,7 +3,7 @@
 
 ## META
 Deployment:  backend-service
-Version:     0.3.8
+Version:     0.3.9
 Spec-Schema: 0.3.13
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0

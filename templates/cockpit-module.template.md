@@ -3,7 +3,7 @@
 ## META
 
 Deployment:   cockpit-module
-Version:      0.1.0
+Version:      0.1.1
 Spec-Schema:  0.3.22
 Author:       Matthias G. Eckermann <pcd@mailbox.org>
 License:      GPL-2.0-only

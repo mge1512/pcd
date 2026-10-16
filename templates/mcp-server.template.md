@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.22
+Version:     0.3.23
 Spec-Schema: 0.3.20
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0

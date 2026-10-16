@@ -143,10 +143,10 @@ TYPE tables.
 | **RULE-19** | 0.4.0 | Error | Every `Includes:` path resolves to a readable file |
 | **RULE-20** | 0.4.0 | Error | Merged spec has no name collisions across TYPES, BEHAVIORs, INTERFACES, EXAMPLES |
 | **RULE-21** | 0.4.0 | Error | Inclusion graph is acyclic; included specs declare no MILESTONE or DEPLOYMENT sections |
-| **RULE-22** | 0.5.0 | Error | TYPE block and table structure: heading, Kind, column contract per kind, divider, row widths |
-| **RULE-23** | 0.5.0 | Error | TYPE table cell vocabulary: names, TypeRefs, Req values, constraint tokens, defaults |
-| **RULE-24** | 0.5.0 | Error | TYPE table references resolve; names unique across tables and against prose TYPES |
-| **RULE-25** | 0.5.0 | Warning | TYPE table lifecycle discipline: Since/Deprecated/Replaced-by values, deprecation points to a successor |
+| **RULE-22** | 0.4.5 | Error | TYPE block and table structure: heading, Kind, column contract per kind, divider, row widths |
+| **RULE-23** | 0.4.5 | Error | TYPE table cell vocabulary: names, TypeRefs, Req values, constraint tokens, defaults |
+| **RULE-24** | 0.4.5 | Error | TYPE table references resolve; names unique across tables and against prose TYPES |
+| **RULE-25** | 0.4.5 | Warning | TYPE table lifecycle discipline: Since/Deprecated/Replaced-by values, deprecation points to a successor |
 
 For the normative definition of each rule, including the exact
 diagnostic message text, see

@@ -1,7 +1,7 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.5.3
+**Version:** 0.4.8
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
 **Date:** 2026-09-01
 **License:** CC-BY-4.0

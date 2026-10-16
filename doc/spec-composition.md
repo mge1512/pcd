@@ -1,9 +1,9 @@
 # PCD Spec Composition (v0.4.0)
 
 **Status:** Draft
-**Version:** 0.4.0
+**Version:** 0.4.5
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-18
+**Date:** 2026-07-30
 **License:** CC-BY-4.0
 
 > **Reading note (2026-07-29).** This document records the v0.4.0 design of

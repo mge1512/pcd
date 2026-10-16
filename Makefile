@@ -56,7 +56,7 @@ MATERIALISE_PROMPT        := sh scripts/materialise-prompt.sh
 # ── Targets ───────────────────────────────────────────────────────────────────
 
 .PHONY: help spec spec-doc-blocks spec-bundles \
-        spec-pcd-lint spec-mcp-server-pcd check-spec
+        spec-pcd-lint spec-mcp-server-pcd check-spec check-versions
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ \
@@ -114,3 +114,12 @@ check-spec: spec ## Fail if `make spec` produced uncommitted changes
 	        $(BUNDLE_FILES) $(BUNDLE_HASHES); \
 	    exit 1; \
 	fi
+
+# Version labels: a label names one content. VERSION_BASE=origin/master
+# checks a whole branch in CI; the default checks the working tree
+# against HEAD.
+
+VERSION_BASE ?= HEAD
+
+check-versions: ## Fail if a versioned file changed without a Version: bump
+	sh scripts/check-version-bump.sh $(VERSION_BASE)
