@@ -3,8 +3,8 @@
 ## META
 
 Deployment:   cli-tool
-Version:      0.2.0
-Spec-Schema:  0.3.22
+Version:      0.2.1
+Spec-Schema:  0.4.0
 Author:       Unknown
 License:      Apache-2.0
 Verification: none
@@ -127,16 +127,16 @@ ERRORS:
 
 ## EXAMPLES
 
-### EXAMPLE: version_output
+### EXAMPLE: version_output (of: version)
 GIVEN:
   the binary is invoked with argument "version"
 WHEN:
   calc-interest version
 THEN:
-  stdout contains one line matching: "calc-interest 0.2.0 spec:{64-hex-chars}"
+  stdout contains one line matching: "calc-interest 0.2.1 spec:{64-hex-chars}"
   exit code is 0
 
-### EXAMPLE: typical_calculation
+### EXAMPLE: typical_calculation (of: calculate-simple-interest)
 GIVEN:
   stdin contains:
     10000.00
@@ -150,7 +150,7 @@ THEN:
     TOTAL:    14200.00
   exit code is 0
 
-### EXAMPLE: zero_rate_rejected
+### EXAMPLE: zero_rate_rejected (of: calculate-simple-interest)
 GIVEN:
   stdin contains:
     10000.00
@@ -162,7 +162,7 @@ THEN:
   stderr contains "invalid rate"
   exit code is 2
 
-### EXAMPLE: zero_principal_rejected
+### EXAMPLE: zero_principal_rejected (of: calculate-simple-interest)
 GIVEN:
   stdin contains:
     0.00
@@ -174,7 +174,7 @@ THEN:
   stderr contains "invalid principal"
   exit code is 2
 
-### EXAMPLE: zero_periods_rejected
+### EXAMPLE: zero_periods_rejected (of: calculate-simple-interest)
 GIVEN:
   stdin contains:
     10000.00
@@ -186,7 +186,7 @@ THEN:
   stderr contains "invalid periods"
   exit code is 2
 
-### EXAMPLE: non_numeric_input_rejected
+### EXAMPLE: non_numeric_input_rejected (of: calculate-simple-interest)
 GIVEN:
   stdin contains:
     abc

@@ -1,6 +1,6 @@
 # PCD Version-Label Audit
 
-Version:     2026.10.16.01
+Version:     2026.10.16.02
 Refers-to:   git history of the repository up to 2943cd3
 Decided-by:  Matthias G. Eckermann, 2026-10-16
 Executed-by: Claude, same day, per maintainer instruction
@@ -18,15 +18,16 @@ framework change gets a row there.
 ## 2. Method
 
 For every commit, each changed `*.md` outside `*/code/*` with a `Version:`
-field in its first 12 lines was compared before and after the commit. An
+field in its first 40 lines was compared before and after the commit. An
 unchanged field with changed bytes is a finding: from that commit on, the
-label names two contents. `scripts/check-version-bump.sh` (`make
-check-versions`) applies the same comparison to the working tree, with a
-40-line window.
+label names two contents. The first run used 12 lines and missed
+`templates/abap-report.template.md`, whose `Version:` field is on line 38.
+A second run with 40 lines added one finding for it.
+`scripts/check-version-bump.sh` (`make check-versions`) applies the same
+comparison to the working tree.
 
 Not covered by this audit:
 
-- `templates/abap-report.template.md`, whose `Version:` field is on line 38.
 - Files without a version of their own: the prompts, and seven of the ten
   hints files. The `Version:` field in `hints/mcp-server.go.mcp-go.hints.md`
   records the version of the mcp-go library, not of the file.
@@ -46,6 +47,7 @@ still the current one before 0.4.9.
 
 | File | Label | Changed in place by |
 |---|---|---|
+| `templates/abap-report.template.md` | **0.3.29** | 35210db (2026-06-01) |
 | `templates/backend-service.template.md` | 0.3.16 | 34a1d7c (2026-03-28) |
 | `templates/backend-service.template.md` | 0.3.20 | acb3613 (2026-04-13), 8201123 (2026-05-18), 06da863 (2026-05-18), 35210db (2026-06-01) |
 | `templates/cli-tool.template.md` | 0.3.7 | a22741c (2026-03-19) |
@@ -74,7 +76,7 @@ still the current one before 0.4.9.
 | `templates/verified-library.template.md` | 0.3.20 | 8ae12e9 (2026-04-13), 06da863 (2026-05-18), 35210db (2026-06-01) |
 
 Most of these come from four rows of the framework changelog. Each of
-them changed six to ten templates without moving their versions: 0.3.22
+them changed six to eleven templates without moving their versions: 0.3.22
 (acb3613, 8ae12e9), 0.3.25 (8201123), 0.4.0 (06da863) and 0.4.3
 (35210db). The mcp-server-pcd asset store was staged from the templates
 on 2026-05-18 (66255fd), after 8201123 and 06da863. Its copies therefore
@@ -105,6 +107,14 @@ The calc-interest translations of 2026-04-13 record Spec-SHA256
 `8279a6f935e0a8c1f7e3caa355a553dcb6470960bb2d87b6b4cda99caa48f941` and
 name `cli-tool.template v0.3.20`. After 06da863, neither the spec nor the
 pinned template in `pcd-artifacts/` contains the bytes those runs read.
+
+06da863 changed only the example headings, from `EXAMPLE: <name>` to
+`### EXAMPLE: <name>`, which RULE-06 requires since 0.4.0. The April spec
+can be rebuilt from that diff and hashes to `8279a6f9...` again, but it
+fails pcd-lint with eight errors. The current spec fails one rule as well.
+It has two behaviours, so RULE-10 attributes examples by name, and no
+negative example names `calculate-simple-interest`. pcd-slice reports the
+same five examples as unassignable.
 
 ### 3.3 Hints
 
@@ -156,7 +166,10 @@ table itself has two rows labelled 0.3.19, dated 2026-03-27 and
 |---|---|
 | `templates/mcp-server.template.md` 0.3.22 | moved to 0.3.23 |
 | `templates/cockpit-module.template.md` 0.1.0 | moved to 0.1.1 |
+| `templates/abap-report.template.md` 0.3.29 | moved to 0.3.30 (0.4.10) |
 | `examples/account-transfer/account-transfer.md` 0.3.8 | moved to 0.3.9 |
+| `examples/calc-interest/spec/calc-interest.spec.md` 0.2.0 | moved to 0.2.1 (0.4.10); each example heading names its behaviour with `(of: <behavior>)`; Spec-Schema restamped from 0.3.22 to 0.4.0 after clean runs of pcd-lint 0.4.0 and pcd-slice 0.1.1 (D-9) |
+| `examples/calc-interest/pcd-artifacts/cli-tool.template.md` | restored to the bytes of the 2026-04-13 run (0.4.10) |
 | Document headers (section 4) | restamped per D-5 |
 | `tools/README.md` RULE-22 to RULE-25 | "Since" 0.5.0 corrected to 0.4.5 |
 | Historical labels (section 3) | kept; resolve a reference by commit or by SHA-256 |
@@ -164,11 +177,9 @@ table itself has two rows labelled 0.3.19, dated 2026-03-27 and
 
 Open:
 
-- `examples/calc-interest/`, two options. Restore the spec and the pinned
-  template to the bytes of 2026-04-13, so that the spec hash matches the
-  translation reports again. Or move the spec to 0.2.1 and translate the
-  example again.
-- `templates/abap-report.template.md`: audit pending.
+- The calc-interest Rust and Java code is still the translation of spec
+  0.2.0 (Spec-SHA256 `8279a6f9...`); spec 0.2.1 has to be translated
+  again.
 - Hints files without a file version of their own.
 - The mcp-server-pcd asset store (tracked, staged 2026-05-18) is replaced
   by the next mcp-server-pcd translation.
@@ -177,3 +188,5 @@ Open:
 
 - 2026.10.16.01 - Initial record of the audit and of the 0.4.9
   dispositions.
+- 2026.10.16.02 - abap-report finding from the second audit run (40-line
+  window); calc-interest dispositions. Both shipped in framework 0.4.10.

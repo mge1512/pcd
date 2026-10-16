@@ -35,7 +35,7 @@ When NOT to use this template
 ## META
 
 Deployment:  template
-Version:     0.3.29
+Version:     0.3.30
 Spec-Schema: 0.4.0
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
