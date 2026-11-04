@@ -1,3 +1,10 @@
+pcd-skills (0.4.14-1) unstable; urgency=low
+
+  * pcd-translate 0.2.0: modes for every role, guard override, provenance
+    lines.
+
+ -- Matthias G. Eckermann <pcd@mailbox.org>  Wed, 04 Nov 2026 12:00:00 +0100
+
 pcd-skills (0.4.13-1) unstable; urgency=low
 
   * Add the pcd-spec skill.

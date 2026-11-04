@@ -318,6 +318,20 @@ bytes-move-version rule to it: a change to `SKILL.md` without a move of
 that key fails the check. The copies keep the label of their source and
 are not checked separately.
 
+Each skill is published to a repository of its own, with `SKILL.md` at
+the root, so that any agent framework installs it by cloning one
+directory: `github.com/mge1512/pcd-spec` and
+`github.com/mge1512/pcd-translate`. Those repositories are written by
+`scripts/mirror-skill.sh` only, one commit per publication on top of
+the mirror's history, and never by hand; issues are filed here. To
+publish the committed state of a skill:
+
+    sh scripts/mirror-skill.sh pcd-spec git@github.com:mge1512/pcd-spec.git
+
+The script refuses a skill with uncommitted changes or a manifest that
+does not verify, and does nothing when the mirror is already current.
+A tag on the source commit is set on the mirror as well.
+
 ---
 
 ## Licensing

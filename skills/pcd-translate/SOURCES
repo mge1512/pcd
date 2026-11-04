@@ -1,6 +1,14 @@
 # Derived content of the pcd-translate skill, rebuilt by `make skills`.
 # Format: <glob relative to the repository root> <subdirectory in the skill>
 # A subdirectory named here is owned by scripts/build-skill.sh.
+#
+# The translator, reviewer, security-reviewer and tiebreaker prompts are
+# copied here until they move into modes/ (record
+# 2026-11-03-skills-and-repo-split.md, A-5).
+prompts/prompt.md               prompts
+prompts/reviewer.md             prompts
+prompts/security-reviewer.md    prompts
+prompts/tiebreaker.md           prompts
 templates/*.template.md         templates
 hints/*.hints.md                hints
 tools/shared/spec/*.md          references

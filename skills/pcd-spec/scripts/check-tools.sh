@@ -10,9 +10,9 @@
 #
 # Checks, in this order:
 #   1. Every file under skill-root matches MANIFEST.sha256, and no file is
-#      present that the manifest does not list. A failure here means the
-#      skill was installed or transferred incompletely; nothing else is
-#      checked.
+#      present that the manifest does not list (a .git directory, as left
+#      by a clone, is ignored). A failure here means the skill was
+#      installed or transferred incompletely; nothing else is checked.
 #   2. For every tool the SKILL.md front matter names with a
 #      metadata key <tool>-min, the tool is found on PATH, then under
 #      skill-root/bin/, its `version` output parses, its version is at
@@ -64,7 +64,7 @@ if ! (cd "$ROOT" && sha256sum -c --quiet --strict MANIFEST.sha256) 1>&2; then
 fi
 
 listed=$(sed 's/^[0-9a-f]\{64\} [ *]//' "$ROOT/MANIFEST.sha256" | LC_ALL=C sort)
-present=$(cd "$ROOT" && find . -type f ! -name MANIFEST.sha256 | sed 's|^\./||' | LC_ALL=C sort)
+present=$(cd "$ROOT" && find . -path ./.git -prune -o -type f ! -name MANIFEST.sha256 -print | sed 's|^\./||' | LC_ALL=C sort)
 if [ "$listed" != "$present" ]; then
     echo "error: files under $ROOT differ from MANIFEST.sha256:" >&2
     printf '%s\n' "$listed"  > "${TMPDIR:-/tmp}/check-tools.listed.$$"

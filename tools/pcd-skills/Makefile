@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CC-BY-4.0
 
 NAME      := pcd-skills
-VERSION   := 0.4.13
+VERSION   := 0.4.14
 REPO_ROOT := ../..
 
 .PHONY: dist clean
