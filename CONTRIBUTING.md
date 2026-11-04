@@ -330,7 +330,15 @@ publish the committed state of a skill:
 
 The script refuses a skill with uncommitted changes or a manifest that
 does not verify, and does nothing when the mirror is already current.
-A tag on the source commit is set on the mirror as well.
+It tags the mirror with the skill's version (`v0.1.0` for metadata
+version 0.1.0) and installs `tools/pcd-skills/mirror-release.yml` as
+the mirror's release workflow. That workflow runs on the tag. It
+verifies the manifest and builds the `<name>.skill` archive with
+`git archive` from the tagged commit: one folder named after the skill,
+`.github/` left out. It writes `SHA256SUMS` with the hashes of the
+archive and of `MANIFEST.sha256`, and attaches both to a GitHub release.
+A version the mirror has published is never published again with other
+content: the script refuses, and the skill's version moves first.
 
 ---
 

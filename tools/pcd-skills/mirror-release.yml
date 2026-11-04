@@ -1,0 +1,59 @@
+# Build the packaged .skill on a version tag and attach it to the release.
+#
+# This file is installed into each skill mirror repository as
+# .github/workflows/release.yml by scripts/mirror-skill.sh of
+# github.com/mge1512/pcd. Do not edit it in the mirror; change
+# tools/pcd-skills/mirror-release.yml in mge1512/pcd.
+#
+# The tag is the skill's version (v0.2.0 for metadata version 0.2.0),
+# set by the mirror script. The archive is what the claude.ai upload
+# path needs: one folder named after the skill, SKILL.md inside it,
+# taken from the tagged commit with git archive, so it is reproducible.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the manifest
+        run: sha256sum -c --quiet --strict MANIFEST.sha256
+
+      - name: Run the guard (exit 1 is expected; no PCD tools on the runner)
+        run: |
+          set +e
+          sh scripts/check-tools.sh
+          s=$?
+          test "$s" -ne 2
+
+      - name: Build the .skill archive
+        run: |
+          name=$(sed -n 's/^name:[[:space:]]*//p' SKILL.md | sed -n '1p')
+          test -n "$name"
+          git archive --format=zip --prefix="$name"/ -o "$name".skill HEAD
+          zip -q -d "$name".skill "$name/.github/*"
+          unzip -l "$name".skill
+          echo "SKILL_NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Checksums
+        run: |
+          sha256sum "$SKILL_NAME".skill > SHA256SUMS
+          sha256sum MANIFEST.sha256 >> SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$SKILL_NAME".skill SHA256SUMS \
+            --title "$SKILL_NAME $GITHUB_REF_NAME" \
+            --notes "$(git log -1 --format=%B)"

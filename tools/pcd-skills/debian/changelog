@@ -1,3 +1,9 @@
+pcd-skills (0.4.15-1) unstable; urgency=low
+
+  * Guard ignores .git and .github in an installed copy.
+
+ -- Matthias G. Eckermann <pcd@mailbox.org>  Wed, 04 Nov 2026 13:00:00 +0100
+
 pcd-skills (0.4.14-1) unstable; urgency=low
 
   * pcd-translate 0.2.0: modes for every role, guard override, provenance
