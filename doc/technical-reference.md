@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.4.11
+**Version:** 0.5.0
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-11-03
+**Date:** 2026-11-04
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -645,12 +645,20 @@ hash answers "what behaviour was this artifact intended to implement?" - the
 spec is language-neutral and defines what the tool must do. It does not, by
 itself, determine the binary that was produced. Translation also consumes
 per-language inputs: a decisions-hints file, a milestones-hints file, the
-deployment template, the translator prompt itself, and any further guidance
-(style hints, library hints, change briefs, directives) fed to the
+deployment template, the procedure the session followed, and any further
+guidance (style hints, library hints, change briefs, directives) fed to the
 translator. These inputs materially shape the realisation. The
 reproducible unit is therefore the tuple `(spec, resolved language,
-hints and template set, prompt)`, every element of which is recorded by
-hash. The spec
+hints and template set, procedure)`, every element of which is recorded by
+hash. Since framework 0.5.0 the procedure is the translation procedure file
+of the `pcd-translate` skill, and the skill that ran it is recorded as well.
+`Skill-SHA256` is the hash of its `SKILL.md`. `Skill-Manifest-SHA256` is the
+hash of the manifest of every file in the skill, which pins the procedure,
+the templates and the hints the session could read. The two lines join the
+tuple as the procedure's identity. `Toolchain` and `Guard-Override` are
+recorded and excluded from the tuple. They say which engine checked the
+inputs, or that the operator declared the checks done instead, and the
+pull-request gate repeats those checks. The spec
 remains the single normative source of truth; the hints are the per-language
 record of how that source was realised.
 
@@ -673,7 +681,18 @@ Style-Hints-SHA256:       <filename> <hash>   (one line per file; none if absent
 Library-Hints-SHA256:     <filename> <hash>   (one line per file; none if absent)
 Upgrade-Brief-SHA256:     <filename> <hash>   (when a KIT change brief was consumed)
 Directive-SHA256:         <filename> <hash>   (one line per *.directive.md consumed)
+Skill-SHA256:             <skill>/SKILL.md <hash>
+Skill-Manifest-SHA256:    <hash>              (of MANIFEST.sha256 at the skill root)
+Toolchain:                <tool> <version> <cli|mcp>   (one line per tool used; none (override))
+Guard-Override:           <declaration, verified by sha256sum>   (or: none)
 ```
+
+The last four lines are written by the `pcd-translate` skill (its `SKILL.md`,
+section 3) and are required in every report a skill produces. A report
+produced by pasting the translation procedure into a chat interface, without
+the skill, records `Prompt-SHA256` of the procedure file and omits the four
+lines. The pull-request gate treats such a report as a single-LLM run without
+skill provenance.
 
 The hashes are separate, labelled, per-file values - never one combined blob.
 The diagnostic value, the thing the report exists to give an auditor, is being

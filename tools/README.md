@@ -293,7 +293,9 @@ and prompts to the install locations expected by `pcd-lint` and
 `mcp-server-pcd`. There is no executable code here — just a `Makefile`,
 an RPM spec, and Debian packaging that copy the content from the
 [`templates/`](../templates/), [`hints/`](../hints/), and
-[`prompts/`](../prompts/) directories at the repository root.
+[`prompts/`](../prompts/) directories at the repository root. The files
+under `prompts/` are copies of the skills' procedure files, written by
+`make skills`; the canonical files live in `skills/*/modes/`.
 
 Default install layout (Linux):
 

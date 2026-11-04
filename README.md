@@ -54,17 +54,17 @@ Every generated artifact embeds the SHA256 hash of the specification it was prod
 
 **Option A — AI-assisted interview *(recommended for new components)***
 
-No need to learn the spec format first. Use `prompts/interview-prompt.md` with any capable LLM — including small models running locally:
+No need to learn the spec format first. Use the `pcd-spec` skill (`skills/pcd-spec/`, or clone `github.com/mge1512/pcd-spec` into your agent's skills directory), or its interview procedure as a system prompt with any capable LLM — including small models running locally:
 
 ```bash
-ollama run llama3.2 "$(cat prompts/interview-prompt.md)"
+ollama run llama3.2 "$(cat skills/pcd-spec/modes/interview-procedure.md)"
 ```
 
 The model interviews you one question at a time and produces a complete spec.
 
 **Option B — Reverse-engineer existing code**
 
-Use `prompts/reverse-prompt.md` with any chat interface. The model reads your source code, produces a PCD spec, and asks what you want to change. Useful for porting, refactoring, or making PCD the new source of truth for an existing project.
+Use the reverse mode of `pcd-spec`, or `skills/pcd-spec/modes/reverse-procedure.md` with any chat interface. The model reads your source code, produces a PCD spec, and asks what you want to change. Useful for porting, refactoring, or making PCD the new source of truth for an existing project.
 
 **Option C — Write directly**
 
@@ -80,7 +80,7 @@ Zero errors required before translating.
 
 ### Step 3 — Translate to code
 
-Use `prompts/prompt.md` as the system prompt with any capable LLM. Provide the spec and the appropriate deployment template. The translator derives the target language from the template, produces all required deliverables, and writes a `TRANSLATION_REPORT.md`.
+Use the `pcd-translate` skill (`skills/pcd-translate/`, or clone `github.com/mge1512/pcd-translate`), or `skills/pcd-translate/modes/translation-procedure.md` as the system prompt with any capable LLM. Provide the spec and the appropriate deployment template. The translator derives the target language from the template, produces all required deliverables, and writes a `TRANSLATION_REPORT.md`.
 
 ---
 
@@ -159,11 +159,15 @@ pcd/
 │   ├── verified-library.template.md
 │   └── project-manifest.template.md
 │
-├── prompts/
-│   ├── prompt.md                      ← universal translator prompt
-│   ├── interview-prompt.md            ← spec authoring via guided interview
-│   ├── reverse-prompt.md              ← reverse-engineer existing code to spec
-│   └── change-impact.md              ← assess spec change impact
+├── skills/
+│   ├── pcd-spec/                      ← skill: writing specifications
+│   │   ├── SKILL.md
+│   │   └── modes/                     ← interview, reverse, change, milestone, spec-review
+│   └── pcd-translate/                 ← skill: translating, testing, reviewing
+│       ├── SKILL.md
+│       └── modes/                     ← translator, test-author, review, security-review, tiebreak
+│
+├── prompts/                           ← copies of the procedure files, former names (derived)
 │
 ├── examples/
 │   ├── account-transfer/
@@ -212,7 +216,7 @@ CC-BY-4.0 on specifications and templates means anyone may implement the paradig
 
 ## Status
 
-Current version: **0.4.15** (draft)
+Current version: **0.5.0** (draft)
 
 Active development. Specification format, deployment templates, and tooling are stabilising toward v1.0. Feedback and contributions welcome.
 

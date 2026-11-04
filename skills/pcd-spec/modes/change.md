@@ -35,8 +35,8 @@ expert's words are the source, not the code.
 
 ## 3. Ask, limited to the unit
 
-Ask the gap questions of the interview prompt's PHASE 4 to PHASE 6 for
-this unit only, one at a time. They cover the inputs and their types,
+Ask the gap questions of PHASE 4 to PHASE 6 of
+`modes/interview-procedure.md` for this unit only, one at a time. They cover the inputs and their types,
 the preconditions, the steps with an explicit error exit each, the
 postconditions, the rules that must hold, and the examples. Before each
 question, name the section it belongs to ("For the STEPS of
@@ -82,8 +82,8 @@ translation is a full regeneration or an incremental update.
   description, the old and the new specification text, and, when the
   session may read it, the existing code. Record the recommendation and
   the primary factor.
-- Without it: apply `prompts/change-impact.md` to the same inputs and
-  produce its output format. Say in the hand-over that the assessment
+- Without it: apply `modes/change-impact-procedure.md` to the same
+  inputs and produce its output format. Say in the hand-over that the assessment
   was made by the session, not by the tool.
 - The decision rules, for orientation. Full regeneration: a TYPES,
   INTERFACES or INVARIANTS change, anything that touches the scaffold

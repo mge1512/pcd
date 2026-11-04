@@ -7,14 +7,15 @@
 #
 # Compares the working tree with BASE. A file counts as versioned when one
 # of its first 40 lines is a Version: field. Checked: *.md under templates/,
-# hints/, prompts/, examples/ and tools/*/spec/, which covers specs, hints
-# and pinned copies, and skills/*/SKILL.md, whose label is the version:
-# key under metadata: in the front matter. Not checked: doc/, whose headers
+# hints/, examples/ and tools/*/spec/, which covers specs, hints and pinned
+# copies, and skills/*/SKILL.md, whose label is the version: key under
+# metadata: in the front matter. A skill is published as one directory
+# under its label, so any change under skills/<name>/, derived copies
+# included, requires that label to move. Not checked: doc/, whose headers
 # follow D-5 (the framework version at the last content revision), */code/*,
-# which is generated, and the derived copies under skills/, which carry the
-# label of their source. Restoring bytes that a path has already carried
-# under the same label is accepted, because it adds no new content to that
-# label.
+# which is generated, and prompts/, whose files are copies of skill
+# procedure files. Restoring bytes that a path has already carried under
+# the same label is accepted, because it adds no new content to that label.
 #
 # Exit status: 0 no label gains a second content, 1 at least one does.
 #
@@ -59,12 +60,12 @@ carried() {
     return 1
 }
 
-git diff --name-only "$BASE" -- templates hints prompts examples tools skills > "$TMP"
+git diff --name-only "$BASE" -- templates hints examples tools skills > "$TMP"
 status=0
 while IFS= read -r f; do
     case $f in
         */code/*) continue ;;
-        templates/*.md|hints/*.md|prompts/*.md|examples/*.md|tools/*/spec/*.md) ;;
+        templates/*.md|hints/*.md|examples/*.md|tools/*/spec/*.md) ;;
         skills/*/SKILL.md) ;;
         *) continue ;;
     esac
@@ -79,4 +80,15 @@ while IFS= read -r f; do
     printf '%s: bytes changed, Version: still %s\n' "$f" "$new" >&2
     status=1
 done < "$TMP"
+
+# A skill directory with any change needs its SKILL.md label moved.
+for s in $(sed -n 's|^\(skills/[^/]*\)/.*|\1|p' "$TMP" | sort -u); do
+    [ -f "$s/SKILL.md" ] || continue
+    old=$(git show "$BASE:$s/SKILL.md" 2> /dev/null | skillver)
+    [ -n "$old" ] || continue
+    new=$(skillver < "$s/SKILL.md")
+    [ "$old" = "$new" ] || continue
+    printf '%s: content changed, SKILL.md version still %s\n' "$s" "$new" >&2
+    status=1
+done
 exit $status

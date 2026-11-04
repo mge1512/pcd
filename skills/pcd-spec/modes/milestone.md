@@ -16,7 +16,7 @@ adds what is specific to milestones.
 
 ## Procedure
 
-Follow PHASE 9 of `prompts/interview-prompt.md` (propose groupings,
+Follow PHASE 9 of `modes/interview-procedure.md` (propose groupings,
 confirm, write the sections) and the milestone checks of PHASE 10.
 Apply them to the existing specification instead of a freshly written
 one. Read the complete specification first: every BEHAVIOR name, every

@@ -1,7 +1,7 @@
 # Mode: security-review
 
 Reviews the generated artefacts of one completed translation run for
-security, as `prompts/security-reviewer.md` prescribes. The output is
+security, as `modes/security-review-procedure.md` prescribes. The output is
 an independent threat model, the deterministic gate findings, and
 findings that name specification, hints or template text. Never a code
 patch.
@@ -25,7 +25,7 @@ stated limitation, not a pass.
 
 ## Procedure
 
-Follow `prompts/security-reviewer.md`: hard prohibitions, operating
+Follow `modes/security-review-procedure.md`: hard prohibitions, operating
 procedure, finding classes, output format. Bundles, not the
 specification (`SKILL.md` section 4).
 

@@ -1,7 +1,7 @@
 # Mode: tiebreak
 
 Decides what to do when two translators produced two implementations of
-one specification, as `prompts/tiebreaker.md` prescribes. A tie-break
+one specification, as `modes/tiebreak-procedure.md` prescribes. A tie-break
 is a vote on the specification, not on the code. The two translators
 disagreed because the specification, the hints, the template or the
 prompt allowed them to; the output is the edit that removes that
@@ -27,7 +27,7 @@ itself.
 
 ## Procedure
 
-Follow `prompts/tiebreaker.md`: hard prohibitions, operating procedure,
+Follow `modes/tiebreak-procedure.md`: hard prohibitions, operating procedure,
 finding classes, output format. Bundles, not the specification
 (`SKILL.md` section 4).
 

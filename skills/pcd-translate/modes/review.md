@@ -1,7 +1,7 @@
 # Mode: review
 
 Reviews the generated artefacts of one completed translation run against
-the specification, as `prompts/reviewer.md` prescribes. The output is
+the specification, as `modes/review-procedure.md` prescribes. The output is
 findings that name specification, hints or template text; never a code
 patch. A review of the specification alone, before translation, is the
 spec-review mode of pcd-spec, not this mode.
@@ -31,7 +31,7 @@ limitations, never inferred.
 
 ## Procedure
 
-Follow `prompts/reviewer.md`: its hard prohibitions, operating
+Follow `modes/review-procedure.md`: its hard prohibitions, operating
 procedure, finding classes and output format. Read the specification
 through its bundles (`SKILL.md` section 4) and cite a location by
 bundle name and section heading; the maintainer maps that to the

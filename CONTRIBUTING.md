@@ -137,14 +137,21 @@ existing examples do not — a new deployment template, a verification
 path, a domain pattern. Adding another simple CLI tool when
 `calc-interest` already exists is duplication.
 
-### Prompts (`prompts/`)
+### Skills (`skills/`)
 
-Changes here affect every user. Test with at least one real translation
-run before submitting, using a representative spec from `examples/` or
-`tools/`. A "real translation run" means: pass the modified prompt and a
-spec to an LLM, observe the generated output, confirm it compiles and
-passes its own EXAMPLES. Report the model and version in your PR
-description.
+The procedures that sessions follow live in the two skills:
+`skills/pcd-spec/modes/*-procedure.md` for writing specifications and
+`skills/pcd-translate/modes/*-procedure.md` for translating, testing
+and reviewing. `prompts/` contains copies of these files under their
+former names; edit the file in the skill, never the copy.
+
+Changes here affect every user. Test with at least one complete run
+before submitting, using a representative spec from `examples/` or
+`tools/`. A complete run means: run the skill, or paste the modified
+procedure as the system prompt, against a spec. Observe the generated
+output and confirm it compiles and passes its own EXAMPLES. Report the
+model and version in your PR description. Every change under a skill
+directory moves the skill's version (see "Derived Skill Content").
 
 ---
 
@@ -313,10 +320,19 @@ Run `sh scripts/check-tools.sh skills/<name>` from the repository root to
 try it against a skill in the tree.
 
 A skill's version is the `version:` key under `metadata:` in the
-`SKILL.md` front matter. `make check-versions` applies the
-bytes-move-version rule to it: a change to `SKILL.md` without a move of
-that key fails the check. The copies keep the label of their source and
-are not checked separately.
+`SKILL.md` front matter. A skill is published as one directory under
+that label, so `make check-versions` applies the bytes-move-version rule
+to the directory as a unit. Any change under `skills/<name>/`, a
+refreshed copy of a template included, requires the key to move. The
+copies also keep the label of their source; a template change therefore
+moves the template's version and both skills' versions.
+
+The former `prompts/` directory is derived content as well. Its files
+are copies of the skills' procedure files, listed in `prompts/MAP` and
+written by the same `make skills`. The copies keep the paths and hashes
+that the deployment templates, the asset build of `mcp-server-pcd` and
+the bundled translation inputs refer to. `prompts/README.md` is the
+only hand-authored file there.
 
 Each skill is published to a repository of its own, with `SKILL.md` at
 the root, so that any agent framework installs it by cloning one

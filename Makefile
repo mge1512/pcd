@@ -12,14 +12,15 @@
 #
 # Skills under skills/ carry derived copies of templates, hints, rule
 # documents and scripts, listed in each skill's SOURCES file and written by
-# `make skills` together with the skill's MANIFEST.sha256. `make check-skills`
-# fails in CI when the committed copies are stale.
+# `make skills` together with the skill's MANIFEST.sha256. The same target
+# rewrites prompts/, whose files are copies of the skills' procedure files
+# (prompts/MAP). `make check-skills` fails in CI when any copy is stale.
 #
 # Usage:
 #   make spec          regenerate all derived spec content
 #   make check-spec    verify no hand-edits inside auto-blocks (CI)
-#   make skills        rebuild the derived content of every skill
-#   make check-skills  verify the committed skill content is current (CI)
+#   make skills        rebuild the derived content of every skill and prompts/
+#   make check-skills  verify the committed skill content and prompts/ are current (CI)
 #   make help          list targets
 #
 # After `make spec` the spec hash changes, which invalidates the generated
@@ -36,6 +37,7 @@ SHELL := /bin/sh
 TEMPLATES_DIR := templates
 HINTS_DIR     := hints
 PROMPTS_DIR   := prompts
+TRANSLATION_PROCEDURE := skills/pcd-translate/modes/translation-procedure.md
 
 TEMPLATE_FILES := $(filter-out $(TEMPLATES_DIR)/README.md, \
                     $(wildcard $(TEMPLATES_DIR)/*.template.md))
@@ -65,12 +67,13 @@ GEN_KNOWN_TEMPLATES       := sh scripts/gen-known-templates.sh $(TEMPLATES_DIR)
 GEN_KNOWN_TEMPLATES_COUNT := sh scripts/gen-known-templates-count.sh $(TEMPLATES_DIR)
 MATERIALISE_PROMPT        := sh scripts/materialise-prompt.sh
 BUILD_SKILL               := sh scripts/build-skill.sh
+BUILD_PROMPTS             := sh scripts/build-prompts.sh
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 
 .PHONY: help spec spec-doc-blocks spec-bundles \
         spec-pcd-lint spec-mcp-server-pcd check-spec check-versions \
-        skills check-skills
+        skills prompts check-skills
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ \
@@ -105,7 +108,7 @@ spec-mcp-server-pcd: $(MCPSRV_SPEC) $(TEMPLATE_FILES)
 $(PCDLINT_BUNDLE_TEMPLATE): $(TEMPLATES_DIR)/cli-tool.template.md
 	cp $< $@
 
-$(PCDLINT_BUNDLE_PROMPT): $(PROMPTS_DIR)/prompt.md scripts/materialise-prompt.sh
+$(PCDLINT_BUNDLE_PROMPT): $(TRANSLATION_PROCEDURE) scripts/materialise-prompt.sh
 	$(MATERIALISE_PROMPT) \
 	    --deployment-template cli-tool \
 	    --spec-name pcd-lint \
@@ -133,17 +136,22 @@ check-spec: spec ## Fail if `make spec` produced uncommitted changes
 #
 # Each skills/<name>/SOURCES lists the repository content copied into the
 # skill; scripts/build-skill.sh rebuilds those copies and MANIFEST.sha256.
+# prompts/MAP lists the copies of the skills' procedure files that keep
+# the paths the templates, the MCP server build and the docs refer to.
 
-skills: ## Rebuild the derived content and manifest of every skill
+skills: prompts ## Rebuild the derived content and manifest of every skill
 	@for d in $(SKILL_DIRS); do $(BUILD_SKILL) $$d || exit 1; done
 
+prompts: ## Rebuild prompts/ from the skills' procedure files (prompts/MAP)
+	@$(BUILD_PROMPTS)
+
 check-skills: skills ## Fail if `make skills` produced unstaged changes
-	@if ! git diff --quiet -- $(SKILLS_DIR) \
-	   || [ -n "$$(git ls-files --others --exclude-standard -- $(SKILLS_DIR))" ]; then \
+	@if ! git diff --quiet -- $(SKILLS_DIR) $(PROMPTS_DIR) \
+	   || [ -n "$$(git ls-files --others --exclude-standard -- $(SKILLS_DIR) $(PROMPTS_DIR))" ]; then \
 	    echo "ERROR: derived skill content differs from the staged state."; \
 	    echo "       Run 'make skills', then 'git add' the result."; \
 	    echo ""; \
-	    git status --short -- $(SKILLS_DIR); \
+	    git status --short -- $(SKILLS_DIR) $(PROMPTS_DIR); \
 	    exit 1; \
 	fi
 

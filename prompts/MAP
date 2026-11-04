@@ -1,0 +1,11 @@
+# Derived copies of the skill procedure files, rebuilt by `make skills`.
+# Format: <canonical path in a skill> <file name under prompts/>
+# The copies keep the names the deployment templates, the MCP server build
+# and the documentation refer to. Edit the canonical file, never the copy.
+skills/pcd-spec/modes/interview-procedure.md              interview-prompt.md
+skills/pcd-spec/modes/reverse-procedure.md                reverse-prompt.md
+skills/pcd-spec/modes/change-impact-procedure.md          change-impact.md
+skills/pcd-translate/modes/translation-procedure.md       prompt.md
+skills/pcd-translate/modes/review-procedure.md            reviewer.md
+skills/pcd-translate/modes/security-review-procedure.md   security-reviewer.md
+skills/pcd-translate/modes/tiebreak-procedure.md          tiebreaker.md

@@ -2,7 +2,7 @@
 name: pcd-spec
 description: Writing and changing PCD specifications (*.spec.md). Use whenever a session writes a new specification from an interview or from existing notes; derives one from existing source code; changes one BEHAVIOR, TYPE, INTERFACE or INVARIANT of an existing specification; designs or revises MILESTONE sections; or reviews a specification before it is translated. Produces specification text, the Version move, the CHANGELOG.md entry beside the specification and the pull-request body. Do NOT use for turning a specification into code, tests, implementation findings or a verdict between implementations; that is pcd-translate.
 metadata:
-  version: "0.1.0"
+  version: "0.3.0"
   spec-schema: "0.4.0"
   pcd-lint-min: "0.4.0"
   pcd-slice-min: "0.1.1"
@@ -46,16 +46,16 @@ invoked with. Ask when two modes fit.
 
 | Mode | When | Read | Writes |
 |---|---|---|---|
-| interview | A new component, from a conversation or from existing notes, mails or design documents | `prompts/interview-prompt.md` | a new `<name>.spec.md`, `CHANGELOG.md` |
-| reverse | A new specification derived from existing source code | `prompts/reverse-prompt.md` | a new `<name>.spec.md`, `CHANGELOG.md` |
-| change | One change to an existing specification | `modes/change.md`, and `prompts/change-impact.md` for the impact assessment | the edited `.spec.md`, `CHANGELOG.md`, the impact assessment |
+| interview | A new component, from a conversation or from existing notes, mails or design documents | `modes/interview-procedure.md` | a new `<name>.spec.md`, `CHANGELOG.md` |
+| reverse | A new specification derived from existing source code | `modes/reverse-procedure.md` | a new `<name>.spec.md`, `CHANGELOG.md` |
+| change | One change to an existing specification | `modes/change.md`, and `modes/change-impact-procedure.md` for the impact assessment | the edited `.spec.md`, `CHANGELOG.md`, the impact assessment |
 | milestone | MILESTONE sections for a specification that has none, or a revision of them | `modes/milestone.md` | the edited `.spec.md`, `CHANGELOG.md` |
 | spec-review | Findings on a specification before translation money is spent | `modes/spec-review.md` | a findings list; the specification is not edited |
 
-Read the mode file in full before the first question or edit. The two
-prompt files were written to be pasted as system prompts. Read them as
-the procedure to follow, and apply the rules in section 3 on top of them
-where the two differ.
+Read the mode file in full before the first question or edit. The
+`*-procedure.md` files were written to be pasted as system prompts and
+still work that way. Read them as the procedure to follow, and apply the
+rules in section 3 on top of them where the two differ.
 
 ## 3. Rules that apply in every mode
 
@@ -69,7 +69,7 @@ Format and naming:
 - Specification files are named `<name>.spec.md`. Templates are
   `*.template.md`, hints `*.hints.md`; neither is a specification.
 - `Spec-Schema:` in META is the `spec-schema` value of this skill's
-  front matter, whatever value a prompt file's example shows.
+  front matter, whatever value a procedure file's example shows.
 - A specification names no target language, library, file path or
   function of an implementation. The deployment template resolves the
   language; library knowledge belongs in hints files. Language-specific

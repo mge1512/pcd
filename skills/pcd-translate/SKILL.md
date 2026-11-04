@@ -2,7 +2,7 @@
 name: pcd-translate
 description: Turning a PCD specification into code, tests, findings or a verdict, from pre-sliced per-behavior bundles. Use whenever a session translates, re-translates or continues translating any *.spec.md in a PCD repository; writes the independent test suite for one; reviews generated code against its specification, functionally or for security; or decides between two translations of the same specification. Verifies the bundles before any work and governs which files the session may read. Do NOT use for writing, changing or reviewing a specification itself; that is pcd-spec.
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   spec-schema: "0.4.0"
   pcd-lint-min: "0.4.0"
   pcd-slice-min: "0.1.1"
@@ -83,22 +83,23 @@ argument the skill was invoked with, else ask. `ROLE.md`:
     llm-name: <lowercase, hyphen-separated model name>
 
 `mode:` is one of `translator`, `test-author`, `review`,
-`security-review`, `tiebreak`. The translator prompt reads the first
-two; this skill reads all five. `llm-name` names the output directory
+`security-review`, `tiebreak`. The translation procedure reads the
+first two; this skill reads all five. `llm-name` names the output directory
 of the tests and the identity in every report.
 
 | Mode | Produces | Read | Allowed inputs |
 |---|---|---|---|
-| translator | implementation, packaging, documentation, `TRANSLATION_REPORT.md` | `modes/translator.md`, then `prompts/prompt.md` | bundles, template, hints, `ROLE.md`; optionally test-author's output; optionally `UPGRADE.md` |
-| test-author | `independent_tests/<llm-name>/`, `TEST_REPORT.md` | `modes/test-author.md`, then `prompts/prompt.md` | bundles, template, hints, `ROLE.md`, nothing else |
-| review | findings against the specification, hints or template | `modes/review.md`, then `prompts/reviewer.md` | the audit bundle of one completed run |
-| security-review | findings and a threat model | `modes/security-review.md`, then `prompts/security-reviewer.md` | the audit bundle plus deterministic gate output |
-| tiebreak | a vote on the specification, never a winning implementation | `modes/tiebreak.md`, then `prompts/tiebreaker.md` | two audit bundles and the cross-validation matrix |
+| translator | implementation, packaging, documentation, `TRANSLATION_REPORT.md` | `modes/translator.md`, then `modes/translation-procedure.md` | bundles, template, hints, `ROLE.md`; optionally test-author's output; optionally `UPGRADE.md` |
+| test-author | `independent_tests/<llm-name>/`, `TEST_REPORT.md` | `modes/test-author.md`, then `modes/translation-procedure.md` | bundles, template, hints, `ROLE.md`, nothing else |
+| review | findings against the specification, hints or template | `modes/review.md`, then `modes/review-procedure.md` | the audit bundle of one completed run |
+| security-review | findings and a threat model | `modes/security-review.md`, then `modes/security-review-procedure.md` | the audit bundle plus deterministic gate output |
+| tiebreak | a vote on the specification, never a winning implementation | `modes/tiebreak.md`, then `modes/tiebreak-procedure.md` | two audit bundles and the cross-validation matrix |
 
-Read the mode file in full, then the prompt it names. The prompts were
-written to be pasted as system prompts; read them as the procedure to
-follow. Where a prompt says "read the specification", this skill's
-section 4 applies instead: read the bundles.
+Read the mode file in full, then the procedure file it names. The
+procedure files were written to be pasted as system prompts and still
+work that way; read them as the procedure to follow. Where a procedure
+says "read the specification", this skill's section 4 applies instead:
+read the bundles.
 
 ## 3. Anchor and provenance
 

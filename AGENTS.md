@@ -60,7 +60,11 @@ edit the code. In PCD, you fix the specification and regenerate. The spec
 is always the source of truth.
 
 **Key artifacts:**
-- `pcd-lint` — validates PCD specification files (RULE-01 through RULE-18)
+- `skills/pcd-spec` and `skills/pcd-translate` — the two agent skills:
+  every task that writes a specification, and every task that works
+  from one. Each is one directory with `SKILL.md` at its root and the
+  procedure files, templates, hints and rule documents it reads
+- `pcd-lint` — validates PCD specification files (RULE-01 through RULE-25)
 - `mcp-server-pcd` — MCP server serving templates, prompts, and hints;
   exposes `lint_content` and `lint_file` tools for in-session validation
 - Deployment templates — define target language, packaging, conventions,
@@ -158,11 +162,21 @@ Every `BEHAVIOR` block requires:
 
 Every `INVARIANTS` entry should carry `[observable]` or `[implementation]`.
 
-### Two-layer prompt architecture
+### Skills and the two-layer procedure
 
 ```
-prompts/prompt.md              — universal, language-agnostic principles
-                                 delegates execution recipe to the template
+skills/pcd-spec/               — writes specifications
+  SKILL.md                       guard, rules for every mode, hand-over
+  modes/interview-procedure.md   the interview (was prompts/interview-prompt.md)
+  modes/reverse-procedure.md     from existing code (was prompts/reverse-prompt.md)
+  modes/change.md, milestone.md, spec-review.md
+
+skills/pcd-translate/          — works from specifications
+  SKILL.md                       bundle guard, reading discipline, provenance
+  modes/translation-procedure.md universal, language-agnostic principles
+                                 (was prompts/prompt.md); delegates the
+                                 execution recipe to the template
+  modes/translator.md, test-author.md, review.md, security-review.md, tiebreak.md
 
 templates/<n>.template.md      — deployment-specific ## EXECUTION section:
   ## EXECUTION                   input files, delivery phases (ordered),
@@ -170,7 +184,15 @@ templates/<n>.template.md      — deployment-specific ## EXECUTION section:
     ### Delivery phases
     ### Resume logic
     ### Compile gate
+
+prompts/                       — copies of the procedure files under their
+                                 former names, written by `make skills`
 ```
+
+A skill is installed by cloning one directory, so each skill contains
+its own copies of the templates, hints and rule documents (`make skills`,
+`CONTRIBUTING.md` "Derived Skill Content"). The MCP server serves the
+same files to hosts that cannot read a skill.
 
 `pcd-lint` RULE-14 validates that every deployment template has
 a `## EXECUTION` section with the required subsections. RULE-15
@@ -216,7 +238,8 @@ mcp-server-pcd http    # default: 127.0.0.1:8080
 ### Repository layout
 
 ```
-prompts/          — translator, interview, reverse, and change-impact prompts
+skills/           — pcd-spec and pcd-translate, the agent skills (see above)
+prompts/          — derived copies of the skills' procedure files
 templates/        — deployment templates (*.template.md)
 hints/            — library hints files (*.hints.md — not PCD specs)
 tools/

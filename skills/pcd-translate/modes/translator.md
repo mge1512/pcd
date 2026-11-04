@@ -2,7 +2,7 @@
 
 Produces the implementation of a specification from its bundles: tests
 first, then source, packaging, documentation and `TRANSLATION_REPORT.md`,
-as `prompts/prompt.md` prescribes for its `translator` role. The
+as `modes/translation-procedure.md` prescribes for its `translator` role. The
 sections of `SKILL.md` apply throughout; this file states what is
 specific to the mode.
 
@@ -28,7 +28,7 @@ then only what `UPGRADE.md` names.
 
 ## Procedure
 
-Follow `prompts/prompt.md`, translator role, with the template's
+Follow `modes/translation-procedure.md`, translator role, with the template's
 `## EXECUTION` section as the recipe. That means tests before code, the
 structural guard that no implementation file exists before the test
 suite, the compile gate, and the delivery phases and resume logic of
@@ -38,7 +38,7 @@ translation step; milestone scaffolding from the preamble only.
 
 ## Report
 
-`TRANSLATION_REPORT.md` as the prompt and the template define it, with
+`TRANSLATION_REPORT.md` as the procedure and the template define it, with
 the provenance lines of `SKILL.md` section 3 added to the Translation
 Inputs block. Ambiguities met in a bundle are listed under the
 specification-ambiguities heading, each with the bundle name and the

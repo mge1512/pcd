@@ -1,12 +1,6 @@
 # Derived content of the pcd-spec skill, rebuilt by `make skills`.
 # Format: <glob relative to the repository root> <subdirectory in the skill>
 # A subdirectory named here is owned by scripts/build-skill.sh.
-#
-# The interview, reverse and change-impact prompts are copied here until
-# they move into modes/ (record 2026-11-03-skills-and-repo-split.md, A-5).
-prompts/interview-prompt.md     prompts
-prompts/reverse-prompt.md       prompts
-prompts/change-impact.md        prompts
 templates/*.template.md         templates
 hints/*.milestones.hints.md     hints
 tools/shared/spec/*.md          references

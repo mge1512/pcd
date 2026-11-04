@@ -1,8 +1,8 @@
 # PCD User Guide
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-05-18
+**Date:** 2026-11-04
 **License:** CC-BY-4.0
 
 ---
@@ -69,7 +69,7 @@ For the reasoning behind the design decisions described here, see
 
 9. [Translating to code](#9-translating-to-code)
 10. [Reverse-engineering existing code](#10-reverse-engineering-existing-code)
-11. [Prompts reference](#11-prompts-reference)
+11. [Procedures reference](#12-procedures-reference)
 
 **Part 4: The Specification Lifecycle**
 
@@ -131,10 +131,11 @@ specification from your answers.
 
 ```bash
 # With a local model:
-ollama run llama3.2 "$(cat prompts/interview-prompt.md)"
+ollama run llama3.2 "$(cat skills/pcd-spec/modes/interview-procedure.md)"
 
-# Or paste prompts/interview-prompt.md as the system prompt
-# in any chat interface and start the conversation
+# Or paste skills/pcd-spec/modes/interview-procedure.md as the system
+# prompt in any chat interface and start the conversation; with an
+# agent that reads skills, use the pcd-spec skill (section 3.4)
 ```
 
 The interview covers nine phases: component identity, inputs and outputs,
@@ -266,9 +267,12 @@ language is chosen at translation time, not at specification time.
 The simplest way to use PCD requires no software installation. Everything you
 need is available as Markdown files in the repository.
 
-To write a specification: copy the contents of `prompts/interview-prompt.md`
-and use it as the system prompt in any capable LLM chat interface. Answer the
-questions and save the produced specification to a `.md` file.
+To write a specification: copy the contents of
+`skills/pcd-spec/modes/interview-procedure.md` (also available as
+`prompts/interview-prompt.md`) and use it as the system prompt in any capable
+LLM chat interface. Answer the questions and save the produced specification
+to a `.spec.md` file. With an agent that reads skills, use the `pcd-spec`
+skill instead (section 3.4).
 
 To validate a specification: if you have Go available, install `pcd-lint`
 from the repository and run it locally. If not, paste the specification into
@@ -276,14 +280,18 @@ a chat interface with the following instruction: "Validate this PCD specificatio
 against the schema described in pcd-lint.md. Report all errors and warnings."
 This is a reasonable approximation but is not a substitute for `pcd-lint`.
 
-To translate a specification: copy the contents of `prompts/prompt.md`,
-set it as the system prompt, then provide the specification and the appropriate
-deployment template (e.g. `templates/cli-tool.template.md`) as input. The
-translator will produce the implementation inline.
+To translate a specification: copy the contents of
+`skills/pcd-translate/modes/translation-procedure.md` (also available as
+`prompts/prompt.md`), set it as the system prompt, then provide the
+specification and the appropriate deployment template (e.g.
+`templates/cli-tool.template.md`) as input. The translator will produce the
+implementation inline.
 
 This path is suitable for evaluation, for initial specification drafts, and
 for contexts where software installation is restricted. For production use,
-the MCP server path is recommended.
+the skills (section 3.4) with the tools installed are recommended; the MCP
+server (section 3.2) is the integration path for hosts that cannot read a
+skill.
 
 ### 3.2 Using mcp-server-pcd
 
@@ -399,19 +407,74 @@ lightweight check that avoids unnecessary translation runs.
 
 # Part 2: Writing Specifications
 
+### 3.4 Using the PCD skills
+
+The two skills are the recommended way to work with PCD from an agent.
+`pcd-spec` covers every task that writes or changes a specification, and
+`pcd-translate` every task that works from one. A skill is a directory with
+`SKILL.md` at its root. The agent reads `SKILL.md` and follows the mode it
+names; the templates, hints and rule documents it needs are inside the same
+directory.
+
+**Installation.** Clone the skill's repository into the skills directory of
+your agent, named after the skill:
+
+```bash
+git clone https://github.com/mge1512/pcd-spec.git      ~/.claude/skills/pcd-spec
+git clone https://github.com/mge1512/pcd-translate.git ~/.claude/skills/pcd-translate
+```
+
+Other agents read `.agents/skills/<name>` in a project or their own global
+location; the layout is always `<name>/SKILL.md` with no folder in between.
+For claude.ai, upload the `<name>.skill` archive from the skill repository's
+releases page. On SLES, the `pcd-skills` package installs both skills under
+`/usr/share/pcd/skills/`. Verify any copy with `sha256sum -c MANIFEST.sha256`
+run inside it; the skill's own `scripts/check-tools.sh` does that and reports
+which PCD tools the session can reach.
+
+**The guard.** Each skill starts with `scripts/check-tools.sh`. `pcd-spec`
+proceeds without `pcd-lint` and `pcd-slice` and says so in its hand-over
+(`Lint: not run`); the pull-request gate runs the tools and is the authority.
+`pcd-translate` stops without them, unless the operator states that lint and
+slice were run before the upload. The skill then verifies the bundle hashes
+and records a `Guard-Override:` line in the report.
+
+**Modes.** `pcd-spec`: interview, reverse, change (one BEHAVIOR, TYPE,
+INTERFACE or INVARIANT per run), milestone, spec-review. `pcd-translate`:
+translator, test-author, review, security-review, tiebreak, selected by
+`ROLE.md` in the input directory. Each mode is a file under `modes/`. The
+`*-procedure.md` files are the former prompts; they still work as system
+prompts for a chat interface without skill support.
+
+**Model selection.** Writing a specification (interview, change) works with
+small models. A 7B model suffices for a simple component, 13B or more for
+gap-fill from long source material. Assembling a long specification in one
+block, milestone design and the self-check are more reliable with larger
+models. With a very small model, hand the collected answers to a larger one
+for that step. Translation and independent test authoring have been run with
+frontier models, with 120B open-weight models at EU providers and with 30B
+local coder models (whitepaper A.14). The compile gate and the independent
+tests are the floor whatever the model. Small models do better with concrete
+file names in place of placeholders, and with the delivery phased as the
+template's `## EXECUTION` section prescribes. An interrupted run resumes by
+reading the output directory first and producing only the missing files.
+
+---
+
 ## 4. Writing Your First Specification
 
 ### Option A — AI-assisted interview (recommended)
 
-You do not need to learn the spec format first. Use the interview prompt with
-any capable LLM:
+You do not need to learn the spec format first. Use the `pcd-spec` skill, or
+its interview procedure with any capable LLM:
 
 ```bash
 # With a local model:
-ollama run llama3.2 "$(cat prompts/interview-prompt.md)"
+ollama run llama3.2 "$(cat skills/pcd-spec/modes/interview-procedure.md)"
 
-# Or paste prompts/interview-prompt.md as the system prompt
-# in any chat interface
+# Or paste skills/pcd-spec/modes/interview-procedure.md as the
+# system prompt in any chat interface (a copy exists as
+# prompts/interview-prompt.md)
 ```
 
 The model asks questions one at a time and produces a complete spec at the
@@ -423,7 +486,8 @@ end. It handles both new components (full interview) and existing material
 If you have existing source code you want to analyse, refactor, or port:
 
 ```bash
-# Paste prompts/reverse-prompt.md as the system prompt,
+# Use the reverse mode of pcd-spec, or paste
+# skills/pcd-spec/modes/reverse-procedure.md as the system prompt,
 # then share your source code
 ```
 
@@ -723,6 +787,23 @@ reflected in the BEHAVIOR sections. Remove it after a successful translation.
 
 For large components: defines phased translation. See Section 6.
 
+### The specification's history: `CHANGELOG.md`
+
+A specification's history is kept in `CHANGELOG.md` beside it, newest entry
+first, one entry per Version:
+
+```
+- 2026-11-04: Version 0.2.2. calculate-simple-interest: steps 9 and 10 state
+  the rounding rule as a MECHANISM. Two translations had rounded differently.
+```
+
+The changelog is not part of the specification: the translator does not read
+it and the specification hash does not cover it. Entries are never edited
+once the Version they describe is committed; a correction is a new entry
+that names the earlier one. `DELTA` is the forward-looking work list, the
+changelog the backward-looking record. The `pcd-spec` skill writes the entry
+with every Version move.
+
 ---
 
 ## 6. Milestones
@@ -1021,8 +1102,11 @@ pcd-lint myspec.md   # must show zero errors before proceeding
 
 ### Single-LLM mode (the default)
 
-Provide the spec, the deployment template, and `prompts/prompt.md` to a
-capable LLM. The minimum input directory looks like:
+Provide the spec, the deployment template, and the translation procedure
+(`skills/pcd-translate/modes/translation-procedure.md`, also available as
+`prompts/prompt.md`) to a capable LLM, or run the `pcd-translate` skill
+(section 3.4), which adds the bundle guard and records the skill in the
+report. The minimum input directory looks like:
 
 ```
 mytool.md               # your specification
@@ -1163,9 +1247,11 @@ automatically.
 
 ## 11. Reverse-Engineering Existing Code
 
-Use `prompts/reverse-prompt.md` to produce a PCD spec from existing source:
+Use the reverse mode of `pcd-spec`, or
+`skills/pcd-spec/modes/reverse-procedure.md`, to produce a PCD spec from
+existing source:
 
-1. Paste `reverse-prompt.md` as the system prompt in any chat interface
+1. Paste the reverse procedure as the system prompt in any chat interface
 2. Share your source code (and any design docs, README, or partial specs)
 3. The model extracts the spec structure and asks three questions:
    - Is the detected deployment type correct?
@@ -1181,18 +1267,26 @@ infallible — the spec is your responsibility, not the model's.
 
 ---
 
-## 12. Prompts Reference
+## 12. Procedures Reference
 
+The procedures live in the skills. The `prompts/` column names the copy
+under the former name, written by `make skills`; the MCP server serves the
+same bytes.
 
-| Prompt                        | Purpose                                          | MCP resource                  |
-|-------------------------------|--------------------------------------------------|-------------------------------|
-| `prompts/prompt.md`           | Translate spec → code (universal translator)     | `pcd://prompts/translator`    |
-| `prompts/interview-prompt.md` | New component: guided interview → spec           | `pcd://prompts/interview`     |
-| `prompts/reverse-prompt.md`   | Existing code: reverse-engineer → spec           | `pcd://prompts/reverse`       |
-| `prompts/change-impact.md`    | Assess impact of a spec change                   | `pcd://prompts/change-impact` |
-| `prompts/reviewer.md`         | Independent review of a translation run          | `pcd://prompts/reviewer`      |
-| `prompts/security-reviewer.md`| Independent security review of a translation run | `pcd://prompts/security-reviewer` |
-| `prompts/tiebreaker.md`       | Adjudicate ambiguous test-author-test failures     | `pcd://prompts/tiebreaker`    |
+| Procedure (canonical)                                     | Purpose                                          | Copy under `prompts/`  | MCP resource                      |
+|-----------------------------------------------------------|--------------------------------------------------|------------------------|-----------------------------------|
+| `skills/pcd-translate/modes/translation-procedure.md`     | Translate spec → code; independent test author   | `prompt.md`            | `pcd://prompts/translator`        |
+| `skills/pcd-spec/modes/interview-procedure.md`            | New component: guided interview → spec           | `interview-prompt.md`  | `pcd://prompts/interview`         |
+| `skills/pcd-spec/modes/reverse-procedure.md`              | Existing code: reverse-engineer → spec           | `reverse-prompt.md`    | `pcd://prompts/reverse`           |
+| `skills/pcd-spec/modes/change-impact-procedure.md`        | Assess impact of a spec change                   | `change-impact.md`     | `pcd://prompts/change-impact`     |
+| `skills/pcd-translate/modes/review-procedure.md`          | Independent review of a translation run          | `reviewer.md`          | `pcd://prompts/reviewer`          |
+| `skills/pcd-translate/modes/security-review-procedure.md` | Independent security review of a translation run | `security-reviewer.md` | `pcd://prompts/security-reviewer` |
+| `skills/pcd-translate/modes/tiebreak-procedure.md`        | Adjudicate between two translations              | `tiebreaker.md`        | `pcd://prompts/tiebreaker`        |
+
+The mode files beside them (`change.md`, `milestone.md`, `spec-review.md`;
+`translator.md`, `test-author.md`, `review.md`, `security-review.md`,
+`tiebreak.md`) state what each mode may read and must write. A session
+reads the mode file first, then the procedure.
 
 ---
 
