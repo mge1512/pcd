@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.4.8
+**Version:** 0.4.11
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-09-01
+**Date:** 2026-11-03
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -1110,6 +1110,40 @@ Thoughtworks REASONS Canvas, so a PCD mission kind with a lint-plus-translation
 accept gate is the same kind of addition it has already made once for a
 foreign format. Full treatment in `doc/comparisons/PCD-vs-Spec-Kitty.md`.
 
+Human-Directed Agentic Engineering (HDAE, Gregory M. Kurtzer, 2026) is a
+method for building and maintaining software with a coding agent, documented
+in the Ginux technical report and packaged afterwards as agent skills for
+Codex and Claude Code. The human owns intent, architecture, constraints,
+priorities and acceptance; the agent runs bounded implement, build, observe,
+diagnose, revise loops against executable gates and stops at human review
+boundaries. Durable state is kept in the repository: product intent,
+architecture, plan, a resumable checkpoint, and one Markdown file per gate
+with scope, acceptance criteria, a verification plan, evidence and decisions,
+locked once the gate is closed. The agreement with PCD on the division of
+labour is nearly word for word, and the supporting moves - intent before
+code, plain-text control artefacts, project memory against session amnesia,
+bounded units with executable criteria, append-only history - were arrived
+at independently. The difference is what each method makes durable. HDAE
+retains the code as the product; its report counts the generated code as part
+of what remains durable, beside the specifications, gates and decision
+record, and maintenance edits the code under a new gate. PCD excludes the
+code from the durable set and regenerates it from the specification. HDAE
+governs the loop; PCD governs the artefact. The remaining differences follow.
+HDAE's provenance records decisions (a curated steering chronology, a pinned
+evaluated commit) and its report states that the development trajectory
+cannot be reconstructed, while PCD's provenance records derivation (a
+labelled hash of every translation input, the specification hash in every
+artefact). HDAE verifies with one agent and human review of the evidence,
+while PCD separates translator, test author and reviewer. HDAE leaves the
+implementation language to the human, while PCD derives it from the
+deployment template. On certification both routes are open and distribute
+the evidence differently, as with Spec Kitty; HDAE's gate ledger is
+evidence in the form required by the route in which the code stays the
+evaluated object. The two compose: a PCD translation run fits inside an HDAE
+gate, with the one adaptation that the revise step edits the specification,
+hints or template and regenerates instead of editing code. Full treatment in
+`doc/comparisons/PCD-vs-HDAE.md`.
+
 What is genuinely novel: natural language as the translator artifact (structured
 Markdown, not a programming language or formal language); deployment templates
 as a first-class concept (target language is not a human decision); formal
@@ -1353,6 +1387,10 @@ ends over the same engine behaviour.
   Open-source language: https://github.com/informalsystems/quint
 - Douglass2026: Robert Douglass, "Why I Built Spec Kitty". Medium,
   27 April 2026. Project: https://github.com/Priivacy-ai/spec-kitty
+- Kurtzer2026: Gregory M. Kurtzer, "Ginux: Building an Independent Kernel
+  That Runs Linux Userspace through Human-Directed Agentic Engineering".
+  Technical report, Zenodo, October 2026. DOI: 10.5281/zenodo.23682548.
+  Skills: https://github.com/gmkurtzer/hdae
 - REUSE: FSFE REUSE Specification v3.3 — standardised method for declaring
   copyright and licensing in software projects using SPDX identifiers.
   https://reuse.software/
