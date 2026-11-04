@@ -8,10 +8,13 @@
 # Compares the working tree with BASE. A file counts as versioned when one
 # of its first 40 lines is a Version: field. Checked: *.md under templates/,
 # hints/, prompts/, examples/ and tools/*/spec/, which covers specs, hints
-# and pinned copies. Not checked: doc/, whose headers follow D-5 (the
-# framework version at the last content revision), and */code/*, which is
-# generated. Restoring bytes that a path has already carried under the same
-# label is accepted, because it adds no new content to that label.
+# and pinned copies, and skills/*/SKILL.md, whose label is the version:
+# key under metadata: in the front matter. Not checked: doc/, whose headers
+# follow D-5 (the framework version at the last content revision), */code/*,
+# which is generated, and the derived copies under skills/, which carry the
+# label of their source. Restoring bytes that a path has already carried
+# under the same label is accepted, because it adds no new content to that
+# label.
 #
 # Exit status: 0 no label gains a second content, 1 at least one does.
 #
@@ -28,27 +31,47 @@ ver() {
     sed -n '1,40s/^[#* ]*Version:[* ]*//p' | sed -n '1{s/[[:space:]]*$//;p;}'
 }
 
+# Front matter label of a SKILL.md: the first "  version:" line after
+# "metadata:" inside the leading --- block, quotes removed.
+skillver() {
+    awk 'NR == 1 && $0 != "---" { exit }
+         NR > 1 && $0 == "---" { exit }
+         /^metadata:/ { inside = 1; next }
+         inside && /^[^ ]/ { inside = 0 }
+         inside && /^[ ]+version:/ {
+             sub(/^[ ]+version:[ ]*/, ""); gsub(/^["'\'']|["'\'']$/, ""); print; exit }'
+}
+
+# Label of path $1 read from stdin, by file kind.
+label() {
+    case $1 in
+        skills/*/SKILL.md) skillver ;;
+        *) ver ;;
+    esac
+}
+
 # Has path $1 carried blob $3 at a commit where its Version: was $2?
 carried() {
     for c in $(git log --format=%H -- "$1"); do
         [ "$(git rev-parse -q --verify "$c:$1" 2> /dev/null)" = "$3" ] || continue
-        [ "$(git show "$c:$1" | ver)" = "$2" ] && return 0
+        [ "$(git show "$c:$1" | label "$1")" = "$2" ] && return 0
     done
     return 1
 }
 
-git diff --name-only "$BASE" -- templates hints prompts examples tools > "$TMP"
+git diff --name-only "$BASE" -- templates hints prompts examples tools skills > "$TMP"
 status=0
 while IFS= read -r f; do
     case $f in
         */code/*) continue ;;
         templates/*.md|hints/*.md|prompts/*.md|examples/*.md|tools/*/spec/*.md) ;;
+        skills/*/SKILL.md) ;;
         *) continue ;;
     esac
     [ -f "$f" ] || continue
-    old=$(git show "$BASE:$f" 2> /dev/null | ver)
+    old=$(git show "$BASE:$f" 2> /dev/null | label "$f")
     [ -n "$old" ] || continue
-    new=$(ver < "$f")
+    new=$(label "$f" < "$f")
     [ "$old" = "$new" ] || continue
     if carried "$f" "$new" "$(git hash-object "$f")"; then
         continue

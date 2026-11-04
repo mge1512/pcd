@@ -1,0 +1,7 @@
+# Derived content of the pcd-translate skill, rebuilt by `make skills`.
+# Format: <glob relative to the repository root> <subdirectory in the skill>
+# A subdirectory named here is owned by scripts/build-skill.sh.
+templates/*.template.md         templates
+hints/*.hints.md                hints
+tools/shared/spec/*.md          references
+scripts/check-tools.sh          scripts

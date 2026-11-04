@@ -1,6 +1,6 @@
 # PCD as Skills - Decision Record and Path
 
-Version:     2026.11.04.01
+Version:     2026.11.04.02
 Refers-to:   2026-06-09-pcd-consistency-decisions.md (D-6, D-7, D-10, T-20, T-23);
              github.com/mge1512/skill-claudism-pass (skill repository convention)
 Decided-by:  Matthias G. Eckermann, 2026-11-03 and 2026-11-04
@@ -46,7 +46,7 @@ Ready to execute: the rest; P-9 and O-3 apply as defaults until overruled.
 | P-5 | Provenance lines in `TRANSLATION_REPORT.md` and `TEST_REPORT.md`: `Skill-SHA256: <skill>/SKILL.md <hash>`, `Skill-Manifest-SHA256: <hash>`, `Toolchain: <tool> <version> <cli or mcp>` (one line per tool used), and `Guard-Override: <declaration, verified by sha256sum, tools not run in session>` when P-4's override was used. The existing `Mode:` line names the mode. Contract change of the T-23 class: one framework row, technical reference section 12. | P-2 |
 | P-8 | Milestone state moves from the `Status:` line in the spec into git references: a tag per released milestone, a branch per active one. This supersedes D-10 of 2026-06-10. Reason: the `Status:` line sits inside the hashed bytes, so every advance moves the spec hash and makes the last report stale. Alternative with a smaller footprint: keep the line and exclude it from the hash in libpcd. | D-6 |
 | P-9 | The unit of a spec change is one BEHAVIOR, or one TYPE or INVARIANT change: one issue, one branch, one PR. One PR is one Version move, one changelog row, one lint run and one `assess_change_impact` result recorded in the PR body. Translation runs per milestone or tag, never per PR. Default; reversible. | D-7 |
-| P-10 | Publishing. A release workflow in `pcd`, modelled on `release.yml` of `skill-claudism-pass`, runs on a version tag: `make check-skills`, the `check-tools.sh` self-test, the `.skill` ZIPs built with the same rsync-and-zip step, `SHA256SUMS`, the GitHub release, then a mirror push of each built skill directory to `skill-pcd-spec` and `skill-pcd-translate` (one commit per release, same tag). The skill repositories are never hand-edited; issues are filed in `pcd`. The `pcd-skills` RPM is built in the build service from the same release tarball and installs to `/usr/share/pcd/skills/<name>/`. | D-9 |
+| P-10 | Publishing. A release workflow in `pcd`, modelled on `release.yml` of `skill-claudism-pass`, runs on a version tag: `make check-skills`, the `check-tools.sh` self-test, the `.skill` ZIPs built with the same rsync-and-zip step, `SHA256SUMS`, the GitHub release, then a mirror push of each built skill directory to `pcd-spec` and `pcd-translate` (one commit per release, same tag). The skill repositories are never hand-edited; issues are filed in `pcd`. The `pcd-skills` RPM is built in the build service from the same release tarball and installs to `/usr/share/pcd/skills/<name>/`. | D-9 |
 | P-11 | Slicing in the engine. The behaviours of `pcd-slice` move into libpcd (via `Includes:`, as the lint and types rules did), so that the CLI and the MCP server are both front ends over one engine. The server gains `slice_spec` and `check_slices`, with the inputs of the CLI commands `slice` and `check`. `pcd-translate` option A then covers every guard step. Batched into the next re-translation (Phase C). | D-12 |
 
 Open points:
@@ -70,7 +70,8 @@ skills/
                           spec-schema, minimum tool versions
     modes/                interview.md, reverse.md, change.md,
                           milestone.md, spec-review.md
-    scripts/check-tools.sh
+    SOURCES               the copies, one glob and target subdirectory per line
+    scripts/              check-tools.sh (copy of scripts/check-tools.sh)
     references/           lint-rules, types-table-rules, spec format (copies)
     templates/            all deployment templates (copies)
     MANIFEST.sha256
@@ -78,7 +79,8 @@ skills/
     SKILL.md              today's guard, extended per P-4 and P-5
     modes/                translator.md, test-author.md, review.md,
                           security-review.md, tiebreak.md
-    scripts/check-tools.sh
+    SOURCES
+    scripts/              check-tools.sh (copy)
     references/
     templates/
     hints/                shipped tiers (O-3)
@@ -87,17 +89,17 @@ templates/  hints/        canonical, unchanged
 tools/                    unchanged (D-10); tools/shared/spec/ stays the home
                           of the rule documents
 doc/  examples/
-packaging/pcd-skills/     RPM and deb
+tools/pcd-skills/         RPM and deb, next to tools/pcd-templates/
 .github/workflows/release.yml   P-10
 ```
 
-Everything under `skills/*/` except `SKILL.md`, `modes/` and `scripts/` is written by `make skills`. `check-tools.sh` runs `sha256sum -c MANIFEST.sha256` before any other check. A runtime that rewraps or truncates fetched text (the failure mode recorded in the claudism-pass README) then fails at session start, not inside a translation.
+Everything under `skills/*/` except `SKILL.md`, `SOURCES` and `modes/` is written by `make skills`; the guard script has one source, `scripts/check-tools.sh` at the repository root, and the copy in each skill is derived like the rest. `check-tools.sh` runs `sha256sum -c MANIFEST.sha256` before any other check. A runtime that rewraps or truncates fetched text (the failure mode recorded in the claudism-pass README) then fails at session start, not inside a translation.
 
 Mirror repositories, written by the release workflow only:
 
 ```
-skill-pcd-spec/        SKILL.md at the root, the built directory as above
-skill-pcd-translate/   same
+pcd-spec/              SKILL.md at the root, the built directory as above
+pcd-translate/         same
 ```
 
 Install on any framework: `git clone <repo> <skills-dir>/pcd-spec`, the target directory named after the skill. Commands: `/pcd-spec`, `/pcd-translate`.
@@ -113,7 +115,7 @@ One PR per row. Each PR includes its own Version moves and changelog rows (P-9 a
 | PR | Scope | Gate | Version effect |
 |---|---|---|---|
 | A-1 | This record under `doc/status/`. | none | none |
-| A-2 | Scaffolding: `make skills` and `make check-skills`, `scripts/check-tools.sh` (`/bin/sh`, exit 0/1/2, manifest check first, tool versions on stdout, PATH then `bin/`), front matter metadata, `MANIFEST.sha256` generation, `.gitattributes` entries, `packaging/pcd-skills/`. No skill content yet beyond the existing `pcd-translate`. | `make check-skills` clean; `make check-versions` clean | framework row |
+| A-2 | Scaffolding: `make skills` and `make check-skills`, `scripts/check-tools.sh` (`/bin/sh`, exit 0/1/2, manifest check first, tool versions on stdout, PATH then `bin/`), front matter metadata, `MANIFEST.sha256` generation, `.gitattributes` entries, `tools/pcd-skills/`. No skill content yet beyond the existing `pcd-translate`. | `make check-skills` clean; `make check-versions` clean | framework row |
 | A-3 | `pcd-spec`: modes built from `interview-prompt.md`, `reverse-prompt.md`, `change-impact.md` and the pre-translation review practice; P-4 proceed rule; writes the Version move and the `CHANGELOG.md` entry beside the spec; records the change-impact result for the PR body. | a spec written with the skill passes `pcd-lint` in CI; `make check-skills` clean | framework row |
 | A-4 | `pcd-translate`: modes from the translator and test-author roles of `prompt.md`, `reviewer.md`, `security-reviewer.md`, `tiebreaker.md`; guard per P-4 with override; template and hints read from the skill; P-5 lines in the reports; incremental mode with `UPGRADE.md` as a committed file outside the hash scope. | `make check-skills` clean; one dry run against `pcd-slice.spec.md` bundles without a translation; one dry run with the override path | framework row |
 | A-5 | Retire `prompts/` as a source directory (P-3). `materialise-prompt.sh` and the pcd-lint bundle target read from `skills/pcd-translate/`; the MCP server's embedded prompts are derived from the mode files; `.sha256` sidecars regenerate. Technical reference section 12 gains the P-5 labels; user guide section 3 gains "Using the PCD skills" and lists the MCP server as the integration path; `AGENTS.md` replaces the two-layer prompt architecture with the skill layer; whitepaper row. | `make check-spec` clean after `make spec` (the pcd-lint bundle hash moves; note it in the row, re-translation deferred to C-2) | framework 0.5.0 (contract change: prompt retired, labels added) |
@@ -159,3 +161,4 @@ Order inside a phase is fixed by the dependencies. Between phases: A runs first,
 
 - 2026.11.03.01 - Initial record of D-1 to D-7, proposals P-1 to P-9, open points O-1 to O-3, the target layout and the PR path.
 - 2026.11.04.01 - D-8 to D-12 recorded. Two skills instead of one per role (D-8); P-1 rewritten with modes. Skill repositories follow the claudism-pass convention and are release mirrors of `pcd` (D-9, P-10); P-7 withdrawn, Phase B removed, one source repository. MCP server and tools kept as they are (D-10); P-6 withdrawn, C-3 deferred. No binaries in the translation skill, manual override with hash verification (D-11, P-4, P-5 `Guard-Override:`); O-2 closed. Slicing in the engine as the next engine change (D-12, P-11, C-1). O-1 closed, O-3 given a default, P-9 marked as default. Front matter metadata replaces the `VERSION` file; manifest check first in `check-tools.sh`.
+- 2026.11.04.02 - Executed with PR A-2. Mirror repositories named `pcd-spec` and `pcd-translate` (maintainer ruling of 2026-11-04: the repository name equals the skill name, so a clone needs no rename); P-10 and section 3 updated. Packaging under `tools/pcd-skills/`, next to `tools/pcd-templates/`, instead of `packaging/`. The guard script has one source, `scripts/check-tools.sh`, copied into each skill by `make skills`; `scripts/` inside a skill is therefore derived content. The hand-authored set is `SKILL.md`, `SOURCES` and `modes/`. `SOURCES` added to the layout.

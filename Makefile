@@ -10,9 +10,16 @@
 # Content between markers is owned by `make spec` and will be overwritten.
 # Hand-edits inside these regions are rejected by `make check-spec` in CI.
 #
+# Skills under skills/ carry derived copies of templates, hints, rule
+# documents and scripts, listed in each skill's SOURCES file and written by
+# `make skills` together with the skill's MANIFEST.sha256. `make check-skills`
+# fails in CI when the committed copies are stale.
+#
 # Usage:
 #   make spec          regenerate all derived spec content
 #   make check-spec    verify no hand-edits inside auto-blocks (CI)
+#   make skills        rebuild the derived content of every skill
+#   make check-skills  verify the committed skill content is current (CI)
 #   make help          list targets
 #
 # After `make spec` the spec hash changes, which invalidates the generated
@@ -46,17 +53,24 @@ PCDLINT_BUNDLE_PROMPT   := tools/pcd-lint/spec/prompt.md
 BUNDLE_FILES := $(PCDLINT_BUNDLE_TEMPLATE) $(PCDLINT_BUNDLE_PROMPT)
 BUNDLE_HASHES := $(addsuffix .sha256, $(BUNDLE_FILES))
 
+# ── Skills: directories with derived copies and a manifest ────────────────────
+
+SKILLS_DIR := skills
+SKILL_DIRS := $(patsubst %/SKILL.md,%,$(wildcard $(SKILLS_DIR)/*/SKILL.md))
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 REPLACE_AUTO := sh scripts/replace-auto-block.sh
 GEN_KNOWN_TEMPLATES       := sh scripts/gen-known-templates.sh $(TEMPLATES_DIR)
 GEN_KNOWN_TEMPLATES_COUNT := sh scripts/gen-known-templates-count.sh $(TEMPLATES_DIR)
 MATERIALISE_PROMPT        := sh scripts/materialise-prompt.sh
+BUILD_SKILL               := sh scripts/build-skill.sh
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 
 .PHONY: help spec spec-doc-blocks spec-bundles \
-        spec-pcd-lint spec-mcp-server-pcd check-spec check-versions
+        spec-pcd-lint spec-mcp-server-pcd check-spec check-versions \
+        skills check-skills
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*##"} /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ \
@@ -112,6 +126,24 @@ check-spec: spec ## Fail if `make spec` produced uncommitted changes
 	    git diff --stat -- \
 	        $(PCDLINT_SPEC) $(MCPSRV_SPEC) \
 	        $(BUNDLE_FILES) $(BUNDLE_HASHES); \
+	    exit 1; \
+	fi
+
+# ── Skills ────────────────────────────────────────────────────────────────────
+#
+# Each skills/<name>/SOURCES lists the repository content copied into the
+# skill; scripts/build-skill.sh rebuilds those copies and MANIFEST.sha256.
+
+skills: ## Rebuild the derived content and manifest of every skill
+	@for d in $(SKILL_DIRS); do $(BUILD_SKILL) $$d || exit 1; done
+
+check-skills: skills ## Fail if `make skills` produced unstaged changes
+	@if ! git diff --quiet -- $(SKILLS_DIR) \
+	   || [ -n "$$(git ls-files --others --exclude-standard -- $(SKILLS_DIR))" ]; then \
+	    echo "ERROR: derived skill content differs from the staged state."; \
+	    echo "       Run 'make skills', then 'git add' the result."; \
+	    echo ""; \
+	    git status --short -- $(SKILLS_DIR); \
 	    exit 1; \
 	fi
 

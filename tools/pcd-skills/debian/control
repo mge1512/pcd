@@ -1,0 +1,24 @@
+Source: pcd-skills
+Section: devel
+Priority: optional
+Maintainer: Matthias G. Eckermann <pcd@mailbox.org>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/mge1512/pcd
+
+Package: pcd-skills
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: pcd-lint, pcd-slice
+Description: Agent skills for PCD
+ pcd-skills provides the agent skills of the Post-Coding Development
+ (PCD). Each skill is one directory with a SKILL.md at its root. The
+ directory also contains the deployment templates, hints files and rule
+ documents the skill reads, a guard script, and a manifest of every file.
+ .
+ An agent harness reads a skill from the installed directory or from a
+ copy of it in its own skills location. The guard script of each skill
+ verifies the copy against the manifest and reports which PCD tools
+ are available.
+ .
+ Skills are installed under /usr/share/pcd/skills/<name>/.

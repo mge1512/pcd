@@ -280,6 +280,46 @@ distinction visible.
 
 ---
 
+## Derived Skill Content
+
+Each skill under `skills/` is a directory with a hand-authored
+`SKILL.md` at its root and derived copies of repository content next to
+it. A skill is installed by cloning or extracting one directory, so it
+has to be self-contained. The templates, hints files, rule documents and
+scripts it reads are copied in, not referenced.
+
+The copies are listed in the skill's `SOURCES` file, one line per
+source. A line names a glob relative to the repository root and the
+subdirectory of the skill that receives the matched files. `make skills`
+runs `scripts/build-skill.sh` for every skill. The script empties and
+refills each subdirectory named in `SOURCES`, then writes
+`MANIFEST.sha256`: one line per file in the skill, the manifest itself
+excluded. A subdirectory named in `SOURCES` is owned by the build.
+Hand-authored content is limited to `SKILL.md`, `SOURCES` and `modes/`,
+which the build never touches.
+
+`make check-skills` in CI fails when `make skills` changes anything under
+`skills/`. A change to a template or hints file is therefore followed by
+`make skills` and a commit of the refreshed copies. The copies are marked
+`linguist-generated` in `.gitattributes`; reviewers read the source file
+and the manifest diff, not the copies.
+
+The manifest is what an installed skill is checked against. The guard
+script copied into every skill, `scripts/check-tools.sh`, runs
+`sha256sum -c MANIFEST.sha256` before anything else. It refuses a skill
+whose files differ from the manifest, and a skill with files the manifest
+does not list. It then reports which PCD tools the session can reach.
+Run `sh scripts/check-tools.sh skills/<name>` from the repository root to
+try it against a skill in the tree.
+
+A skill's version is the `version:` key under `metadata:` in the
+`SKILL.md` front matter. `make check-versions` applies the
+bytes-move-version rule to it: a change to `SKILL.md` without a move of
+that key fails the check. The copies keep the label of their source and
+are not checked separately.
+
+---
+
 ## Licensing
 
 | Artifact | License |

@@ -1,0 +1,10 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: pcd-skills
+Upstream-Contact: Matthias G. Eckermann <pcd@mailbox.org>
+Source: https://github.com/mge1512/pcd
+
+Files: *
+Copyright: 2026 Matthias G. Eckermann <pcd@mailbox.org>
+License: CC-BY-4.0
+ This work is licensed under the Creative Commons Attribution 4.0
+ International License. See https://creativecommons.org/licenses/by/4.0/

@@ -314,6 +314,33 @@ the tools themselves.
 
 ---
 
+## pcd-skills
+
+Packaging metadata that ships the agent skills under
+[`skills/`](../skills/) to the install location an agent harness on the
+host can read. As with `pcd-templates`, there is no executable code
+here beyond a `Makefile`, an RPM spec, and Debian packaging. The skill
+directories are packaged as committed; `make skills` and
+`make check-skills` at the repository root keep their derived copies and
+manifests current (see `CONTRIBUTING.md`, "Derived Skill Content").
+
+Default install layout (Linux):
+
+```
+/usr/share/pcd/skills/<name>/      one directory per skill, SKILL.md at its root
+```
+
+The package version is the framework version it was built from; each
+skill has its own version in its `SKILL.md` front matter. The
+package recommends, and does not require, `pcd-lint` and `pcd-slice`:
+each skill's `scripts/check-tools.sh` reports at session start whether
+they are on PATH.
+
+`pcd-skills` is published under [CC-BY-4.0](../LICENSE), like the content
+it packages.
+
+---
+
 ## Self-Hosting
 
 The engine and every front end are specified in PCD and translated by

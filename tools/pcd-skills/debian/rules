@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Nothing to build: data package
+
+override_dh_auto_install:
+	install -d debian/pcd-skills/usr/share/pcd/skills
+	cp -R skills/. debian/pcd-skills/usr/share/pcd/skills/
+	find debian/pcd-skills/usr/share/pcd/skills -type f -name '*.sh' -exec chmod 0755 {} +
+	find debian/pcd-skills/usr/share/pcd/skills -type f ! -name '*.sh' -exec chmod 0644 {} +
+
+override_dh_auto_test:
+	# Every installed skill must verify against its manifest.
+	set -e; for s in debian/pcd-skills/usr/share/pcd/skills/*/; do \
+	    (cd "$$s" && sha256sum -c --quiet --strict MANIFEST.sha256); \
+	done

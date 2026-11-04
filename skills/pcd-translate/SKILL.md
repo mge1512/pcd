@@ -1,6 +1,11 @@
 ---
 name: pcd-translate
 description: Reading discipline and guard for translating a PCD specification into code using pre-sliced per-behavior bundles. Use whenever a session translates, re-translates, or continues translating any *.spec.md in a PCD repository - including single-behavior work and test-author or reviewer roles. Verifies pcd-slice output is present and current before any translation begins, and governs which files the session may read. Do NOT use for writing or reviewing specifications, or for repositories without pcd-slice.
+metadata:
+  version: "0.1.0"
+  spec-schema: "0.4.0"
+  pcd-lint-min: "0.4.0"
+  pcd-slice-min: "0.1.1"
 ---
 
 # pcd-translate

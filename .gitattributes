@@ -3,6 +3,13 @@
 tools/pcd-lint/code/**         	linguist-generated=true
 tools/mcp-server-pcd/code/**   	linguist-generated=true
 examples/*/**			linguist-generated=true
+# Derived skill content, written by `make skills` from the SOURCES file of
+# each skill (see CONTRIBUTING.md, "Derived Skill Content").
+skills/*/templates/**		linguist-generated=true
+skills/*/hints/**		linguist-generated=true
+skills/*/references/**		linguist-generated=true
+skills/*/scripts/**		linguist-generated=true
+skills/*/MANIFEST.sha256	linguist-generated=true
 # Source artefacts, not documentation: count these in the language bar.
 templates/*.md   linguist-documentation=false  linguist-detectable=true
 prompts/*.md     linguist-documentation=false  linguist-detectable=true
