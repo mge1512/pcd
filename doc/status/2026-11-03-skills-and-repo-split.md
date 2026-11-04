@@ -1,6 +1,6 @@
 # PCD as Skills - Decision Record and Path
 
-Version:     2026.11.04.02
+Version:     2026.11.04.03
 Refers-to:   2026-06-09-pcd-consistency-decisions.md (D-6, D-7, D-10, T-20, T-23);
              github.com/mge1512/skill-claudism-pass (skill repository convention)
 Decided-by:  Matthias G. Eckermann, 2026-11-03 and 2026-11-04
@@ -162,3 +162,4 @@ Order inside a phase is fixed by the dependencies. Between phases: A runs first,
 - 2026.11.03.01 - Initial record of D-1 to D-7, proposals P-1 to P-9, open points O-1 to O-3, the target layout and the PR path.
 - 2026.11.04.01 - D-8 to D-12 recorded. Two skills instead of one per role (D-8); P-1 rewritten with modes. Skill repositories follow the claudism-pass convention and are release mirrors of `pcd` (D-9, P-10); P-7 withdrawn, Phase B removed, one source repository. MCP server and tools kept as they are (D-10); P-6 withdrawn, C-3 deferred. No binaries in the translation skill, manual override with hash verification (D-11, P-4, P-5 `Guard-Override:`); O-2 closed. Slicing in the engine as the next engine change (D-12, P-11, C-1). O-1 closed, O-3 given a default, P-9 marked as default. Front matter metadata replaces the `VERSION` file; manifest check first in `check-tools.sh`.
 - 2026.11.04.02 - Executed with PR A-2. Mirror repositories named `pcd-spec` and `pcd-translate` (maintainer ruling of 2026-11-04: the repository name equals the skill name, so a clone needs no rename); P-10 and section 3 updated. Packaging under `tools/pcd-skills/`, next to `tools/pcd-templates/`, instead of `packaging/`. The guard script has one source, `scripts/check-tools.sh`, copied into each skill by `make skills`; `scripts/` inside a skill is therefore derived content. The hand-authored set is `SKILL.md`, `SOURCES` and `modes/`. `SOURCES` added to the layout.
+- 2026.11.04.03 - Executed with PR A-3. `pcd-spec` with the modes interview, reverse, change, milestone and spec-review. The interview, reverse and change-impact prompts are copied into the skill under `prompts/` by `make skills` until A-5 moves them into `modes/`; the three new modes are hand-authored under `modes/`. The external spec changelog of T-22 (2026-06-10) is applied by the skill (`CHANGELOG.md` beside the specification, newest first, `- YYYY-MM-DD: Version X. <narrative>`); the user-guide text of T-22 follows in A-5. The skill ships the milestones hints tier for the milestone mode (O-3). pcd-skills packaging moves with the framework version until A-6 derives it from the whitepaper table.

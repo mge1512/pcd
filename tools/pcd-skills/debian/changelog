@@ -1,3 +1,9 @@
+pcd-skills (0.4.13-1) unstable; urgency=low
+
+  * Add the pcd-spec skill.
+
+ -- Matthias G. Eckermann <pcd@mailbox.org>  Wed, 04 Nov 2026 11:00:00 +0100
+
 pcd-skills (0.4.12-1) unstable; urgency=low
 
   * Initial release: pcd-translate skill with derived templates, hints,

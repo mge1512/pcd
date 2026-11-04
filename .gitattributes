@@ -5,6 +5,7 @@ tools/mcp-server-pcd/code/**   	linguist-generated=true
 examples/*/**			linguist-generated=true
 # Derived skill content, written by `make skills` from the SOURCES file of
 # each skill (see CONTRIBUTING.md, "Derived Skill Content").
+skills/*/prompts/**		linguist-generated=true
 skills/*/templates/**		linguist-generated=true
 skills/*/hints/**		linguist-generated=true
 skills/*/references/**		linguist-generated=true

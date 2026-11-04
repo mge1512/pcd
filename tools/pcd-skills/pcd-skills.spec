@@ -1,5 +1,5 @@
 Name:           pcd-skills
-Version:        0.4.12
+Version:        0.4.13
 Release:        1
 Summary:        Agent skills for the Post-Coding Development
 BuildArch:      noarch
@@ -56,6 +56,8 @@ done
 %{_datadir}/pcd/skills/
 
 %changelog
+* Wed Nov 04 2026 Matthias G. Eckermann <pcd@mailbox.org> - 0.4.13-1
+- Add the pcd-spec skill
 * Wed Nov 04 2026 Matthias G. Eckermann <pcd@mailbox.org> - 0.4.12-1
 - Initial release: pcd-translate skill with derived templates, hints,
   rule documents, guard script and manifest
