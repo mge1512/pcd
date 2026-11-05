@@ -1,6 +1,6 @@
 # PCD vs the Elephant-Goldfish Model
 
-Version: 2026.11.05.01
+Version: 2026.11.05.02
 Date:    2026-11-05
 Author:  Matthias G. Eckermann <pcd@mailbox.org>
 Status:  Draft, intended for public use
@@ -574,10 +574,11 @@ EGM's review loop takes its reviewers and its standards as parameters, and a
 name that contains a slash is read as a file path. By the skill text, a PCD
 specification can therefore be the target of that loop, with a PCD
 completeness standard as the rubric. EGM does not have to change for it. The
-five-stage review is not open in this way: its standards are fixed, and it
-expects the two parts of the design template. The other direction needs no
-mechanism. The interview mode of `pcd-spec` accepts existing notes and design
-documents as its input, and an approved EGM design is such a document.
+five-stage review is less open, because its standards are fixed. It does run
+on a document without an implementation plan (stages 5 to 8), and a single
+stage can be run alone. The other direction needs no mechanism. The interview
+mode of `pcd-spec` accepts existing notes and design documents as its input,
+and an approved EGM design is such a document.
 
 | EGM element | PCD counterpart |
 |---|---|
@@ -611,9 +612,12 @@ by review. The translation report lists the ambiguities the translator met
 and how it resolved each. The list is the translator's own account, so it is
 a lower bound for the decisions the document left open.
 
-Both methods ship as agent skills. EGM's skills are started by the user and
-cannot be called by another skill, so the combination is a sequence of steps
-that the user runs.
+Both methods ship as agent skills. EGM's skills are started by the user, and
+the skill mechanism of the host does not load them for a model. By EGM's
+guide for Claude Code, a session runs a second EGM skill by reading its
+`SKILL.md` and following it. A PCD skill could use the same route. That has
+not been tried, so today the combination is a sequence of steps that the user
+runs.
 
 ### 6.2 Framing for talks
 
@@ -679,9 +683,10 @@ Four statements about PCD need the same care.
   other four belong to a library that is specified and not yet generated.
   Give the number that applies when citing the linter.
 - The README states that one specification produced implementations in Go,
-  Rust and Java. The committed artifacts show Rust and Java for one example,
-  Go and Rust for one tool, and C++, Go and Rust for another. Cite what the
-  artifacts show (4.4).
+  Rust and Java. The committed artifacts show one specification text in Rust
+  and Java for one example, and in C++, Go and Rust for one tool. A second
+  tool has Go and Rust from two texts under one version label, and its
+  reports record no hash. Cite what the artifacts show (4.4).
 
 ---
 
@@ -715,9 +720,10 @@ Four statements about PCD need the same care.
   dates and for the observation that security is not a separate review step.
 - Birgitta Böckeler, "Understanding Spec-Driven-Development: Kiro, spec-kit,
   and Tessl", martinfowler.com, 2025-10-15. Used for the three levels in 3.3.
-- github.com/mge1512/pcd at commit 8d04918 and
-  github.com/mge1512/zypper-declarative, read on 2026-11-05. Used for the
-  statements about PCD's own artifacts in 4.3, 4.4 and section 7.
+- github.com/mge1512/pcd at commit 8d04918,
+  github.com/mge1512/zypper-declarative and github.com/mge1512/sitar, read on
+  2026-11-05. Used for the statements about PCD's own artifacts in 4.3, 4.4
+  and section 7.
 
 ---
 
@@ -746,6 +752,15 @@ Four statements about PCD need the same care.
 
 ## Changelog
 
+- 2026.11.05.02 - Three corrections after a review against the
+  repositories. Section 6.1: the five-stage review runs on a document without
+  an implementation plan, and a single stage can be run alone; the earlier
+  text said that it expects both parts of the design template. Section 6.1:
+  a session can run a second EGM skill by reading its `SKILL.md`; the earlier
+  text said that EGM's skills cannot be called by another skill. Section 7:
+  the two implementations of the second tool come from two texts under one
+  version label; the earlier text counted them as one specification in two
+  languages. Section 8 lists the repository of that tool.
 - 2026.11.05.01 - Initial draft. Sources: the main branch of the
   `elephant-goldfish-model` repository at commit 0dfb5bf, the launch post on
   the Google Open Source Blog, and the project's website, issue tracker and
