@@ -5,7 +5,7 @@
 
 ## META
 Deployment:  template
-Version:     0.3.23
+Version:     0.3.24
 Spec-Schema: 0.3.20
 Author:      Matthias G. Eckermann <pcd@mailbox.org>
 License:     CC-BY-4.0
@@ -87,13 +87,16 @@ ListenAddress := string
 | BINARY-COUNT | 1 | required | One binary serves both transports, selected by invocation mode. |
 | CLI-ARG-STYLE | key=value | required | Consistent with pcd conventions. |
 | TRANSPORT-SELECTION | bare-word | required | Transport selected by bare word: `mcp-server-{n} stdio` or `mcp-server-{n} http` |
+| COMMAND-WORDS | declared-only | supported | First words other than a transport, permitted only when declared by the spec's BEHAVIOR/DEPLOYMENT sections. A command word runs one command and exits, for example one tool call from a shell. It selects no transport. The spec states the arguments, the output and the exit codes of each word. The message for an unknown first word lists the declared command words after the transports. Each word is documented in the README and the man page. |
 | LISTEN-DEFAULT | 127.0.0.1:8080 | default | Default bind address for streamable-http. Override: listen=host:port |
 | MCP-CAPABILITY | tools | required | All MCP servers must implement at least tools capability. |
 | MCP-CAPABILITY | resources | supported | Optional. Declare in spec BEHAVIOR sections if used. |
 | MCP-CAPABILITY | prompts | supported | Optional. Declare in spec BEHAVIOR sections if used. |
 | NETWORK-CALLS | context-dependent | supported | MCP servers exist to provide data — network calls are permitted and expected. Declare external dependencies in DEPLOYMENT section. |
-| CONFIG-ENV-VARS | forbidden | forbidden | Configuration via key=value arguments or preset files only. Not environment variables. |
-| ERROR-HANDLING | JSON-RPC 2.0 | required | All errors must be returned as JSON-RPC error responses, not panics. |
+| CONFIG-ENV-VARS | declared-only | supported | Environment variables as a further source of settings and credentials, next to key=value arguments and preset files. Permitted only when the spec's BEHAVIOR/DEPLOYMENT sections name each variable. An MCP host or a sandbox passes values to a server process through its environment. The list may include the conventional proxy and trust store variables of the platform (HTTPS_PROXY, NO_PROXY, SSL_CERT_FILE, SSL_CERT_DIR). Each named variable is documented in the README and the man page. |
+| CONFIG-ENV-VARS-OVERRIDE | required | required | Precedence for a setting that the spec also takes from an environment variable: key=value argument > environment variable > preset file > built-in default. |
+| ERROR-HANDLING | JSON-RPC 2.0 | required | All errors must be returned as JSON-RPC error responses, not panics. Exception: a tool execution error that the spec declares (see TOOL-EXECUTION-ERRORS). |
+| TOOL-EXECUTION-ERRORS | declared-only | supported | A failure of a tool's own execution (invalid input, a failure of an external service, a refusal by the tool's own rules) is returned as a tool result marked with `isError` when the spec declares it as a tool execution error, in the BEHAVIOR section of the tool or once for all tools. The MCP specification defines this form for tool execution errors, so that the language model can read the message and correct its call. Protocol errors (unknown tool, malformed request) and internal errors stay JSON-RPC error responses. |
 | SIGNAL-HANDLING | SIGTERM | required | Clean shutdown: drain in-flight requests, close connections, exit 0. |
 | SIGNAL-HANDLING | SIGINT | required | Same as SIGTERM. |
 | IDEMPOTENT-TOOLS | recommended | supported | Tools should be idempotent where possible. Document side effects in tool descriptions. |
@@ -278,7 +281,9 @@ STEPS:
 
 POSTCONDITIONS:
 - Server responds to all MCP protocol messages
-- Errors are returned as JSON-RPC error responses, never as panics
+- Errors are returned as JSON-RPC error responses, never as panics;
+  a declared tool execution error is returned as a tool result
+  (TOOL-EXECUTION-ERRORS)
 - On EOF from stdin: clean shutdown, exit 0
 - On SIGTERM/SIGINT: drain in-flight requests, exit 0
 
@@ -320,7 +325,9 @@ POSTCONDITIONS:
 - POST /mcp handles JSON-RPC 2.0 requests
 - GET /mcp streams Server-Sent Events for streaming responses
 - On SIGTERM/SIGINT: drain in-flight requests, close listener, exit 0
-- Errors returned as HTTP 4xx/5xx with JSON-RPC error body
+- Errors returned as HTTP 4xx/5xx with JSON-RPC error body;
+  a declared tool execution error is a tool result in an HTTP 200
+  response (TOOL-EXECUTION-ERRORS)
 
 ---
 
@@ -330,7 +337,8 @@ POSTCONDITIONS:
 - At least one MCP tool must be declared in the spec BEHAVIOR sections
 - All tool names must match ToolName type (lowercase, no spaces)
 - External service dependencies must be declared in DEPLOYMENT section
-- Server must not read configuration from environment variables
+- Server must not read configuration from environment variables other
+  than those that the spec names (CONFIG-ENV-VARS)
 
 ---
 
@@ -339,7 +347,8 @@ POSTCONDITIONS:
 - Binary serves both transports from the same binary
 - Transport selected by bare word argument (stdio | http)
 - All tools declared in spec BEHAVIOR sections are registered and callable
-- All errors are JSON-RPC 2.0 error responses
+- All errors are JSON-RPC 2.0 error responses, except the tool execution
+  errors that the spec declares (TOOL-EXECUTION-ERRORS)
 - Server handles concurrent tool calls safely (Go goroutines)
 - Systemd service units are included in RPM and DEB packaging
 
@@ -351,7 +360,9 @@ POSTCONDITIONS:
 - [observable]      tool names are lowercase and match ^[a-z][a-z0-9_-]*$
 - [observable]      all errors are JSON-RPC 2.0 formatted — no panics reach the client
 - [implementation]  CGO_ENABLED=0 for Go — static binary, no libc dependency
-- [observable]      configuration via key=value only — no environment variables
+- [observable]      configuration via key=value arguments and the environment
+  variables that the spec names; no other environment variable configures
+  the server
 - [observable]      TRANSLATION_REPORT.md documents the Go framework choice
 - [observable]      template version recorded in every audit bundle
 - [observable]  every generated artifact embeds the SHA256 of the spec
@@ -392,6 +403,16 @@ THEN:
   stderr = "error: unknown transport 'websocket'. Valid: stdio, http"
   exit_code = 2
 
+### EXAMPLE: unknown_first_word_with_command_words
+GIVEN:
+  spec DEPLOYMENT section declares the command words: query, execute
+  invocation: mcp-server-{n} websocket
+WHEN:
+  server starts
+THEN:
+  stderr = "error: unknown transport 'websocket'. Valid: stdio, http, query, execute"
+  exit_code = 2
+
 ### EXAMPLE: tool_error_handling
 GIVEN:
   invocation: mcp-server-{n} stdio
@@ -401,6 +422,20 @@ WHEN:
 THEN:
   server returns JSON-RPC error response (not a panic)
   stderr contains error log entry with timestamp
+  server continues running and accepts further requests
+
+### EXAMPLE: declared_tool_execution_error
+GIVEN:
+  spec BEHAVIOR for the tool "greet" declares an empty name as a
+  tool execution error
+  invocation: mcp-server-{n} stdio
+  MCP host sends: {"method": "tools/call", "params": {"name": "greet", "arguments": {"name": ""}}}
+WHEN:
+  server processes the tool call
+THEN:
+  server responds with a JSON-RPC result; the tool result in it has
+  isError = true and a text that states the error
+  server sends no JSON-RPC error response for this call
   server continues running and accepts further requests
 
 ### EXAMPLE: graceful_shutdown_http
@@ -413,6 +448,31 @@ THEN:
   server stops accepting new connections
   in-flight requests complete (up to 30 second drain timeout)
   server exits 0
+
+### EXAMPLE: http_bind_error (of: http-transport)
+GIVEN:
+  another process already listens on 127.0.0.1:9000
+  invocation: mcp-server-{n} http listen=127.0.0.1:9000
+WHEN:
+  http-transport binds the listener
+THEN:
+  stderr contains a diagnostic for the bind error
+  exit_code = 1
+
+### EXAMPLE: setting_from_declared_environment_variable
+GIVEN:
+  spec DEPLOYMENT section names the environment variable EXAMPLE_REGION
+  for the option region, and no other variable
+  environment of the server process: EXAMPLE_REGION=eu, EXAMPLE_ZONE=b
+WHEN:
+  server is started with: mcp-server-{n} stdio
+THEN:
+  the option region has the value "eu"
+  EXAMPLE_ZONE has no effect on the server
+WHEN:
+  server is started with: mcp-server-{n} stdio region=us
+THEN:
+  the option region has the value "us"
 
 ### EXAMPLE: framework_mcp_go_default
 GIVEN:
@@ -568,6 +628,8 @@ Proceed immediately to Phase 7.
 
 Both stdio and http transports must be implemented in the same binary.
 Transport selection is by bare-word argument only (`stdio` | `http`).
+A command word that the spec declares (COMMAND-WORDS) selects no
+transport: it runs one command and exits.
 The default listen address for http is `127.0.0.1:8080`.
 Override via `listen=host:port` key=value argument.
 
@@ -593,8 +655,15 @@ Transport selection (bare word, first argument):
   stdio    stdin/stdout JSON-RPC 2.0
   http     Streamable HTTP on listen address
 
+Command words (optional; only those that the spec declares, see COMMAND-WORDS):
+  {word}   runs one command and exits; selects no transport
+
 Key=value options:
   listen=host:port    HTTP listen address (default: 127.0.0.1:8080)
+
+Environment variables (optional; only those that the spec names, see CONFIG-ENV-VARS):
+  {NAME}   a setting or a credential
+  Precedence for such a setting: key=value argument > environment variable > preset file > built-in default
 
 Output streams:
   stdout: JSON-RPC 2.0 protocol messages (stdio transport)

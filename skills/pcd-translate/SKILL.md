@@ -2,7 +2,7 @@
 name: pcd-translate
 description: Turning a PCD specification into code, tests, findings or a verdict, from pre-sliced per-behavior bundles. Use whenever a session translates, re-translates or continues translating any *.spec.md in a PCD repository; writes the independent test suite for one; reviews generated code against its specification, functionally or for security; or decides between two translations of the same specification. Verifies the bundles before any work and governs which files the session may read. Do NOT use for writing, changing or reviewing a specification itself; that is pcd-spec.
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
   spec-schema: "0.4.0"
   pcd-lint-min: "0.4.0"
   pcd-slice-min: "0.1.1"
