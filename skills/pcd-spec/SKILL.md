@@ -2,7 +2,7 @@
 name: pcd-spec
 description: Writing and changing PCD specifications (*.spec.md). Use whenever a session writes a new specification from an interview or from existing notes; derives one from existing source code; changes one BEHAVIOR, TYPE, INTERFACE or INVARIANT of an existing specification; designs or revises MILESTONE sections; or reviews a specification before it is translated. Produces specification text, the Version move, the CHANGELOG.md entry beside the specification and the pull-request body. Do NOT use for turning a specification into code, tests, implementation findings or a verdict between implementations; that is pcd-translate.
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
   spec-schema: "0.4.0"
   pcd-lint-min: "0.4.0"
   pcd-slice-min: "0.1.1"
