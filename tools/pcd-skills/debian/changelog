@@ -1,3 +1,10 @@
+pcd-skills (0.5.2-1) unstable; urgency=low
+
+  * mcp-go hints at library v1.6.0, with the rule for the vendor tarball;
+    pcd-translate at 0.3.2.
+
+ -- Matthias G. Eckermann <pcd@mailbox.org>  Wed, 25 Nov 2026 08:00:00 +0100
+
 pcd-skills (0.5.1-1) unstable; urgency=low
 
   * mcp-server template 0.3.24 in both skills; pcd-spec and pcd-translate
