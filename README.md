@@ -216,7 +216,7 @@ CC-BY-4.0 on specifications and templates means anyone may implement the paradig
 
 ## Status
 
-Current version: **0.5.2** (draft)
+Current version: **0.5.3** (draft)
 
 Active development. Specification format, deployment templates, and tooling are stabilising toward v1.0. Feedback and contributions welcome.
 

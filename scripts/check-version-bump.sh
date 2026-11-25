@@ -6,7 +6,8 @@
 #   sh scripts/check-version-bump.sh [BASE]     (default: HEAD)
 #
 # Compares the working tree with BASE. A file counts as versioned when one
-# of its first 40 lines is a Version: field. Checked: *.md under templates/,
+# of its first 40 lines is a Version: field; the label of a hints file is
+# its Version: and, when present, its Release: field. Checked: *.md under templates/,
 # hints/, examples/ and tools/*/spec/, which covers specs, hints and pinned
 # copies, and skills/*/SKILL.md, whose label is the version: key under
 # metadata: in the front matter. A skill is published as one directory
@@ -43,10 +44,20 @@ skillver() {
              sub(/^[ ]+version:[ ]*/, ""); gsub(/^["'\'']|["'\'']$/, ""); print; exit }'
 }
 
+# Label of a hints file: its Version: field, and its Release: field when
+# it has one. The Version: of a library hints file is the version of the
+# library; Release: counts the changes of the file under that version.
+hintsver() {
+    awk 'NR > 40 { exit }
+         v == "" && /^[#* ]*Version:/ { sub(/^[#* ]*Version:[* ]*/, ""); sub(/[[:space:]]+$/, ""); v = $0 }
+         r == "" && /^[#* ]*Release:/ { sub(/^[#* ]*Release:[* ]*/, ""); sub(/[[:space:]]+$/, ""); r = $0 }
+         END { if (v != "") { if (r != "") print v "-" r; else print v } }'
+}
 # Label of path $1 read from stdin, by file kind.
 label() {
     case $1 in
         skills/*/SKILL.md) skillver ;;
+        hints/*.md) hintsver ;;
         *) ver ;;
     esac
 }
