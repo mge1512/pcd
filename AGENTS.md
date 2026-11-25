@@ -96,7 +96,7 @@ guidance lives there.
 
 **Hints files** (in [`hints/`](hints/)) capture conventions specific to
 one library, one language, or one project. The `mcp-server.go.mcp-go`
-hints file records the verified `mcp-go` v0.46.0 API shapes. A project's
+hints file records the verified `mcp-go` v1.6.0 API shapes. A project's
 `style.hints.md` records its naming conventions. Per-library and
 per-project guidance lives there.
 

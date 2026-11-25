@@ -1,5 +1,5 @@
 Name:           pcd-skills
-Version:        0.5.1
+Version:        0.5.2
 Release:        1
 Summary:        Agent skills for the Post-Coding Development
 BuildArch:      noarch
@@ -56,6 +56,9 @@ done
 %{_datadir}/pcd/skills/
 
 %changelog
+* Wed Nov 25 2026 Matthias G. Eckermann <pcd@mailbox.org> - 0.5.2-1
+- mcp-go hints at library v1.6.0, with the rule for the vendor tarball;
+  pcd-translate at 0.3.2
 * Tue Nov 24 2026 Matthias G. Eckermann <pcd@mailbox.org> - 0.5.1-1
 - mcp-server template 0.3.24 in both skills; pcd-spec and pcd-translate
   at 0.3.1

@@ -1,9 +1,9 @@
 # PCD Technical Reference
 
 **Status:** Draft
-**Version:** 0.5.0
+**Version:** 0.5.2
 **Author:** Matthias G. Eckermann <pcd@mailbox.org>
-**Date:** 2026-11-04
+**Date:** 2026-11-25
 **License:** CC-BY-4.0
 
 This document explains the architectural and process decisions behind the
@@ -251,7 +251,7 @@ are specific to one component type but not to a particular language.
 `<template>.<language>.<library>.hints.md` — library API shapes and known
 gotchas for a specific library in a specific language and template context.
 The `mcp-server.go.mcp-go.hints.md` file is the canonical example: it documents
-the verified `mcp-go` v0.46.0 API shapes, the correct function to use for
+the verified `mcp-go` v1.6.0 API shapes, the correct function to use for
 streamable HTTP servers (`NewStreamableHTTPServer`, not `NewSSEServer`), and
 the correct error return pattern (`NewToolResultError` for domain errors, not
 Go error returns). Without this file, translators fabricate API calls that

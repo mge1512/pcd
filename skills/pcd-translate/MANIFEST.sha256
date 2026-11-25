@@ -1,4 +1,4 @@
-582ba0ac76f667cfebd8af4454824ba74b419de15805b9534695b502022accf6  SKILL.md
+c8078b3deefb38b87dc586907b8a271a0c20b6dcc149a3cdf68fc7bcd4ffaea0  SKILL.md
 141b4123006de73ca010b7a7c63646ef541bc141d5326fb18aae99e13f4de90e  SOURCES
 98f8a712242c4c8d0f7fc0f42675953f4ada0e4ad90238a2af5517d60c947137  hints/abap-report.abap.milestones.hints.md
 50d22b80795942cc408a0d8dfe08733909196a6650a1553bcb0f262aefee470f  hints/abap-report.abap.style.hints.md
@@ -8,7 +8,7 @@ fe73f2ab89be21a0fd0eb37a818e586b68a338a8392a8f14725c611a2d33b249  hints/cli-tool
 cc4554c258526ab50f05173f9e35f5e125b30f93c78e0a345084ddae8608f875  hints/cloud-native.go.go-libvirt.hints.md
 a6ba79d7b6731f12181a3104935aa901db54d0eb7cc096501b9ad7d51aab3c5e  hints/cloud-native.go.golang-crypto-ssh.hints.md
 73eb7939a2473f3c670487f0f4da73ccede335926a33b5b509a32b1407be9c94  hints/kubectl-style-cli.go.milestones.hints.md
-3bcd5bb41d5c33057fe7bf9b21f0baf055755892691b057fdf0078b15ac20c82  hints/mcp-server.go.mcp-go.hints.md
+f873012218200cddc8a96b42e2db95cffc8213195f590f28b83bec924d8ea0a3  hints/mcp-server.go.mcp-go.hints.md
 4d5f81cf0685fcef70be11ec5b405d93dd149b5b290e2bbf901dcd77a533d952  hints/python-tool.hints.md
 b290f7e2c1f7fdab50363240c1a85354172923760184036c39f5cb099c27185e  modes/review-procedure.md
 2c65b9bd93a22b3dc8847c308a43592ee120befd96a5610d8d3e5d3be4325d94  modes/review.md
