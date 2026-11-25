@@ -4,6 +4,11 @@ Template:  mcp-server
 Language:  Go
 Library:   github.com/mark3labs/mcp-go
 Version:   v1.6.0
+Release:   1
+
+`Version` is the version of the library. `Release` counts the changes of
+this file since `Version` was last set; a new library version removes the
+line.
 
 ---
 
@@ -195,7 +200,7 @@ vendor-tarball: vendor
 	tar -cJf $(BINARY)-$(VERSION)-vendor.tar.xz vendor/
 
 clean:
-	rm -rf $(STORE) $(BINARY)
+	rm -rf $(STORE) $(BINARY) vendor
 ```
 
 A `test` target depends on `vendor` in the same way.
@@ -247,6 +252,33 @@ are not in the source tarball — they are created during the build.
 `%check` section calls `go test -mod=vendor` in the same way and not
 `make test`. The `vendor` rule of the Makefile compares file times, and a
 package build has no network: it must never start `go mod vendor`.
+
+---
+
+## Debian package — vendoring
+
+The Debian source package carries the vendor tarball as a component
+tarball. Its file name is the Debian form of the same tarball:
+
+```
+<source>_<version>.orig-vendor.tar.xz
+```
+
+Make it from the tarball of `make vendor-tarball` by a copy with that
+name; the content stays the same. The source package uses the format
+`3.0 (quilt)`, so the deliverables have one more file:
+
+```
+debian/source/format:  3.0 (quilt)
+```
+
+dpkg-source unpacks a component tarball `orig-vendor` into `vendor/` of
+the source tree. A tarball with the single top directory `vendor/`
+gives the same tree. `debian/rules` then builds with `-mod=vendor`, as
+`%build` of the RPM spec does, and never runs `go mod vendor`.
+
+Wrong: `debian/rules` with `GOFLAGS = -mod=vendor` and no component
+tarball. The build tree has no `vendor/`, and the build fails.
 
 ---
 
@@ -439,3 +471,28 @@ httpServer.Shutdown(shutdownCtx)
   Do no network request in a filter. To change the tool list of one
   request, use `hooks.AddAfterListTools` with `server.WithHooks`: it
   runs for `tools/list` only.
+
+- `server.WithRecovery()` turns a panic in a tool handler into a Go error,
+  so the client gets a JSON-RPC error. It writes nothing to standard
+  error. When the template asks for an error log entry, recover in the
+  handler and write the line there:
+
+  ```go
+  func guarded(h server.ToolHandlerFunc) server.ToolHandlerFunc {
+      return func(ctx context.Context, req mcp.CallToolRequest) (res *mcp.CallToolResult, err error) {
+          defer func() {
+              if p := recover(); p != nil {
+                  fmt.Fprintf(os.Stderr, "%s internal error: tool %s: %v\n",
+                      time.Now().UTC().Format(time.RFC3339), req.Params.Name, p)
+                  res, err = nil, errors.New("internal error of the server")
+              }
+          }()
+          return h(ctx, req)
+      }
+  }
+  ```
+
+- The Go package `regexp` refuses a repeat count above 1000.
+  `regexp.MustCompile("^[!-~]{1,4096}$")` panics when the program starts,
+  with `invalid repeat count`. Check such a length with `len` and the
+  characters with a pattern without a count, for example `^[!-~]+$`.

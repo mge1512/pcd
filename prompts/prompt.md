@@ -814,7 +814,12 @@ Embed the result in every generated artifact as follows:
 - **Test files under `independent_tests/<llm-name>/`:** the same comment;
   include the LLM name as well: `// tests by: <llm-name>`
 - **`TRANSLATION_REPORT.md` and `TEST_REPORT.md`:** a `Spec-SHA256:` field
-  in the header block
+  in the header block. Write it as a plain line of its own:
+  `Spec-SHA256:`, a space and the 64 lower-case hex digits of the merged
+  hash, for example `Spec-SHA256: 9f8c...`. It is not a table row and
+  not a list item, and the hash has no backticks. `pcd-lint
+  check-report=true` looks for exactly this line (RULE-18). The labelled
+  provenance lines of the report come in addition to it.
 - **Binary version output:** include `spec:<hash>` in the version subcommand output
 - **RPM `.spec` file:** a `# pcd-spec-sha256: <hash>` comment
 - **DEB `control` file:** a `X-PCD-Spec-SHA256: <hash>` field
