@@ -257,7 +257,7 @@ package build has no network: it must never start `go mod vendor`.
 
 ## Debian package — vendoring
 
-The Debian source package carries the vendor tarball as a component
+The Debian source package has the vendor tarball as a component
 tarball. Its file name is the Debian form of the same tarball:
 
 ```
